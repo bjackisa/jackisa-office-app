@@ -62,20 +62,44 @@ export async function POST(request: Request) {
       return new NextResponse(`Company creation failed: ${companyErr.message}`, { status: 400 })
     }
 
-    // Create employee record (admin)
+    // Create default Admin role for the company
+    const { data: role, error: roleErr } = await supabaseAdmin
+      .from('company_roles')
+      .insert({
+        company_id: company.id,
+        name: 'Admin',
+        description: 'Company administrator with full access',
+        is_default: true,
+      })
+      .select()
+      .single()
+
+    if (roleErr) {
+      return new NextResponse(`Role creation failed: ${roleErr.message}`, { status: 400 })
+    }
+
+    // Create employee record (admin) in company_employees
     const { error: employeeErr } = await supabaseAdmin
-      .from('employees')
+      .from('company_employees')
       .insert({
         user_id: authedUser.id,
         company_id: company.id,
-        employee_number: `EMP-${Date.now()}`,
-        hire_date: new Date().toISOString().split('T')[0],
+        company_role_id: role.id,
+        employee_id_number: `EMP-001`,
+        department: 'Management',
+        position: 'Administrator',
         status: 'active',
+        joined_at: new Date().toISOString(),
       })
 
     if (employeeErr) {
       return new NextResponse(`Employee creation failed: ${employeeErr.message}`, { status: 400 })
     }
+
+    // Set active company for the user
+    await supabaseAdmin
+      .from('user_active_company')
+      .upsert({ user_id: authedUser.id, company_id: company.id }, { onConflict: 'user_id' })
 
     return NextResponse.json({ ok: true, companyId: company.id })
   } catch (err: any) {

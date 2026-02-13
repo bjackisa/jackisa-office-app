@@ -14,6 +14,7 @@ export default function LoginPage() {
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [info, setInfo] = useState<string | null>(null)
   const [checkingAuth, setCheckingAuth] = useState(true)
 
   useEffect(() => {
@@ -75,7 +76,8 @@ export default function LoginPage() {
         setError(error.message)
         return
       }
-      alert('Verification email sent. Please check your inbox. After verifying, return here to sign in.')
+      setError(null)
+      setInfo('Verification email sent. Please check your inbox. After verifying, return here to sign in.')
     } catch (e) {
       setError('Failed to resend verification email')
     }
@@ -99,6 +101,11 @@ export default function LoginPage() {
 
         {/* Login Card */}
         <div className="bg-card rounded-lg shadow-lg border border-border p-8">
+          {info && (
+            <div className="mb-6 rounded-lg border border-border bg-primary/10 p-4 text-foreground">
+              <p className="text-sm">{info}</p>
+            </div>
+          )}
           {error && (
             <div className="mb-6 flex items-gap-3 rounded-lg bg-destructive/10 p-4 text-destructive">
               <AlertCircle className="w-5 h-5 flex-shrink-0 mt-0.5" />
