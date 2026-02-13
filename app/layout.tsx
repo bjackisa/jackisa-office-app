@@ -1,13 +1,6 @@
 import type { Metadata, Viewport } from 'next'
-import { Segoe_UI } from 'next/font/google'
 
 import './globals.css'
-
-const segoe = Segoe_UI({ 
-  subsets: ['latin'],
-  variable: '--font-segoe',
-  weight: ['400', '500', '600', '700']
-})
 
 export const metadata: Metadata = {
   title: 'Jackisa Office - Corporate Management Suite',
@@ -43,7 +36,7 @@ export default function RootLayout({
   children: React.ReactNode
 }>) {
   return (
-    <html lang="en" className={segoe.variable}>
+    <html lang="en" className="segoe-font">
       <body className="font-sans antialiased bg-background text-foreground">
         {children}
       </body>
