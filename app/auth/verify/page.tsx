@@ -1,12 +1,14 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { Suspense, useEffect, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { Button } from '@/components/ui/button'
 import { Spinner } from '@/components/ui/spinner'
 
-export default function VerifyPage() {
+export const dynamic = 'force-dynamic'
+
+function VerifyInner() {
   const router = useRouter()
   const params = useSearchParams()
   const [status, setStatus] = useState<'verifying' | 'ready' | 'error' | 'completing' | 'done'>('verifying')
@@ -82,9 +84,7 @@ export default function VerifyPage() {
             <p className="text-foreground">{message}</p>
           </div>
         )}
-        {(status === 'ready' || status === 'done') && (
-          <p className="text-foreground">{message}</p>
-        )}
+        {(status === 'ready' || status === 'done') && <p className="text-foreground">{message}</p>}
         {status === 'error' && (
           <div>
             <p className="text-destructive mb-4">{message}</p>
@@ -93,5 +93,24 @@ export default function VerifyPage() {
         )}
       </div>
     </div>
+  )
+}
+
+export default function VerifyPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen flex items-center justify-center bg-background">
+          <div className="bg-card border border-border rounded-lg p-8 w-full max-w-md text-center">
+            <div className="flex items-center justify-center gap-3">
+              <Spinner />
+              <p className="text-foreground">Preparing verification...</p>
+            </div>
+          </div>
+        </div>
+      }
+    >
+      <VerifyInner />
+    </Suspense>
   )
 }

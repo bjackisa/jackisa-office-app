@@ -10,7 +10,7 @@ const inter = Inter({
 })
 
 export const metadata: Metadata = {
-  title: 'Jackisa Office - Corporate Management Suite',
+  title: 'Jackisa Offic',
   description: 'Professional office management tool for companies. Manage employees, accounting, HR, payroll, and more with Jackisa Office.',
   keywords: ['office management', 'HR', 'accounting', 'payroll', 'corporate', 'business'],
   generator: 'Jackisa Office',
@@ -22,7 +22,7 @@ export const metadata: Metadata = {
   openGraph: {
     type: 'website',
     locale: 'en_US',
-    url: 'https://jackisaoffice.com',
+    url: 'https://office.jackisa.com',
     siteName: 'Jackisa Office',
   },
 }
