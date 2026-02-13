@@ -10,7 +10,7 @@ const inter = Inter({
 })
 
 export const metadata: Metadata = {
-  title: 'Jackisa Offic',
+  title: 'Jackisa Office',
   description: 'Professional office management tool for companies. Manage employees, accounting, HR, payroll, and more with Jackisa Office.',
   keywords: ['office management', 'HR', 'accounting', 'payroll', 'corporate', 'business'],
   generator: 'Jackisa Office',

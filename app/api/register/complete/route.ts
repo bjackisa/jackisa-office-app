@@ -29,7 +29,24 @@ export async function POST(request: Request) {
       return new NextResponse('Missing registration payload', { status: 400 })
     }
 
-    // Create company
+    // Ensure user profile exists FIRST to satisfy FK on companies.created_by
+    const { error: userProfileErr } = await supabaseAdmin
+      .from('users')
+      .upsert(
+        {
+          id: authedUser.id,
+          email,
+          full_name: fullName,
+          role: 'company_admin',
+        },
+        { onConflict: 'id' }
+      )
+
+    if (userProfileErr) {
+      return new NextResponse(`User profile creation failed: ${userProfileErr.message}`, { status: 400 })
+    }
+
+    // Create company AFTER user profile to pass FK
     const { data: company, error: companyErr } = await supabaseAdmin
       .from('companies')
       .insert({
@@ -43,20 +60,6 @@ export async function POST(request: Request) {
 
     if (companyErr) {
       return new NextResponse(`Company creation failed: ${companyErr.message}`, { status: 400 })
-    }
-
-    // Create user profile
-    const { error: userProfileErr } = await supabaseAdmin
-      .from('users')
-      .insert({
-        id: authedUser.id,
-        email,
-        full_name: fullName,
-        role: 'company_admin',
-      })
-
-    if (userProfileErr) {
-      return new NextResponse(`User profile creation failed: ${userProfileErr.message}`, { status: 400 })
     }
 
     // Create employee record (admin)

@@ -13,6 +13,7 @@ export default function RegisterPage() {
   const [step, setStep] = useState<'company' | 'account'>('company')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [info, setInfo] = useState<string | null>(null)
 
   // Company Form State
   const [companyName, setCompanyName] = useState('')
@@ -98,8 +99,8 @@ export default function RegisterPage() {
         localStorage.setItem('pendingRegistration', JSON.stringify(pending))
       } catch {}
 
-      // Show success message
-      alert('Registration almost done! Please check your email to verify your account, then return to complete setup.')
+      // Show success info (UI banner) and navigate to verify page
+      setInfo('Registration almost done! Please check your email to verify your account, then return to complete setup.')
       router.push('/auth/verify')
     } catch (err) {
       setError('An unexpected error occurred')
@@ -123,6 +124,11 @@ export default function RegisterPage() {
 
         {/* Register Card */}
         <div className="bg-card rounded-lg shadow-lg border border-border p-8">
+          {info && (
+            <div className="mb-6 rounded-lg border border-border bg-primary/10 p-4 text-foreground">
+              <p className="text-sm">{info}</p>
+            </div>
+          )}
           {error && (
             <div className="mb-6 flex items-gap-3 rounded-lg bg-destructive/10 p-4 text-destructive">
               <AlertCircle className="w-5 h-5 flex-shrink-0 mt-0.5" />
