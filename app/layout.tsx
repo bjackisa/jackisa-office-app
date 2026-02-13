@@ -1,6 +1,13 @@
 import type { Metadata, Viewport } from 'next'
+import { Inter } from 'next/font/google'
 
 import './globals.css'
+
+const inter = Inter({
+  subsets: ['latin'],
+  variable: '--font-inter',
+  display: 'swap',
+})
 
 export const metadata: Metadata = {
   title: 'Jackisa Office - Corporate Management Suite',
@@ -36,7 +43,7 @@ export default function RootLayout({
   children: React.ReactNode
 }>) {
   return (
-    <html lang="en" className="segoe-font">
+    <html lang="en" className={`${inter.variable} segoe-font`}>
       <body className="font-sans antialiased bg-background text-foreground">
         {children}
       </body>

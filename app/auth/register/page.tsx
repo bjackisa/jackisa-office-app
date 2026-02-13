@@ -31,6 +31,14 @@ export default function RegisterPage() {
       setError('Please fill in all fields')
       return
     }
+    try {
+      const pending = {
+        companyName,
+        companyEmail,
+        industry,
+      }
+      localStorage.setItem('pendingRegistration', JSON.stringify(pending))
+    } catch {}
     setStep('account')
   }
 
@@ -56,11 +64,12 @@ export default function RegisterPage() {
         return
       }
 
-      // Create Auth User
+      // Create Auth User (send confirmation email back to /auth/verify)
       const { data: authData, error: signUpError } = await supabase.auth.signUp({
         email,
         password,
         options: {
+          emailRedirectTo: `${window.location.origin}/auth/verify`,
           data: {
             full_name: fullName,
           },
@@ -77,52 +86,21 @@ export default function RegisterPage() {
         return
       }
 
-      // Create Company
-      const { data: companyData, error: companyError } = await supabase
-        .from('companies')
-        .insert({
-          name: companyName,
-          email: companyEmail,
-          industry,
-          created_by: authData.user.id,
-        })
-        .select()
-        .single()
-
-      if (companyError) {
-        setError('Failed to create company')
-        return
-      }
-
-      // Create User Record
-      const { error: userError } = await supabase
-        .from('users')
-        .insert({
-          id: authData.user.id,
+      // Persist pending account details for completion after email verification
+      try {
+        const existing = localStorage.getItem('pendingRegistration')
+        const base = existing ? JSON.parse(existing) : {}
+        const pending = {
+          ...base,
+          fullName,
           email,
-          full_name: fullName,
-          role: 'company_admin',
-        })
-
-      if (userError) {
-        setError('Failed to create user record')
-        return
-      }
-
-      // Create Company Admin Employee Record
-      await supabase
-        .from('employees')
-        .insert({
-          user_id: authData.user.id,
-          company_id: companyData.id,
-          employee_number: `EMP-${Date.now()}`,
-          hire_date: new Date().toISOString().split('T')[0],
-          status: 'active',
-        })
+        }
+        localStorage.setItem('pendingRegistration', JSON.stringify(pending))
+      } catch {}
 
       // Show success message
-      alert('Registration successful! Please check your email to verify your account.')
-      router.push('/auth/login')
+      alert('Registration almost done! Please check your email to verify your account, then return to complete setup.')
+      router.push('/auth/verify')
     } catch (err) {
       setError('An unexpected error occurred')
       console.error(err)

@@ -33,13 +33,25 @@ export default function LoginPage() {
     setLoading(true)
 
     try {
+      if (!email || !password) {
+        setError('Please enter your email and password')
+        return
+      }
       const { error: authError } = await supabase.auth.signInWithPassword({
         email,
         password,
       })
 
       if (authError) {
-        setError(authError.message)
+        const msg = authError.message || 'Login failed'
+        // Normalize common cases
+        if (/confirm|verified|confirm your email/i.test(msg)) {
+          setError('Email not confirmed. Please verify your email to continue.')
+        } else if (/invalid login credentials/i.test(msg)) {
+          setError('Invalid email or password')
+        } else {
+          setError(msg)
+        }
         return
       }
 
@@ -49,6 +61,23 @@ export default function LoginPage() {
       console.error(err)
     } finally {
       setLoading(false)
+    }
+  }
+
+  const handleResend = async () => {
+    try {
+      if (!email) {
+        setError('Enter your email to resend verification')
+        return
+      }
+      const { error } = await supabase.auth.resend({ type: 'signup', email })
+      if (error) {
+        setError(error.message)
+        return
+      }
+      alert('Verification email sent. Please check your inbox. After verifying, return here to sign in.')
+    } catch (e) {
+      setError('Failed to resend verification email')
     }
   }
 

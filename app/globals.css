@@ -30,6 +30,7 @@ body {
     /* Primary: Modern Blue (Windows 11 accent) */
     --primary: 217 92% 45%;
     --primary-foreground: 0 0% 100%;
+
     
     /* Secondary: Light Gray (Windows 11 background) */
     --secondary: 220 13% 94%;
