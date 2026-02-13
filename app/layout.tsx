@@ -1,15 +1,40 @@
-import type { Metadata } from 'next'
-import { Geist, Geist_Mono } from 'next/font/google'
+import type { Metadata, Viewport } from 'next'
+import { Segoe_UI } from 'next/font/google'
 
 import './globals.css'
 
-const _geist = Geist({ subsets: ['latin'] })
-const _geistMono = Geist_Mono({ subsets: ['latin'] })
+const segoe = Segoe_UI({ 
+  subsets: ['latin'],
+  variable: '--font-segoe',
+  weight: ['400', '500', '600', '700']
+})
 
 export const metadata: Metadata = {
-  title: 'v0 App',
-  description: 'Created with v0',
-  generator: 'v0.app',
+  title: 'Jackisa Office - Corporate Management Suite',
+  description: 'Professional office management tool for companies. Manage employees, accounting, HR, payroll, and more with Jackisa Office.',
+  keywords: ['office management', 'HR', 'accounting', 'payroll', 'corporate', 'business'],
+  generator: 'Jackisa Office',
+  viewport: 'width=device-width, initial-scale=1',
+  authors: [{ name: 'Jackisa Office' }],
+  icons: {
+    icon: '/favicon.ico',
+  },
+  openGraph: {
+    type: 'website',
+    locale: 'en_US',
+    url: 'https://jackisaoffice.com',
+    siteName: 'Jackisa Office',
+  },
+}
+
+export const viewport: Viewport = {
+  themeColor: [
+    { media: '(prefers-color-scheme: light)', color: '#0D5BA3' },
+    { media: '(prefers-color-scheme: dark)', color: '#5C9FD8' }
+  ],
+  width: 'device-width',
+  initialScale: 1,
+  maximumScale: 5,
 }
 
 export default function RootLayout({
@@ -18,8 +43,10 @@ export default function RootLayout({
   children: React.ReactNode
 }>) {
   return (
-    <html lang="en">
-      <body className="font-sans antialiased">{children}</body>
+    <html lang="en" className={segoe.variable}>
+      <body className="font-sans antialiased bg-background text-foreground">
+        {children}
+      </body>
     </html>
   )
 }
