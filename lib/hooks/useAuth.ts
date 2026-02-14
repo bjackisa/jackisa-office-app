@@ -29,7 +29,8 @@ export function useAuth() {
     try {
       const { data: { session } } = await supabase.auth.getSession()
       if (!session) {
-        router.push('/auth/login')
+        router.replace('/auth/login')
+        setState(prev => ({ ...prev, loading: false }))
         return
       }
 
@@ -40,7 +41,8 @@ export function useAuth() {
         .single()
 
       if (!userData) {
-        router.push('/auth/login')
+        router.replace('/auth/verify?mode=complete-profile')
+        setState(prev => ({ ...prev, loading: false }))
         return
       }
 

@@ -21,7 +21,17 @@ export default function LoginPage() {
     const checkSession = async () => {
       const { data: { session } } = await supabase.auth.getSession()
       if (session) {
-        router.push('/app')
+        const { data: profile } = await supabase
+          .from('users')
+          .select('id')
+          .eq('id', session.user.id)
+          .maybeSingle()
+
+        if (profile) {
+          router.replace('/app')
+        } else {
+          router.replace('/auth/verify?mode=complete-profile')
+        }
       }
       setCheckingAuth(false)
     }
