@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
@@ -17,26 +17,58 @@ export default function LoginPage() {
   const [info, setInfo] = useState<string | null>(null)
   const [checkingAuth, setCheckingAuth] = useState(true)
 
+  const redirectAfterAuth = useCallback(async () => {
+    const { data: { user }, error } = await supabase.auth.getUser()
+
+    if (error || !user) {
+      setCheckingAuth(false)
+      return
+    }
+
+    const { data: profile } = await supabase
+      .from('users')
+      .select('id')
+      .eq('id', user.id)
+      .maybeSingle()
+
+    if (!profile) {
+      const fallbackName = user.user_metadata?.full_name || user.email?.split('@')[0] || 'User'
+      await supabase
+        .from('users')
+        .upsert(
+          { id: user.id, email: user.email || '', full_name: fallbackName, role: 'company_admin' },
+          { onConflict: 'id' }
+        )
+    }
+
+    const { data: employee } = await supabase
+      .from('company_employees')
+      .select('id')
+      .eq('user_id', user.id)
+      .eq('status', 'active')
+      .maybeSingle()
+
+    router.replace(employee ? '/app' : '/auth/verify?mode=complete-profile')
+  }, [router])
+
   useEffect(() => {
     const checkSession = async () => {
-      const { data: { session } } = await supabase.auth.getSession()
-      if (session) {
-        const { data: profile } = await supabase
-          .from('users')
-          .select('id')
-          .eq('id', session.user.id)
-          .maybeSingle()
-
-        if (profile) {
-          router.replace('/app')
-        } else {
-          router.replace('/auth/verify?mode=complete-profile')
-        }
-      }
+      await redirectAfterAuth()
       setCheckingAuth(false)
     }
+
     checkSession()
-  }, [router])
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((event) => {
+      if (event === 'SIGNED_IN') {
+        redirectAfterAuth()
+      }
+    })
+
+    return () => subscription.unsubscribe()
+  }, [redirectAfterAuth])
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -49,7 +81,7 @@ export default function LoginPage() {
         return
       }
       const { error: authError } = await supabase.auth.signInWithPassword({
-        email,
+        email: email.trim().toLowerCase(),
         password,
       })
 
@@ -66,7 +98,7 @@ export default function LoginPage() {
         return
       }
 
-      router.push('/app')
+      await redirectAfterAuth()
     } catch (err) {
       setError('An unexpected error occurred')
       console.error(err)
