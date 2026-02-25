@@ -27,30 +27,43 @@ export function useAuth() {
 
   const loadAuth = useCallback(async () => {
     try {
-      const { data: { session } } = await supabase.auth.getSession()
-      if (!session) {
+      const { data: { user: authUser }, error: authError } = await supabase.auth.getUser()
+      if (authError || !authUser) {
         router.replace('/auth/login')
         setState(prev => ({ ...prev, loading: false }))
         return
       }
 
-      const { data: userData } = await supabase
+      let { data: userData } = await supabase
         .from('users')
         .select('*')
-        .eq('id', session.user.id)
-        .single()
+        .eq('id', authUser.id)
+        .maybeSingle()
 
       if (!userData) {
-        router.replace('/auth/verify?mode=complete-profile')
-        setState(prev => ({ ...prev, loading: false }))
-        return
+        const fallbackName = authUser.user_metadata?.full_name || authUser.email?.split('@')[0] || 'User'
+        const { data: createdUser } = await supabase
+          .from('users')
+          .upsert(
+            {
+              id: authUser.id,
+              email: authUser.email || '',
+              full_name: fallbackName,
+              role: 'company_admin',
+            },
+            { onConflict: 'id' }
+          )
+          .select('*')
+          .single()
+
+        userData = createdUser
       }
 
       // Get all companies user belongs to
       const { data: employeeRecords } = await supabase
         .from('company_employees')
         .select('company_id, companies(id, name, logo_url)')
-        .eq('user_id', session.user.id)
+        .eq('user_id', authUser.id)
         .eq('status', 'active')
 
       const companies = (employeeRecords || []).map((e: any) => ({
@@ -64,7 +77,7 @@ export function useAuth() {
       const { data: activeCompanyData } = await supabase
         .from('user_active_company')
         .select('company_id')
-        .eq('user_id', session.user.id)
+        .eq('user_id', authUser.id)
         .single()
 
       if (activeCompanyData) {
@@ -89,7 +102,7 @@ export function useAuth() {
         const { data: empData } = await supabase
           .from('company_employees')
           .select('*, company_roles(*)')
-          .eq('user_id', session.user.id)
+          .eq('user_id', authUser.id)
           .eq('company_id', activeCompanyId)
           .single()
 
@@ -115,7 +128,28 @@ export function useAuth() {
 
   useEffect(() => {
     loadAuth()
-  }, [loadAuth])
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((event) => {
+      if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'USER_UPDATED') {
+        loadAuth()
+      }
+      if (event === 'SIGNED_OUT') {
+        setState(prev => ({
+          ...prev,
+          user: null,
+          company: null,
+          employee: null,
+          role: null,
+          companies: [],
+          loading: false,
+        }))
+        router.replace('/auth/login')
+      }
+    })
+
+    return () => subscription.unsubscribe()
+  }, [loadAuth, router])
 
   const switchCompany = async (companyId: string) => {
     const { data: { session } } = await supabase.auth.getSession()

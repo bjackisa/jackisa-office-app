@@ -18,11 +18,27 @@ export async function POST(request: Request) {
     const authedUser = userResult.user
 
     const body = await request.json().catch(() => ({}))
-    const { companyName, companyEmail, industry, fullName, email, packageTier = 'basic', couponCode } = body || {}
+    const rawPackageTier = typeof body?.packageTier === 'string' ? body.packageTier : 'basic'
+    const packageTier = ['basic', 'pro', 'platinum'].includes(rawPackageTier) ? rawPackageTier : 'basic'
+    const couponCode = body?.couponCode
 
-    if (!companyName || !companyEmail || !industry || !fullName || !email) {
-      return new NextResponse('Missing registration payload', { status: 400 })
-    }
+    const email = (typeof body?.email === 'string' && body.email.trim())
+      ? body.email.trim().toLowerCase()
+      : (authedUser.email || '').toLowerCase()
+    const fullName = (typeof body?.fullName === 'string' && body.fullName.trim())
+      ? body.fullName.trim()
+      : (authedUser.user_metadata?.full_name || email.split('@')[0] || 'User')
+    const companyEmail = (typeof body?.companyEmail === 'string' && body.companyEmail.trim())
+      ? body.companyEmail.trim().toLowerCase()
+      : email
+    const companyName = (typeof body?.companyName === 'string' && body.companyName.trim())
+      ? body.companyName.trim()
+      : `${fullName}'s Company`
+    const industry = (typeof body?.industry === 'string' && body.industry.trim())
+      ? body.industry.trim()
+      : 'General'
+
+    if (!email) return new NextResponse('Missing user email', { status: 400 })
 
     const normalizedCoupon = typeof couponCode === 'string' ? couponCode.trim().toUpperCase() : null
 
