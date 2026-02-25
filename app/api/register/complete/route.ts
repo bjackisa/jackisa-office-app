@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { supabaseAdmin } from '@/lib/supabaseAdmin'
+import { createClient } from '@supabase/supabase-js'
 
 const addDays = (date: Date, days: number) => {
   const result = new Date(date)
@@ -9,11 +9,29 @@ const addDays = (date: Date, days: number) => {
 
 export async function POST(request: Request) {
   try {
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+    const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+    if (!supabaseUrl || !supabaseAnonKey) {
+      return new NextResponse('Missing Supabase environment variables', { status: 500 })
+    }
+
     const auth = request.headers.get('authorization') || request.headers.get('Authorization')
     const token = auth?.startsWith('Bearer ') ? auth.slice('Bearer '.length) : null
     if (!token) return new NextResponse('Missing bearer token', { status: 401 })
 
-    const { data: userResult, error: userErr } = await supabaseAdmin.auth.getUser(token)
+    const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false,
+      },
+      global: {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      },
+    })
+
+    const { data: userResult, error: userErr } = await supabase.auth.getUser(token)
     if (userErr || !userResult?.user) return new NextResponse('Invalid session', { status: 401 })
     const authedUser = userResult.user
 
@@ -42,13 +60,13 @@ export async function POST(request: Request) {
 
     const normalizedCoupon = typeof couponCode === 'string' ? couponCode.trim().toUpperCase() : null
 
-    const { error: userProfileErr } = await supabaseAdmin
+    const { error: userProfileErr } = await supabase
       .from('users')
       .upsert({ id: authedUser.id, email, full_name: fullName, role: 'company_admin' }, { onConflict: 'id' })
 
     if (userProfileErr) return new NextResponse(`User profile creation failed: ${userProfileErr.message}`, { status: 400 })
 
-    const { data: existingEmployee } = await supabaseAdmin
+    const { data: existingEmployee } = await supabase
       .from('company_employees')
       .select('company_id')
       .eq('user_id', authedUser.id)
@@ -56,13 +74,13 @@ export async function POST(request: Request) {
       .maybeSingle()
 
     if (existingEmployee?.company_id) {
-      await supabaseAdmin
+      await supabase
         .from('user_active_company')
         .upsert({ user_id: authedUser.id, company_id: existingEmployee.company_id }, { onConflict: 'user_id' })
       return NextResponse.json({ ok: true, companyId: existingEmployee.company_id, alreadyCompleted: true })
     }
 
-    const { data: tierData, error: tierErr } = await supabaseAdmin
+    const { data: tierData, error: tierErr } = await supabase
       .from('subscription_tiers')
       .select('tier, monthly_price, yearly_price')
       .eq('tier', packageTier)
@@ -70,7 +88,7 @@ export async function POST(request: Request) {
 
     if (tierErr || !tierData) return new NextResponse('Invalid subscription package selected', { status: 400 })
 
-    const { data: company, error: companyErr } = await supabaseAdmin
+    const { data: company, error: companyErr } = await supabase
       .from('companies')
       .insert({ name: companyName, email: companyEmail, industry, created_by: authedUser.id })
       .select()
@@ -78,7 +96,7 @@ export async function POST(request: Request) {
 
     if (companyErr) return new NextResponse(`Company creation failed: ${companyErr.message}`, { status: 400 })
 
-    const { data: role, error: roleErr } = await supabaseAdmin
+    const { data: role, error: roleErr } = await supabase
       .from('company_roles')
       .insert({
         company_id: company.id,
@@ -91,7 +109,7 @@ export async function POST(request: Request) {
 
     if (roleErr) return new NextResponse(`Role creation failed: ${roleErr.message}`, { status: 400 })
 
-    const { error: employeeErr } = await supabaseAdmin
+    const { error: employeeErr } = await supabase
       .from('company_employees')
       .insert({
         user_id: authedUser.id,
@@ -113,7 +131,7 @@ export async function POST(request: Request) {
     let couponCurrentUses = 0
 
     if (normalizedCoupon) {
-      const { data: coupon, error: couponErr } = await supabaseAdmin
+      const { data: coupon, error: couponErr } = await supabase
         .from('coupons')
         .select('id, discount_percent, discount_amount, free_days, max_uses, current_uses, expiry_date')
         .eq('code', normalizedCoupon)
@@ -143,7 +161,7 @@ export async function POST(request: Request) {
     const startDate = new Date()
     const endDate = addDays(startDate, 30 + freeDays)
 
-    const { error: subscriptionErr } = await supabaseAdmin.from('company_subscriptions').insert({
+    const { error: subscriptionErr } = await supabase.from('company_subscriptions').insert({
       company_id: company.id,
       tier: tierData.tier,
       status: 'active',
@@ -157,11 +175,11 @@ export async function POST(request: Request) {
     if (subscriptionErr) return new NextResponse(`Subscription setup failed: ${subscriptionErr.message}`, { status: 400 })
 
     if (couponId) {
-      await supabaseAdmin.from('coupon_usage').insert({ coupon_id: couponId, company_id: company.id })
-      await supabaseAdmin.from('coupons').update({ current_uses: couponCurrentUses + 1 }).eq('id', couponId)
+      await supabase.from('coupon_usage').insert({ coupon_id: couponId, company_id: company.id })
+      await supabase.from('coupons').update({ current_uses: couponCurrentUses + 1 }).eq('id', couponId)
     }
 
-    await supabaseAdmin
+    await supabase
       .from('user_active_company')
       .upsert({ user_id: authedUser.id, company_id: company.id }, { onConflict: 'user_id' })
 
