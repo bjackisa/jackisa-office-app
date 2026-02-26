@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
+import { getSessionContext } from '@/lib/company-context'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -21,23 +22,13 @@ export default function EmployeesPage() {
   useEffect(() => {
     const loadEmployees = async () => {
       try {
-        const { data: { session } } = await supabase.auth.getSession()
-        if (!session) return
-
-        const { data: empData } = await supabase
-          .from('company_employees')
-          .select('company_id')
-          .eq('user_id', session.user.id)
-          .eq('status', 'active')
-          .limit(1)
-          .single()
-
-        if (!empData) return
+        const context = await getSessionContext()
+        if (!context?.companyId) return
 
         const { data } = await supabase
           .from('company_employees')
           .select('*, users(full_name, email, avatar_url), company_roles(name)')
-          .eq('company_id', empData.company_id)
+          .eq('company_id', context.companyId)
           .order('created_at', { ascending: false })
 
         setEmployees(data || [])

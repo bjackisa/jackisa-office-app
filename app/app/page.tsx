@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
+import { useAuth } from '@/lib/hooks/useAuth'
 import type { DashboardStats, ActivityLog } from '@/types'
 import { Card } from '@/components/ui/card'
 import Link from 'next/link'
@@ -26,6 +27,7 @@ import {
 } from 'lucide-react'
 
 export default function DashboardPage() {
+  const { user, company } = useAuth()
   const [stats, setStats] = useState<DashboardStats>({
     totalEmployees: 0,
     activeSubscription: false,
@@ -51,31 +53,14 @@ export default function DashboardPage() {
 
     const loadDashboard = async () => {
       try {
-        const { data: { session } } = await supabase.auth.getSession()
-        if (!session) return
+        setUserName(user?.full_name || 'there')
 
-        const { data: userData } = await supabase
-          .from('users')
-          .select('full_name')
-          .eq('id', session.user.id)
-          .single()
-
-        if (userData) setUserName(userData.full_name || 'there')
-
-        const { data: employeeData } = await supabase
-          .from('company_employees')
-          .select('company_id')
-          .eq('user_id', session.user.id)
-          .eq('status', 'active')
-          .limit(1)
-          .single()
-
-        if (!employeeData) {
+        if (!company?.id) {
           setLoading(false)
           return
         }
 
-        const companyId = employeeData.company_id
+        const companyId = company.id
 
         const [employeesRes, invoicesRes, subscriptionRes, storageRes, activityRes] = await Promise.all([
           supabase
@@ -130,7 +115,7 @@ export default function DashboardPage() {
     }
 
     loadDashboard()
-  }, [])
+  }, [company?.id, user?.full_name])
 
   const statCards = [
     {

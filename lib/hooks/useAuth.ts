@@ -40,8 +40,9 @@ export function useAuth() {
         .eq('id', authUser.id)
         .maybeSingle()
 
+      const fallbackName = authUser.user_metadata?.full_name || authUser.email?.split('@')[0] || 'User'
+
       if (!userData) {
-        const fallbackName = authUser.user_metadata?.full_name || authUser.email?.split('@')[0] || 'User'
         const { data: createdUser } = await supabase
           .from('users')
           .upsert(
@@ -57,6 +58,21 @@ export function useAuth() {
           .single()
 
         userData = createdUser
+
+        if (!userData) {
+          userData = {
+            id: authUser.id,
+            email: authUser.email || '',
+            full_name: fallbackName,
+            role: 'employee',
+            phone: null,
+            avatar_url: null,
+            is_active: true,
+            super_admin_id: null,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          }
+        }
       }
 
       // Get all companies user belongs to
@@ -64,7 +80,7 @@ export function useAuth() {
         .from('company_employees')
         .select('company_id, companies(id, name, logo_url)')
         .eq('user_id', authUser.id)
-        .eq('status', 'active')
+        .in('status', ['active', 'pending_invitation'])
 
       const companies = (employeeRecords || []).map((e: any) => ({
         id: e.companies?.id || e.company_id,
@@ -104,7 +120,8 @@ export function useAuth() {
           .select('*, company_roles(*)')
           .eq('user_id', authUser.id)
           .eq('company_id', activeCompanyId)
-          .single()
+          .in('status', ['active', 'pending_invitation'])
+          .maybeSingle()
 
         if (empData) {
           employee = empData
