@@ -11,6 +11,7 @@ const STATUS_OPTIONS = ['Pending', 'Active', 'Failed', 'Suspended', 'Deceased', 
 export default function GradesPage() {
   const [rows, setRows] = useState<any[]>([])
   const [moduleTabs, setModuleTabs] = useState<any[]>([])
+  const [activeModuleTab, setActiveModuleTab] = useState<string>('')
 
   const load = async () => {
     const ctx = await getSessionContext()
@@ -82,8 +83,14 @@ export default function GradesPage() {
 
     const enrolledModuleIds = new Set(report.map((row) => row.moduleId))
 
+    const nextTabs = modules.filter((module) => enrolledModuleIds.has(module.id))
+
     setRows(report)
-    setModuleTabs(modules.filter((module) => enrolledModuleIds.has(module.id)))
+    setModuleTabs(nextTabs)
+    setActiveModuleTab((prev) => {
+      if (prev && nextTabs.some((module) => module.id === prev)) return prev
+      return nextTabs[0]?.id || ''
+    })
   }
 
   useEffect(() => {
@@ -111,7 +118,7 @@ export default function GradesPage() {
         <p className="text-muted-foreground">Per module progress: 50% coursework + 50% exam</p>
       </div>
 
-      <Tabs defaultValue={moduleTabs[0]?.id} className="space-y-4">
+      <Tabs value={activeModuleTab} onValueChange={setActiveModuleTab} className="space-y-4">
         <TabsList className="flex-wrap h-auto">
           {moduleTabs.map((module) => <TabsTrigger key={module.id} value={module.id}>{module.module_code}</TabsTrigger>)}
         </TabsList>
