@@ -12,6 +12,8 @@ import { ChevronDown, Plus, Search } from 'lucide-react'
 import { getSessionContext } from '@/lib/company-context'
 import { supabase } from '@/lib/supabase'
 
+const STATUS_OPTIONS = ['Pending', 'Active', 'Failed', 'Suspended', 'Deceased', 'Graduated']
+
 export default function StudentsPage() {
   const [companyId, setCompanyId] = useState<string | null>(null)
   const [students, setStudents] = useState<any[]>([])
@@ -26,23 +28,21 @@ export default function StudentsPage() {
     if (!ctx?.companyId) return
     setCompanyId(ctx.companyId)
 
-    const [sRes, mRes, eRes, cwRes] = await Promise.all([
+    const [sRes, mRes, eRes] = await Promise.all([
       supabase.from('students').select('*').eq('company_id', ctx.companyId).order('created_at', { ascending: false }),
       supabase.from('education_modules').select('id, module_code, module_name').eq('company_id', ctx.companyId).order('module_code'),
       supabase.from('student_enrollments').select('id, student_id, module_id, enrolled_at'),
-      supabase.from('student_grades_coursework').select('student_id'),
     ])
 
     setStudents(sRes.data || [])
     setModules(mRes.data || [])
     setEnrollments(eRes.data || [])
 
-    const autoStatuses: Record<string, string> = {}
+    const savedStatuses: Record<string, string> = {}
     ;(sRes.data || []).forEach((student: any) => {
-      const hasCoursework = (cwRes.data || []).some((g: any) => g.student_id === student.id)
-      autoStatuses[student.id] = hasCoursework ? 'Active' : 'Pending'
+      savedStatuses[student.id] = STATUS_OPTIONS.includes(student.status) ? student.status : 'Pending'
     })
-    setStatuses(autoStatuses)
+    setStatuses(savedStatuses)
   }
 
   useEffect(() => { loadData() }, [])
@@ -83,7 +83,7 @@ export default function StudentsPage() {
 
     const { data: created } = await supabase
       .from('students')
-      .insert({ company_id: companyId, student_id: studentNumber, full_name: form.full_name, email: form.email || null })
+      .insert({ company_id: companyId, student_id: studentNumber, full_name: form.full_name, email: form.email || null, status: 'Pending' })
       .select('id')
       .single()
 
@@ -95,8 +95,12 @@ export default function StudentsPage() {
     await loadData()
   }
 
-  const updateStatus = (studentId: string, status: string) => {
+  const updateStatus = async (studentId: string, status: string) => {
     setStatuses((prev) => ({ ...prev, [studentId]: status }))
+    const { error } = await supabase.from('students').update({ status }).eq('id', studentId)
+    if (error) {
+      await loadData()
+    }
   }
 
   const moduleLabel = (studentId: string) => {
@@ -230,7 +234,7 @@ export default function StudentsPage() {
                 <td className="px-4 py-3">{new Date(student.created_at).toLocaleString()}</td>
                 <td className="px-4 py-3">
                   <select className="px-2 py-1 border rounded" value={statuses[student.id] || 'Pending'} onChange={(e) => updateStatus(student.id, e.target.value)}>
-                    {['Pending', 'Active', 'Failed', 'Suspended', 'Deceased', 'Graduated'].map((status) => <option key={status} value={status}>{status}</option>)}
+                    {STATUS_OPTIONS.map((status) => <option key={status} value={status}>{status}</option>)}
                   </select>
                 </td>
               </tr>
