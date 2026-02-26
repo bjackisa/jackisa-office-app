@@ -1,223 +1,100 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Plus, Upload, Download, Edit } from 'lucide-react'
+import { Download } from 'lucide-react'
+import { getSessionContext } from '@/lib/company-context'
+import { supabase } from '@/lib/supabase'
+import { gradeFromScore } from '@/lib/education'
 
 export default function GradesPage() {
-  const [grades] = useState([
-    {
-      id: '1',
-      studentName: 'Alice Johnson',
-      studentID: 'STU001',
-      module: 'CS101',
-      moduleTitle: 'Introduction to Programming',
-      score: 85,
-      grade: 'A',
-      status: 'graded',
-    },
-    {
-      id: '2',
-      studentName: 'Bob Smith',
-      studentID: 'STU002',
-      module: 'CS101',
-      moduleTitle: 'Introduction to Programming',
-      score: 72,
-      grade: 'B',
-      status: 'graded',
-    },
-    {
-      id: '3',
-      studentName: 'Carol White',
-      studentID: 'STU003',
-      module: 'CS101',
-      moduleTitle: 'Introduction to Programming',
-      score: 68,
-      grade: 'B',
-      status: 'graded',
-    },
-    {
-      id: '4',
-      studentName: 'David Brown',
-      studentID: 'STU004',
-      module: 'CS102',
-      moduleTitle: 'Web Development Basics',
-      score: null,
-      grade: '-',
-      status: 'pending',
-    },
-    {
-      id: '5',
-      studentName: 'Eve Davis',
-      studentID: 'STU005',
-      module: 'CS102',
-      moduleTitle: 'Web Development Basics',
-      score: 90,
-      grade: 'A+',
-      status: 'graded',
-    },
-  ])
+  const [rows, setRows] = useState<any[]>([])
 
-  const getGradeColor = (grade: string) => {
-    switch (grade) {
-      case 'A':
-      case 'A+':
-        return 'bg-green-100 text-green-800'
-      case 'B':
-      case 'B+':
-        return 'bg-blue-100 text-blue-800'
-      case 'C':
-      case 'C+':
-        return 'bg-yellow-100 text-yellow-800'
-      case 'D':
-      case 'D+':
-        return 'bg-orange-100 text-orange-800'
-      case 'F':
-        return 'bg-red-100 text-red-800'
-      default:
-        return 'bg-gray-100 text-gray-800'
+  useEffect(() => {
+    const load = async () => {
+      const ctx = await getSessionContext()
+      if (!ctx?.companyId) return
+
+      const [studentsRes, modulesRes, daysRes, cwGradesRes, examsRes, examGradesRes, enrollmentsRes] = await Promise.all([
+        supabase.from('students').select('id, student_id, full_name').eq('company_id', ctx.companyId),
+        supabase.from('education_modules').select('id, module_code, module_name, description').eq('company_id', ctx.companyId),
+        supabase.from('coursework_days').select('id, module_id, max_marks'),
+        supabase.from('student_grades_coursework').select('student_id, coursework_day_id, marks_obtained'),
+        supabase.from('final_exams').select('id, module_id, exam_date, max_marks'),
+        supabase.from('student_grades_final_exam').select('student_id, final_exam_id, marks_obtained'),
+        supabase.from('student_enrollments').select('student_id, module_id'),
+      ])
+
+      const students = studentsRes.data || []
+      const modules = modulesRes.data || []
+      const days = daysRes.data || []
+      const cwGrades = cwGradesRes.data || []
+      const exams = examsRes.data || []
+      const examGrades = examGradesRes.data || []
+      const enrollments = enrollmentsRes.data || []
+
+      const report: any[] = []
+
+      enrollments.forEach((enrollment) => {
+        const student = students.find((item) => item.id === enrollment.student_id)
+        const module = modules.find((item) => item.id === enrollment.module_id)
+        if (!student || !module) return
+
+        const moduleDays = days.filter((day) => day.module_id === module.id)
+        const moduleCoursework = cwGrades.filter((grade) => grade.student_id === student.id && moduleDays.some((day) => day.id === grade.coursework_day_id))
+        const cwTotal = moduleCoursework.reduce((sum, row) => sum + Number(row.marks_obtained), 0)
+        const cwMax = moduleDays.reduce((sum, row) => sum + Number(row.max_marks), 0) || 1
+        const coursework50 = (cwTotal / cwMax) * 50
+
+        const moduleExam = exams.find((exam) => exam.module_id === module.id)
+        const examScore = moduleExam ? examGrades.find((grade) => grade.student_id === student.id && grade.final_exam_id === moduleExam.id) : null
+        const exam50 = examScore ? (Number(examScore.marks_obtained) / (Number(moduleExam?.max_marks || 100) || 100)) * 50 : null
+
+        const finalScore = exam50 === null ? coursework50 : coursework50 + exam50
+        const status = exam50 === null ? 'pending' : finalScore >= 75 ? 'graduated' : 'failed'
+
+        report.push({
+          studentName: student.full_name,
+          studentID: student.student_id,
+          moduleCode: module.module_code,
+          moduleTitle: module.module_name,
+          classLabel: module.description?.split('|')[0]?.replace('Class of ', '').trim() || 'General',
+          coursework: coursework50,
+          exam: exam50,
+          finalScore,
+          grade: gradeFromScore(finalScore),
+          status,
+        })
+      })
+
+      setRows(report)
     }
+
+    load()
+  }, [])
+
+  const average = useMemo(() => rows.length ? rows.reduce((sum, row) => sum + row.finalScore, 0) / rows.length : 0, [rows])
+
+  const exportCSV = () => {
+    const header = 'Student ID,Student Name,Class,Module,Coursework(50),Exam(50),Final Score,Grade,Status\n'
+    const body = rows.map((row) => `${row.studentID},${row.studentName},${row.classLabel},${row.moduleCode},${row.coursework.toFixed(2)},${row.exam === null ? 'Pending' : row.exam.toFixed(2)},${row.finalScore.toFixed(2)},${row.grade},${row.status}`).join('\n')
+    const blob = new Blob([header + body], { type: 'text/csv;charset=utf-8;' })
+    const link = document.createElement('a')
+    link.href = URL.createObjectURL(blob)
+    link.download = 'final-grades.csv'
+    link.click()
   }
 
-  const getStatusColor = (status: string) => {
-    return status === 'graded'
-      ? 'bg-green-100 text-green-800'
-      : 'bg-yellow-100 text-yellow-800'
+  const exportXLSX = () => {
+    const tableRows = rows.map((row) => `<tr><td>${row.studentID}</td><td>${row.studentName}</td><td>${row.classLabel}</td><td>${row.moduleCode}</td><td>${row.coursework.toFixed(2)}</td><td>${row.exam === null ? 'Pending' : row.exam.toFixed(2)}</td><td>${row.finalScore.toFixed(2)}</td><td>${row.grade}</td><td>${row.status}</td></tr>`).join('')
+    const html = `<table><tr><th>Student ID</th><th>Student Name</th><th>Class</th><th>Module</th><th>Coursework(50)</th><th>Exam(50)</th><th>Final Score</th><th>Grade</th><th>Status</th></tr>${tableRows}</table>`
+    const blob = new Blob([html], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
+    const link = document.createElement('a')
+    link.href = URL.createObjectURL(blob)
+    link.download = 'final-grades.xlsx'
+    link.click()
   }
 
-  const averageScore = grades
-    .filter(g => g.score !== null)
-    .reduce((sum, g) => sum + (g.score || 0), 0) / grades.filter(g => g.score !== null).length
-
-  return (
-    <div className="p-6 max-w-7xl mx-auto">
-      <div className="flex items-center justify-between mb-8">
-        <div>
-          <h1 className="text-3xl font-bold text-foreground mb-2">Grade Management</h1>
-          <p className="text-muted-foreground">Manage student results and coursework scores</p>
-        </div>
-        <div className="flex gap-2">
-          <Button variant="outline">
-            <Upload className="w-4 h-4 mr-2" />
-            Import Grades
-          </Button>
-          <Button>
-            <Plus className="w-4 h-4 mr-2" />
-            Add Grade
-          </Button>
-        </div>
-      </div>
-
-      {/* Summary Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
-        <Card className="p-4 border border-border">
-          <p className="text-sm text-muted-foreground mb-1">Total Grades</p>
-          <p className="text-2xl font-bold text-foreground">{grades.length}</p>
-        </Card>
-        <Card className="p-4 border border-border">
-          <p className="text-sm text-muted-foreground mb-1">Graded</p>
-          <p className="text-2xl font-bold text-green-600">{grades.filter(g => g.status === 'graded').length}</p>
-        </Card>
-        <Card className="p-4 border border-border">
-          <p className="text-sm text-muted-foreground mb-1">Pending</p>
-          <p className="text-2xl font-bold text-yellow-600">{grades.filter(g => g.status === 'pending').length}</p>
-        </Card>
-        <Card className="p-4 border border-border">
-          <p className="text-sm text-muted-foreground mb-1">Average Score</p>
-          <p className="text-2xl font-bold text-primary">{averageScore.toFixed(1)}</p>
-        </Card>
-      </div>
-
-      {/* Grade Distribution */}
-      <Card className="p-6 border border-border mb-8">
-        <h2 className="text-lg font-semibold text-foreground mb-4">Grade Scale Reference</h2>
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-          {[
-            { grade: 'A+', range: '90-100' },
-            { grade: 'A', range: '85-89' },
-            { grade: 'B+', range: '80-84' },
-            { grade: 'B', range: '75-79' },
-            { grade: 'C', range: '70-74' },
-          ].map((item) => (
-            <div key={item.grade} className="p-3 bg-muted/50 rounded-lg text-center">
-              <p className="text-lg font-bold text-foreground">{item.grade}</p>
-              <p className="text-xs text-muted-foreground">{item.range}</p>
-            </div>
-          ))}
-        </div>
-      </Card>
-
-      {/* Search & Filter */}
-      <Card className="p-4 border border-border mb-6 flex flex-wrap items-center gap-4">
-        <div className="flex-1 min-w-48">
-          <Input
-            placeholder="Search student..."
-          />
-        </div>
-        <select className="px-3 py-2 border border-border rounded-md text-sm">
-          <option value="">All Modules</option>
-          <option value="CS101">CS101 - Intro to Programming</option>
-          <option value="CS102">CS102 - Web Development</option>
-        </select>
-        <select className="px-3 py-2 border border-border rounded-md text-sm">
-          <option value="">All Status</option>
-          <option value="graded">Graded</option>
-          <option value="pending">Pending</option>
-        </select>
-      </Card>
-
-      {/* Grades Table */}
-      <Card className="border border-border overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead className="bg-muted/50 border-b border-border">
-              <tr>
-                <th className="px-6 py-3 text-left text-sm font-medium text-foreground">Student</th>
-                <th className="px-6 py-3 text-left text-sm font-medium text-foreground">ID</th>
-                <th className="px-6 py-3 text-left text-sm font-medium text-foreground">Module</th>
-                <th className="px-6 py-3 text-center text-sm font-medium text-foreground">Score</th>
-                <th className="px-6 py-3 text-center text-sm font-medium text-foreground">Grade</th>
-                <th className="px-6 py-3 text-left text-sm font-medium text-foreground">Status</th>
-                <th className="px-6 py-3 text-center text-sm font-medium text-foreground">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border">
-              {grades.map((grade) => (
-                <tr key={grade.id} className="hover:bg-muted/30 transition-colors">
-                  <td className="px-6 py-4 text-sm font-medium text-foreground">{grade.studentName}</td>
-                  <td className="px-6 py-4 text-sm text-muted-foreground font-mono">{grade.studentID}</td>
-                  <td className="px-6 py-4 text-sm text-foreground">
-                    <div>
-                      <p className="font-mono text-xs">{grade.module}</p>
-                      <p className="text-muted-foreground text-xs">{grade.moduleTitle}</p>
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 text-sm text-center font-medium text-foreground">
-                    {grade.score !== null ? `${grade.score}%` : '-'}
-                  </td>
-                  <td className="px-6 py-4 text-sm text-center">
-                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold ${getGradeColor(grade.grade)}`}>
-                      {grade.grade}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 text-sm">
-                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(grade.status)}`}>
-                      {grade.status.charAt(0).toUpperCase() + grade.status.slice(1)}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 text-sm text-center">
-                    <button className="p-1.5 hover:bg-muted rounded-md transition-colors">
-                      <Edit className="w-4 h-4 text-muted-foreground" />
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </Card>
-    </div>
-  )
+  return <div className="p-6 max-w-7xl mx-auto space-y-6"><div className="flex items-center justify-between"><div><h1 className="text-3xl font-bold">Final Grades</h1><p className="text-muted-foreground">Final score = 50% coursework + 50% exam</p></div><div className="flex gap-2"><Button variant="outline" onClick={exportCSV}><Download className="w-4 h-4 mr-2" />Export CSV</Button><Button onClick={exportXLSX}><Download className="w-4 h-4 mr-2" />Export XLSX</Button></div></div><div className="grid grid-cols-1 md:grid-cols-3 gap-4"><Card className="p-4"><p>Total Results</p><p className="text-2xl font-bold">{rows.length}</p></Card><Card className="p-4"><p>Pending Results</p><p className="text-2xl font-bold">{rows.filter((row) => row.status === 'pending').length}</p></Card><Card className="p-4"><p>Average Score</p><p className="text-2xl font-bold">{average.toFixed(1)}%</p></Card></div><Card className="overflow-x-auto"><table className="w-full text-sm"><thead className="bg-muted/50 border-b"><tr><th className="px-4 py-3 text-left">Student</th><th className="px-4 py-3 text-left">Class</th><th className="px-4 py-3 text-left">Module</th><th className="px-4 py-3 text-center">Coursework</th><th className="px-4 py-3 text-center">Exam</th><th className="px-4 py-3 text-center">Final</th><th className="px-4 py-3 text-center">Grade</th><th className="px-4 py-3 text-left">Status</th></tr></thead><tbody>{rows.map((row, i) => <tr key={`${row.studentID}-${row.moduleCode}-${i}`} className="border-b"><td className="px-4 py-3">{row.studentName}<div className="text-xs text-muted-foreground font-mono">{row.studentID}</div></td><td className="px-4 py-3">{row.classLabel}</td><td className="px-4 py-3">{row.moduleCode} - {row.moduleTitle}</td><td className="px-4 py-3 text-center">{row.coursework.toFixed(1)}</td><td className="px-4 py-3 text-center">{row.exam === null ? 'Pending' : row.exam.toFixed(1)}</td><td className="px-4 py-3 text-center font-semibold">{row.finalScore.toFixed(1)}</td><td className="px-4 py-3 text-center">{row.grade}</td><td className="px-4 py-3 capitalize">{row.status}</td></tr>)}</tbody></table></Card></div>
 }
