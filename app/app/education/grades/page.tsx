@@ -117,7 +117,7 @@ export default function GradesPage() {
     <div className="p-6 max-w-7xl mx-auto space-y-6">
       <div>
         <h1 className="text-3xl font-bold">Grades</h1>
-        <p className="text-muted-foreground">Per module progress: 50% coursework + 50% exam</p>
+        <p className="text-muted-foreground">50% coursework + 50% exam</p>
       </div>
 
       <Card className="overflow-x-auto">
@@ -130,7 +130,7 @@ export default function GradesPage() {
               <th className="px-4 py-3 text-center">Coursework Raw</th>
               <th className="px-4 py-3 text-center">Coursework (50%)</th>
               <th className="px-4 py-3 text-center">Exam (50%)</th>
-              <th className="px-4 py-3 text-center">Accumulated So Far</th>
+              <th className="px-4 py-3 text-center">Overall Grade</th>
               <th className="px-4 py-3 text-left">Status</th>
             </tr>
           </thead>
