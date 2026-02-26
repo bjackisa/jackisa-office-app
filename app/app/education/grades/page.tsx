@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { Card } from '@/components/ui/card'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { getSessionContext } from '@/lib/company-context'
 import { supabase } from '@/lib/supabase'
 
@@ -10,8 +9,6 @@ const STATUS_OPTIONS = ['Pending', 'Active', 'Failed', 'Suspended', 'Deceased', 
 
 export default function GradesPage() {
   const [rows, setRows] = useState<any[]>([])
-  const [moduleTabs, setModuleTabs] = useState<any[]>([])
-  const [activeModuleTab, setActiveModuleTab] = useState<string>('')
 
   const load = async () => {
     const ctx = await getSessionContext()
@@ -81,16 +78,7 @@ export default function GradesPage() {
       })
     })
 
-    const enrolledModuleIds = new Set(report.map((row) => row.moduleId))
-
-    const nextTabs = modules.filter((module) => enrolledModuleIds.has(module.id))
-
     setRows(report)
-    setModuleTabs(nextTabs)
-    setActiveModuleTab((prev) => {
-      if (prev && nextTabs.some((module) => module.id === prev)) return prev
-      return nextTabs[0]?.id || ''
-    })
   }
 
   useEffect(() => {
@@ -102,13 +90,14 @@ export default function GradesPage() {
     setRows((prev) => prev.map((row) => row.studentPk === studentId ? { ...row, status } : row))
   }
 
-  const rowsByModule = useMemo(() => {
-    const grouped: Record<string, any[]> = {}
-    rows.forEach((row) => {
-      if (!grouped[row.moduleId]) grouped[row.moduleId] = []
-      grouped[row.moduleId].push(row)
+  const sortedRows = useMemo(() => {
+    return [...rows].sort((a, b) => {
+      if (a.moduleCode === b.moduleCode) {
+        return a.studentName.localeCompare(b.studentName)
+      }
+
+      return a.moduleCode.localeCompare(b.moduleCode)
     })
-    return grouped
   }, [rows])
 
   return (
@@ -118,51 +107,44 @@ export default function GradesPage() {
         <p className="text-muted-foreground">Per module progress: 50% coursework + 50% exam</p>
       </div>
 
-      <Tabs value={activeModuleTab} onValueChange={setActiveModuleTab} className="space-y-4">
-        <TabsList className="flex-wrap h-auto">
-          {moduleTabs.map((module) => <TabsTrigger key={module.id} value={module.id}>{module.module_code}</TabsTrigger>)}
-        </TabsList>
-
-        {moduleTabs.map((module) => (
-          <TabsContent key={module.id} value={module.id}>
-            <Card className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead className="bg-muted/50 border-b">
-                  <tr>
-                    <th className="px-4 py-3 text-left">Student</th>
-                    <th className="px-4 py-3 text-left">Student Number</th>
-                    <th className="px-4 py-3 text-left">Module</th>
-                    <th className="px-4 py-3 text-center">Coursework Raw</th>
-                    <th className="px-4 py-3 text-center">Coursework (50%)</th>
-                    <th className="px-4 py-3 text-center">Exam (50%)</th>
-                    <th className="px-4 py-3 text-center">Total (100%)</th>
-                    <th className="px-4 py-3 text-left">Status</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {(rowsByModule[module.id] || []).map((row) => (
-                    <tr key={`${row.studentPk}-${row.moduleId}`} className="border-b">
-                      <td className="px-4 py-3">{row.studentName}</td>
-                      <td className="px-4 py-3 font-mono">{row.studentID}</td>
-                      <td className="px-4 py-3">{row.moduleTitle}</td>
-                      <td className="px-4 py-3 text-center">{row.courseworkTotalRaw} / {row.courseworkMax}</td>
-                      <td className="px-4 py-3 text-center">{row.coursework50.toFixed(1)}</td>
-                      <td className="px-4 py-3 text-center">{row.exam50 === null ? '--' : row.exam50.toFixed(1)}</td>
-                      <td className="px-4 py-3 text-center font-semibold">{row.total.toFixed(1)}</td>
-                      <td className="px-4 py-3">
-                        <select className="px-2 py-1 border rounded" value={row.status} onChange={(e) => updateStatus(row.studentPk, e.target.value)}>
-                          {STATUS_OPTIONS.map((status) => <option key={status} value={status}>{status}</option>)}
-                        </select>
-                      </td>
-                    </tr>
-                  ))}
-                  {(rowsByModule[module.id] || []).length === 0 && <tr><td className="px-4 py-3 text-muted-foreground" colSpan={8}>No enrolled students for this module.</td></tr>}
-                </tbody>
-              </table>
-            </Card>
-          </TabsContent>
-        ))}
-      </Tabs>
+      <Card className="overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead className="bg-muted/50 border-b">
+            <tr>
+              <th className="px-4 py-3 text-left">Module</th>
+              <th className="px-4 py-3 text-left">Student</th>
+              <th className="px-4 py-3 text-left">Student Number</th>
+              <th className="px-4 py-3 text-center">Coursework Raw</th>
+              <th className="px-4 py-3 text-center">Coursework (50%)</th>
+              <th className="px-4 py-3 text-center">Exam (50%)</th>
+              <th className="px-4 py-3 text-center">Accumulated So Far</th>
+              <th className="px-4 py-3 text-left">Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            {sortedRows.map((row) => (
+              <tr key={`${row.studentPk}-${row.moduleId}`} className="border-b">
+                <td className="px-4 py-3">
+                  <div className="font-medium">{row.moduleCode}</div>
+                  <div className="text-xs text-muted-foreground">{row.moduleTitle}</div>
+                </td>
+                <td className="px-4 py-3">{row.studentName}</td>
+                <td className="px-4 py-3 font-mono">{row.studentID}</td>
+                <td className="px-4 py-3 text-center">{row.courseworkTotalRaw} / {row.courseworkMax}</td>
+                <td className="px-4 py-3 text-center">{row.coursework50.toFixed(1)}</td>
+                <td className="px-4 py-3 text-center">{row.exam50 === null ? '--' : row.exam50.toFixed(1)}</td>
+                <td className="px-4 py-3 text-center font-semibold">{row.total.toFixed(1)} / 100</td>
+                <td className="px-4 py-3">
+                  <select className="px-2 py-1 border rounded" value={row.status} onChange={(e) => updateStatus(row.studentPk, e.target.value)}>
+                    {STATUS_OPTIONS.map((status) => <option key={status} value={status}>{status}</option>)}
+                  </select>
+                </td>
+              </tr>
+            ))}
+            {sortedRows.length === 0 && <tr><td className="px-4 py-3 text-muted-foreground" colSpan={8}>No enrolled students found.</td></tr>}
+          </tbody>
+        </table>
+      </Card>
     </div>
   )
 }
