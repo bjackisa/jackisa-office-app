@@ -4,7 +4,10 @@ import { useEffect, useMemo, useState } from 'react'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Plus } from 'lucide-react'
+import { Badge } from '@/components/ui/badge'
+import { Checkbox } from '@/components/ui/checkbox'
+import { Label } from '@/components/ui/label'
+import { Plus, Search } from 'lucide-react'
 import { getSessionContext } from '@/lib/company-context'
 import { supabase } from '@/lib/supabase'
 
@@ -14,6 +17,7 @@ export default function StudentsPage() {
   const [modules, setModules] = useState<any[]>([])
   const [enrollments, setEnrollments] = useState<any[]>([])
   const [statuses, setStatuses] = useState<Record<string, string>>({})
+  const [moduleSearch, setModuleSearch] = useState('')
   const [form, setForm] = useState({ full_name: '', email: '', module_ids: [] as string[] })
 
   const loadData = async () => {
@@ -42,14 +46,43 @@ export default function StudentsPage() {
 
   useEffect(() => { loadData() }, [])
 
-  const generateStudentNumber = () => `STU-${String(students.length + 1).padStart(5, '0')}`
+  const generateStudentNumber = async () => {
+    let candidate = ''
+    let isUnique = false
+
+    while (!isUnique) {
+      const buffer = new Uint32Array(2)
+      crypto.getRandomValues(buffer)
+      const randomPart = Array.from(buffer)
+        .map((chunk) => chunk.toString(36).toUpperCase())
+        .join('')
+        .replace(/[^A-Z0-9]/g, '')
+        .slice(0, 8)
+        .padEnd(8, '0')
+
+      candidate = `S-${randomPart}`
+
+      const { data: existing } = await supabase
+        .from('students')
+        .select('id')
+        .eq('company_id', companyId)
+        .eq('student_id', candidate)
+        .maybeSingle()
+
+      isUnique = !existing
+    }
+
+    return candidate
+  }
 
   const addStudent = async () => {
     if (!companyId || !form.full_name) return
 
+    const studentNumber = await generateStudentNumber()
+
     const { data: created } = await supabase
       .from('students')
-      .insert({ company_id: companyId, student_id: generateStudentNumber(), full_name: form.full_name, email: form.email || null })
+      .insert({ company_id: companyId, student_id: studentNumber, full_name: form.full_name, email: form.email || null })
       .select('id')
       .single()
 
@@ -77,6 +110,24 @@ export default function StudentsPage() {
     graduated: Object.values(statuses).filter((status) => status === 'Graduated').length,
   }), [students, statuses])
 
+  const filteredModules = useMemo(() => {
+    const searchTerm = moduleSearch.trim().toLowerCase()
+    if (!searchTerm) return modules
+
+    return modules.filter((module) =>
+      `${module.module_code} ${module.module_name}`.toLowerCase().includes(searchTerm),
+    )
+  }, [modules, moduleSearch])
+
+  const toggleModule = (moduleId: string) => {
+    setForm((prev) => ({
+      ...prev,
+      module_ids: prev.module_ids.includes(moduleId)
+        ? prev.module_ids.filter((id) => id !== moduleId)
+        : [...prev.module_ids, moduleId],
+    }))
+  }
+
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-6">
       <div>
@@ -84,14 +135,57 @@ export default function StudentsPage() {
         <p className="text-muted-foreground">Add non-user students and enroll them in one or many modules</p>
       </div>
 
-      <Card className="p-4 border border-border space-y-3">
-        <div className="grid md:grid-cols-3 gap-3">
+      <Card className="p-4 border border-border space-y-4">
+        <div className="grid md:grid-cols-2 gap-3">
           <Input placeholder="Student full name" value={form.full_name} onChange={(e) => setForm({ ...form, full_name: e.target.value })} />
           <Input placeholder="Student email (optional)" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
-          <select multiple className="px-3 py-2 border border-border rounded-md text-sm min-h-[96px]" value={form.module_ids} onChange={(e) => setForm({ ...form, module_ids: Array.from(e.target.selectedOptions, (option) => option.value) })}>
-            {modules.map((module) => <option key={module.id} value={module.id}>{module.module_code} - {module.module_name}</option>)}
-          </select>
         </div>
+
+        <div className="rounded-lg border p-3 space-y-3">
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2">
+            <div>
+              <p className="font-medium text-sm">Enroll in modules</p>
+              <p className="text-xs text-muted-foreground">Choose one or many modules for this student.</p>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button variant="outline" size="sm" onClick={() => setForm((prev) => ({ ...prev, module_ids: modules.map((module) => module.id) }))}>Select all</Button>
+              <Button variant="ghost" size="sm" onClick={() => setForm((prev) => ({ ...prev, module_ids: [] }))}>Clear</Button>
+            </div>
+          </div>
+
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+            <Input className="pl-9" placeholder="Search modules by code or name" value={moduleSearch} onChange={(e) => setModuleSearch(e.target.value)} />
+          </div>
+
+          <div className="max-h-52 overflow-y-auto border rounded-md divide-y">
+            {filteredModules.map((module) => {
+              const checked = form.module_ids.includes(module.id)
+              return (
+                <div key={module.id} className="flex items-center gap-3 px-3 py-2 hover:bg-muted/40 transition-colors">
+                  <Checkbox id={`module-${module.id}`} checked={checked} onCheckedChange={() => toggleModule(module.id)} />
+                  <Label htmlFor={`module-${module.id}`} className="flex-1 cursor-pointer">
+                    <p className="font-medium text-sm">{module.module_code}</p>
+                    <p className="text-xs text-muted-foreground">{module.module_name}</p>
+                  </Label>
+                </div>
+              )
+            })}
+            {filteredModules.length === 0 && (
+              <p className="px-3 py-4 text-sm text-muted-foreground">No modules match your search.</p>
+            )}
+          </div>
+
+          <div className="flex flex-wrap gap-2">
+            {form.module_ids.length === 0 && <p className="text-xs text-muted-foreground">No modules selected yet.</p>}
+            {form.module_ids.map((moduleId) => {
+              const module = modules.find((item) => item.id === moduleId)
+              if (!module) return null
+              return <Badge key={moduleId} variant="secondary">{module.module_code}</Badge>
+            })}
+          </div>
+        </div>
+
         <Button onClick={addStudent}><Plus className="w-4 h-4 mr-2" />Enroll Student</Button>
       </Card>
 
