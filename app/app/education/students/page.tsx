@@ -28,11 +28,15 @@ export default function StudentsPage() {
     if (!ctx?.companyId) return
     setCompanyId(ctx.companyId)
 
-    const [sRes, mRes, eRes] = await Promise.all([
+    const [sRes, mRes, scopedEnrollmentsRes] = await Promise.all([
       supabase.from('students').select('*').eq('company_id', ctx.companyId).order('created_at', { ascending: false }),
       supabase.from('education_modules').select('id, module_code, module_name').eq('company_id', ctx.companyId).order('module_code'),
-      supabase.from('student_enrollments').select('id, student_id, module_id, enrolled_at'),
+      supabase.from('student_enrollments').select('id, student_id, module_id, enrolled_at').eq('company_id', ctx.companyId),
     ])
+
+    const eRes = scopedEnrollmentsRes.error
+      ? await supabase.from('student_enrollments').select('id, student_id, module_id, enrolled_at')
+      : scopedEnrollmentsRes
 
     setStudents(sRes.data || [])
     setModules(mRes.data || [])
@@ -81,14 +85,28 @@ export default function StudentsPage() {
 
     const studentNumber = await generateStudentNumber()
 
-    const { data: created } = await supabase
+    const createWithStatus = await supabase
       .from('students')
       .insert({ company_id: companyId, student_id: studentNumber, full_name: form.full_name, email: form.email || null, status: 'Active' })
       .select('id')
       .single()
 
+    const createWithoutStatus = createWithStatus.error
+      ? await supabase
+          .from('students')
+          .insert({ company_id: companyId, student_id: studentNumber, full_name: form.full_name, email: form.email || null })
+          .select('id')
+          .single()
+      : createWithStatus
+
+    const created = createWithoutStatus.data
+
     if (created?.id && form.module_ids.length > 0) {
-      await supabase.from('student_enrollments').insert(form.module_ids.map((moduleId) => ({ student_id: created.id, module_id: moduleId })))
+      const enrollmentsWithCompany = form.module_ids.map((moduleId) => ({ student_id: created.id, module_id: moduleId, company_id: companyId }))
+      const insertRes = await supabase.from('student_enrollments').insert(enrollmentsWithCompany)
+      if (insertRes.error) {
+        await supabase.from('student_enrollments').insert(form.module_ids.map((moduleId) => ({ student_id: created.id, module_id: moduleId })))
+      }
     }
 
     setForm({ full_name: '', email: '', module_ids: [] })
