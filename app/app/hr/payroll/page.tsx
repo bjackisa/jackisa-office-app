@@ -93,6 +93,27 @@ export default function PayrollPage() {
   const now = new Date()
   const monthName = now.toLocaleString('default', { month: 'long', year: 'numeric' })
 
+  const exportPayroll = () => {
+    const headers = ['employee_name', 'role', 'gross_salary', 'nssf', 'paye', 'net_pay']
+    const rows = payrollData.map((emp) => [
+      emp.users?.full_name || '',
+      emp.company_roles?.name || '',
+      emp.gross,
+      emp.nssf,
+      emp.paye,
+      emp.net,
+    ].map((value) => JSON.stringify(value ?? '')).join(','))
+
+    const csv = [headers.join(','), ...rows].join('\n')
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = `payroll-${new Date().toISOString().slice(0, 10)}.csv`
+    link.click()
+    URL.revokeObjectURL(url)
+  }
+
   return (
     <div className="p-6 lg:p-8 max-w-[1400px] mx-auto">
       {/* Header */}
@@ -108,7 +129,7 @@ export default function PayrollPage() {
               PAYE Calculator
             </Button>
           </Link>
-          <Button variant="outline" size="sm" className="text-gray-600">
+          <Button variant="outline" size="sm" className="text-gray-600" onClick={exportPayroll}>
             <Download className="w-4 h-4 mr-1.5" />
             Export
           </Button>
