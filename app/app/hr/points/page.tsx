@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
+import { getSessionContext } from '@/lib/company-context'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -36,44 +37,34 @@ export default function HRPointsPage() {
 
   const loadData = async () => {
     try {
-      const { data: { session } } = await supabase.auth.getSession()
-      if (!session) return
-
-      const { data: empData } = await supabase
-        .from('company_employees')
-        .select('company_id')
-        .eq('user_id', session.user.id)
-        .eq('status', 'active')
-        .limit(1)
-        .single()
-
-      if (!empData) return
-      setCompanyId(empData.company_id)
+      const context = await getSessionContext()
+      if (!context?.companyId) return
+      setCompanyId(context.companyId)
 
       const [txRes, balRes, rulesRes, empsRes] = await Promise.all([
         supabase
           .from('point_transactions')
           .select('*, company_employees(users(full_name)), point_rules(indicator)')
-          .eq('company_id', empData.company_id)
+          .eq('company_id', context.companyId)
           .order('created_at', { ascending: false })
           .limit(50),
         supabase
           .from('point_balances')
           .select('*, company_employees(users(full_name))')
-          .eq('company_id', empData.company_id)
+          .eq('company_id', context.companyId)
           .order('period_year', { ascending: false })
           .order('period_month', { ascending: false })
           .limit(50),
         supabase
           .from('point_rules')
           .select('*')
-          .eq('company_id', empData.company_id)
+          .eq('company_id', context.companyId)
           .eq('is_active', true)
           .order('category', { ascending: true }),
         supabase
           .from('company_employees')
           .select('id, users(full_name)')
-          .eq('company_id', empData.company_id)
+          .eq('company_id', context.companyId)
           .eq('status', 'active'),
       ])
 

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
+import { getSessionContext } from '@/lib/company-context'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import {
@@ -53,25 +54,15 @@ export default function PayrollPage() {
 
   const loadData = async () => {
     try {
-      const { data: { session } } = await supabase.auth.getSession()
-      if (!session) return
-
-      const { data: empData } = await supabase
-        .from('company_employees')
-        .select('company_id')
-        .eq('user_id', session.user.id)
-        .eq('status', 'active')
-        .limit(1)
-        .single()
-
-      if (!empData) return
-      setCompanyId(empData.company_id)
+      const context = await getSessionContext()
+      if (!context?.companyId) return
+      setCompanyId(context.companyId)
 
       const { data: emps } = await supabase
-        .from('company_employees')
-        .select('id, salary, users(full_name), roles(name)')
-        .eq('company_id', empData.company_id)
-        .eq('status', 'active')
+          .from('company_employees')
+          .select('id, salary, users(full_name), company_roles(name)')
+          .eq('company_id', context.companyId)
+          .eq('status', 'active')
 
       setEmployees(emps || [])
     } catch (err) {
@@ -204,7 +195,7 @@ export default function PayrollPage() {
                         <span className="text-sm font-medium text-gray-900">{emp.users?.full_name || '—'}</span>
                       </div>
                     </td>
-                    <td className="px-5 py-3 text-sm text-gray-500">{emp.roles?.name || '—'}</td>
+                    <td className="px-5 py-3 text-sm text-gray-500">{emp.company_roles?.name || '—'}</td>
                     <td className="px-5 py-3 text-sm text-gray-900 text-right font-mono font-medium">{formatUGX(emp.gross)}</td>
                     <td className="px-5 py-3 text-sm text-amber-600 text-right font-mono">-{formatUGX(emp.nssf)}</td>
                     <td className="px-5 py-3 text-sm text-red-500 text-right font-mono">-{formatUGX(emp.paye)}</td>
