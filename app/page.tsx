@@ -6,7 +6,6 @@ import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import { Button } from '@/components/ui/button'
 import { 
-  Briefcase, 
   Users, 
   DollarSign, 
   BarChart3, 
@@ -35,9 +34,13 @@ export default function HomePage() {
       {/* Navigation */}
       <nav className="border-b border-border sticky top-0 z-50 bg-background/80 backdrop-blur-sm">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center">
-              <Briefcase className="w-5 h-5 text-primary-foreground" />
+          <div className="flex items-center gap-3">
+            <div className="h-10 w-10 rounded-lg bg-[#0a1628] p-1.5 flex items-center justify-center">
+              <img
+                src="https://res.cloudinary.com/dsijcu1om/image/upload/v1772089694/2_en3tei.png"
+                alt="Jackisa Office logo"
+                className="h-full w-full object-contain"
+              />
             </div>
             <span className="text-xl font-bold text-foreground">Jackisa Office</span>
           </div>
@@ -74,12 +77,19 @@ export default function HomePage() {
         </div>
 
         {/* Hero Image */}
-        <div className="relative rounded-xl border border-border bg-card/50 backdrop-blur overflow-hidden h-96 md:h-96">
+        <div className="relative rounded-xl border border-border bg-[#0a1628] overflow-hidden h-96 md:h-96">
           <div className="absolute inset-0 bg-gradient-to-br from-primary/10 via-transparent to-transparent" />
-          <div className="flex items-center justify-center h-full">
-            <div className="text-center">
-              <Briefcase className="w-16 h-16 text-primary/40 mx-auto mb-4" />
-              <p className="text-muted-foreground">Dashboard preview will be here</p>
+          <div className="relative flex flex-col md:flex-row items-center justify-center gap-8 h-full px-6 py-10">
+            <img
+              src="https://res.cloudinary.com/dsijcu1om/image/upload/v1772089958/jackisa.com_logo_cbm52w.png"
+              alt="Jackisa Office platform"
+              className="w-32 h-32 md:w-48 md:h-48 object-contain"
+            />
+            <div className="max-w-xl text-center md:text-left">
+              <h3 className="text-xl md:text-2xl font-semibold text-white mb-3">Unified system for your entire organization</h3>
+              <p className="text-blue-100/90 text-sm md:text-base leading-relaxed">
+                Jackisa Office centralizes people operations, finance, learning, and growth into one connected workspace so your teams can collaborate faster, stay compliant, and make better decisions.
+              </p>
             </div>
           </div>
         </div>
