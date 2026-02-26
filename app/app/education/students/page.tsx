@@ -40,7 +40,7 @@ export default function StudentsPage() {
 
     const savedStatuses: Record<string, string> = {}
     ;(sRes.data || []).forEach((student: any) => {
-      savedStatuses[student.id] = STATUS_OPTIONS.includes(student.status) ? student.status : 'Pending'
+      savedStatuses[student.id] = STATUS_OPTIONS.includes(student.status) ? student.status : 'Active'
     })
     setStatuses(savedStatuses)
   }
@@ -83,7 +83,7 @@ export default function StudentsPage() {
 
     const { data: created } = await supabase
       .from('students')
-      .insert({ company_id: companyId, student_id: studentNumber, full_name: form.full_name, email: form.email || null, status: 'Pending' })
+      .insert({ company_id: companyId, student_id: studentNumber, full_name: form.full_name, email: form.email || null, status: 'Active' })
       .select('id')
       .single()
 
@@ -233,7 +233,7 @@ export default function StudentsPage() {
                 <td className="px-4 py-3">{moduleLabel(student.id)}</td>
                 <td className="px-4 py-3">{new Date(student.created_at).toLocaleString()}</td>
                 <td className="px-4 py-3">
-                  <select className="px-2 py-1 border rounded" value={statuses[student.id] || 'Pending'} onChange={(e) => updateStatus(student.id, e.target.value)}>
+                  <select className="px-2 py-1 border rounded" value={statuses[student.id] || 'Active'} onChange={(e) => updateStatus(student.id, e.target.value)}>
                     {STATUS_OPTIONS.map((status) => <option key={status} value={status}>{status}</option>)}
                   </select>
                 </td>

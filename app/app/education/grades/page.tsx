@@ -16,14 +16,13 @@ export default function GradesPage() {
     const ctx = await getSessionContext()
     if (!ctx?.companyId) return
 
-    const [studentsRes, modulesRes, daysRes, cwGradesRes, examsRes, examGradesRes, enrollmentsRes] = await Promise.all([
+    const [studentsRes, modulesRes, daysRes, cwGradesRes, examsRes, examGradesRes] = await Promise.all([
       supabase.from('students').select('id, student_id, full_name, status').eq('company_id', ctx.companyId),
       supabase.from('education_modules').select('id, module_code, module_name').eq('company_id', ctx.companyId).order('module_code'),
       supabase.from('coursework_days').select('id, module_id'),
       supabase.from('student_grades_coursework').select('student_id, coursework_day_id, marks_obtained'),
       supabase.from('final_exams').select('id, module_id, exam_date').order('exam_date', { ascending: false }),
       supabase.from('student_grades_final_exam').select('student_id, final_exam_id, marks_obtained'),
-      supabase.from('student_enrollments').select('student_id, module_id'),
     ])
 
     const students = studentsRes.data || []
@@ -32,7 +31,14 @@ export default function GradesPage() {
     const cwGrades = cwGradesRes.data || []
     const exams = examsRes.data || []
     const examGrades = examGradesRes.data || []
-    const enrollments = enrollmentsRes.data || []
+    const studentIds = students.map((student) => student.id)
+    const moduleIds = modules.map((module) => module.id)
+
+    const { data: enrollmentsData } = studentIds.length
+      ? await supabase.from('student_enrollments').select('student_id, module_id').in('student_id', studentIds)
+      : { data: [] as any[] }
+
+    const enrollments = (enrollmentsData || []).filter((enrollment) => moduleIds.includes(enrollment.module_id))
 
     const report: any[] = []
 
@@ -70,12 +76,14 @@ export default function GradesPage() {
         examMarks,
         exam50,
         total: coursework50 + (exam50 || 0),
-        status: STATUS_OPTIONS.includes(student.status) ? student.status : 'Pending',
+        status: STATUS_OPTIONS.includes(student.status) ? student.status : 'Active',
       })
     })
 
+    const enrolledModuleIds = new Set(report.map((row) => row.moduleId))
+
     setRows(report)
-    setModuleTabs(modules)
+    setModuleTabs(modules.filter((module) => enrolledModuleIds.has(module.id)))
   }
 
   useEffect(() => {
