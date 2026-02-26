@@ -1,157 +1,126 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Plus, Edit, Trash2, Users, BookOpen, Calendar } from 'lucide-react'
+import { Users, Calendar, Plus } from 'lucide-react'
 import { Input } from '@/components/ui/input'
+import { getSessionContext } from '@/lib/company-context'
+import { supabase } from '@/lib/supabase'
+import { calculateEightWorkingWeekEndDate } from '@/lib/education'
 
 export default function ModulesPage() {
-  const [modules] = useState([
-    {
-      id: '1',
-      code: 'CS101',
-      name: 'Introduction to Programming',
-      instructor: 'Dr. John Doe',
-      students: 45,
-      credits: 3,
-      status: 'active',
-      startDate: '2024-01-15',
-      endDate: '2024-04-30',
-    },
-    {
-      id: '2',
-      code: 'CS102',
-      name: 'Web Development Basics',
-      instructor: 'Prof. Jane Smith',
-      students: 38,
-      credits: 3,
-      status: 'active',
-      startDate: '2024-01-15',
-      endDate: '2024-04-30',
-    },
-    {
-      id: '3',
-      code: 'CS201',
-      name: 'Advanced Database Design',
-      instructor: 'Dr. Bob Johnson',
-      students: 28,
-      credits: 4,
-      status: 'active',
-      startDate: '2024-01-15',
-      endDate: '2024-04-30',
-    },
-    {
-      id: '4',
-      code: 'BUS105',
-      name: 'Business Management',
-      instructor: 'Prof. Alice Brown',
-      students: 52,
-      credits: 3,
-      status: 'pending',
-      startDate: '2024-05-01',
-      endDate: '2024-08-31',
-    },
-  ])
+  const [companyId, setCompanyId] = useState<string | null>(null)
+  const [userId, setUserId] = useState<string | null>(null)
+  const [modules, setModules] = useState<any[]>([])
+  const [employees, setEmployees] = useState<any[]>([])
+  const [enrollments, setEnrollments] = useState<any[]>([])
+  const [schedules, setSchedules] = useState<any[]>([])
+  const [form, setForm] = useState({ module_name: '', instructor_id: '', opening_date: '' })
 
-  const getStatusColor = (status: string) => {
-    return status === 'active'
-      ? 'bg-green-100 text-green-800'
-      : 'bg-yellow-100 text-yellow-800'
+  const loadData = async () => {
+    const ctx = await getSessionContext()
+    if (!ctx?.companyId || !ctx.userId) return
+    setCompanyId(ctx.companyId)
+    setUserId(ctx.userId)
+
+    const [mRes, eRes, enRes, schRes] = await Promise.all([
+      supabase.from('education_modules').select('*').eq('company_id', ctx.companyId).order('created_at', { ascending: false }),
+      supabase.from('company_employees').select('id, users(full_name)').eq('company_id', ctx.companyId).eq('status', 'active'),
+      supabase.from('student_enrollments').select('id, student_id, module_id'),
+      supabase.from('lecture_schedules').select('id, module_id, instructor_id, company_employees(users(full_name))').eq('company_id', ctx.companyId),
+    ])
+
+    setModules(mRes.data || [])
+    setEmployees(eRes.data || [])
+    setEnrollments(enRes.data || [])
+    setSchedules(schRes.data || [])
   }
 
+  useEffect(() => { loadData() }, [])
+
+  const createModule = async () => {
+    if (!companyId || !userId || !form.module_name || !form.opening_date) return
+    const moduleCode = `MOD-${new Date().getFullYear()}-${String(modules.length + 1).padStart(4, '0')}`
+    const classLabel = new Date(`${form.opening_date}T00:00:00`).toLocaleString(undefined, { month: 'short', year: 'numeric' })
+    const endDate = calculateEightWorkingWeekEndDate(form.opening_date)
+
+    const { data: created } = await supabase
+      .from('education_modules')
+      .insert({
+        company_id: companyId,
+        module_code: moduleCode,
+        module_name: form.module_name,
+        created_by: userId,
+        description: `Class of ${classLabel} | Runs ${form.opening_date} to ${endDate}`,
+      })
+      .select('id')
+      .single()
+
+    if (created?.id && form.instructor_id) {
+      await supabase.from('lecture_schedules').insert({
+        company_id: companyId,
+        module_id: created.id,
+        instructor_id: form.instructor_id,
+        day_name: 'Monday',
+        start_time: '09:00',
+        end_time: '11:00',
+        room_location: 'TBD',
+      })
+    }
+
+    setForm({ module_name: '', instructor_id: '', opening_date: '' })
+    await loadData()
+  }
+
+  const studentCount = (moduleId: string) => enrollments.filter((e) => e.module_id === moduleId).length
+  const instructorName = (moduleId: string) => schedules.find((s) => s.module_id === moduleId)?.company_employees?.users?.full_name || 'Unassigned'
+
+  const totalStudents = useMemo(() => modules.reduce((sum, module) => sum + studentCount(module.id), 0), [modules, enrollments])
+
   return (
-    <div className="p-6 max-w-7xl mx-auto">
-      <div className="flex items-center justify-between mb-8">
+    <div className="p-6 max-w-7xl mx-auto space-y-6">
+      <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold text-foreground mb-2">Module Management</h1>
-          <p className="text-muted-foreground">Create and manage academic modules</p>
+          <p className="text-muted-foreground">Add modules, auto-generate codes, assign instructors, and track student load</p>
         </div>
-        <Button>
-          <Plus className="w-4 h-4 mr-2" />
-          New Module
-        </Button>
       </div>
 
-      {/* Summary Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
-        <Card className="p-4 border border-border">
-          <p className="text-sm text-muted-foreground mb-1">Total Modules</p>
-          <p className="text-2xl font-bold text-foreground">{modules.length}</p>
-        </Card>
-        <Card className="p-4 border border-border">
-          <p className="text-sm text-muted-foreground mb-1">Active Modules</p>
-          <p className="text-2xl font-bold text-green-600">{modules.filter(m => m.status === 'active').length}</p>
-        </Card>
-        <Card className="p-4 border border-border">
-          <p className="text-sm text-muted-foreground mb-1">Total Students</p>
-          <p className="text-2xl font-bold text-foreground">{modules.reduce((sum, m) => sum + m.students, 0)}</p>
-        </Card>
-        <Card className="p-4 border border-border">
-          <p className="text-sm text-muted-foreground mb-1">Total Credits</p>
-          <p className="text-2xl font-bold text-primary">{modules.reduce((sum, m) => sum + m.credits, 0)}</p>
-        </Card>
-      </div>
-
-      {/* Search & Filter */}
-      <Card className="p-4 border border-border mb-6 flex items-center gap-4">
-        <div className="flex-1 relative">
-          <Input
-            placeholder="Search modules..."
-            className="pl-4"
-          />
+      <Card className="p-4 border border-border space-y-3">
+        <h2 className="font-semibold">Create module</h2>
+        <div className="grid md:grid-cols-3 gap-3">
+          <Input placeholder="Module name" value={form.module_name} onChange={(e) => setForm({ ...form, module_name: e.target.value })} />
+          <select className="px-3 py-2 border border-border rounded-md text-sm" value={form.instructor_id} onChange={(e) => setForm({ ...form, instructor_id: e.target.value })}>
+            <option value="">Instructor (optional)</option>
+            {employees.map((employee: any) => <option key={employee.id} value={employee.id}>{employee.users?.full_name}</option>)}
+          </select>
+          <Input type="date" value={form.opening_date} onChange={(e) => setForm({ ...form, opening_date: e.target.value })} />
         </div>
-        <select className="px-3 py-2 border border-border rounded-md text-sm">
-          <option value="">All Status</option>
-          <option value="active">Active</option>
-          <option value="pending">Pending</option>
-        </select>
+        <Button onClick={createModule}><Plus className="w-4 h-4 mr-2" />New Module</Button>
       </Card>
 
-      {/* Modules Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <Card className="p-4 border border-border"><p className="text-sm text-muted-foreground">Total Modules</p><p className="text-2xl font-bold">{modules.length}</p></Card>
+        <Card className="p-4 border border-border"><p className="text-sm text-muted-foreground">Total Students in Modules</p><p className="text-2xl font-bold">{totalStudents}</p></Card>
+        <Card className="p-4 border border-border"><p className="text-sm text-muted-foreground">Credit Units</p><p className="text-2xl font-bold">N/A</p></Card>
+      </div>
+
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {modules.map((module) => (
-          <Card key={module.id} className="p-6 border border-border hover:shadow-lg transition-shadow">
-            <div className="flex items-start justify-between mb-4">
-              <div>
-                <p className="text-sm font-mono text-muted-foreground mb-1">{module.code}</p>
-                <h3 className="text-lg font-semibold text-foreground">{module.name}</h3>
+        {modules.map((module) => {
+          const run = module.description?.match(/Runs\s(\d{4}-\d{2}-\d{2})\sto\s(\d{4}-\d{2}-\d{2})/)
+          return (
+            <Card key={module.id} className="p-6 border border-border">
+              <p className="text-sm font-mono text-muted-foreground mb-1">{module.module_code}</p>
+              <h3 className="text-lg font-semibold text-foreground">{module.module_name}</h3>
+              <div className="space-y-2 mt-4 text-sm text-muted-foreground">
+                <p><span className="font-medium text-foreground">Instructor:</span> {instructorName(module.id)}</p>
+                <p className="flex items-center gap-2"><Users className="w-4 h-4" /> {studentCount(module.id)} Students</p>
+                {run && <p className="flex items-center gap-2"><Calendar className="w-4 h-4" /> {run[1]} - {run[2]} (8 working weeks)</p>}
               </div>
-              <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(module.status)}`}>
-                {module.status.charAt(0).toUpperCase() + module.status.slice(1)}
-              </span>
-            </div>
-
-            <div className="space-y-3 mb-4 text-sm">
-              <div className="flex items-center gap-2 text-muted-foreground">
-                <span className="font-medium text-foreground">Instructor:</span>
-                {module.instructor}
-              </div>
-              <div className="flex items-center gap-2 text-muted-foreground">
-                <Users className="w-4 h-4" />
-                <span>{module.students} Students</span>
-              </div>
-              <div className="flex items-center gap-2 text-muted-foreground">
-                <BookOpen className="w-4 h-4" />
-                <span>{module.credits} Credits</span>
-              </div>
-              <div className="flex items-center gap-2 text-muted-foreground">
-                <Calendar className="w-4 h-4" />
-                <span>{new Date(module.startDate).toLocaleDateString()} - {new Date(module.endDate).toLocaleDateString()}</span>
-              </div>
-            </div>
-
-            <div className="flex gap-2 pt-4 border-t border-border">
-              <Button variant="outline" size="sm" className="flex-1">
-                <Edit className="w-4 h-4 mr-2" />
-                Edit
-              </Button>
-              <Button variant="outline" size="sm" className="flex-1">
-                View Details
-              </Button>
-            </div>
-          </Card>
-        ))}
+            </Card>
+          )
+        })}
       </div>
     </div>
   )
