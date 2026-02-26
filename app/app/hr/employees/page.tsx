@@ -14,30 +14,53 @@ import type { CompanyEmployee } from '@/types'
 
 export default function EmployeesPage() {
   const [employees, setEmployees] = useState<any[]>([])
+  const [roles, setRoles] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
+  const [showAddForm, setShowAddForm] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
   const [deptFilter, setDeptFilter] = useState('')
+  const [companyId, setCompanyId] = useState<string | null>(null)
+  const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
+  const [employeeForm, setEmployeeForm] = useState({
+    email: '',
+    roleId: '',
+    department: '',
+    position: '',
+    salary: '',
+    phoneNumber: '',
+    employeeIdNumber: '',
+  })
 
-  useEffect(() => {
-    const loadEmployees = async () => {
-      try {
-        const context = await getSessionContext()
-        if (!context?.companyId) return
+  const loadEmployees = async () => {
+    try {
+      const context = await getSessionContext()
+      if (!context?.companyId) return
+      setCompanyId(context.companyId)
 
-        const { data } = await supabase
+      const [{ data }, { data: roleData }] = await Promise.all([
+        supabase
           .from('company_employees')
           .select('*, users(full_name, email, avatar_url), company_roles(name)')
           .eq('company_id', context.companyId)
-          .order('created_at', { ascending: false })
+          .order('created_at', { ascending: false }),
+        supabase
+          .from('company_roles')
+          .select('id, name')
+          .eq('company_id', context.companyId)
+          .order('name', { ascending: true }),
+      ])
 
-        setEmployees(data || [])
-      } catch (error) {
-        console.error('Failed to load employees:', error)
-      } finally {
-        setLoading(false)
-      }
+      setEmployees(data || [])
+      setRoles(roleData || [])
+    } catch (error) {
+      console.error('Failed to load employees:', error)
+    } finally {
+      setLoading(false)
     }
+  }
+
+  useEffect(() => {
     loadEmployees()
   }, [])
 
@@ -78,6 +101,72 @@ export default function EmployeesPage() {
   const getInitials = (name: string) =>
     name?.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2) || '??'
 
+  const exportEmployees = () => {
+    const headers = ['name', 'email', 'employee_id_number', 'department', 'position', 'phone_number', 'status']
+    const rows = filtered.map((emp) => [
+      emp.users?.full_name || '',
+      emp.users?.email || '',
+      emp.employee_id_number || '',
+      emp.department || '',
+      emp.position || emp.company_roles?.name || '',
+      emp.phone_number || '',
+      emp.status || '',
+    ].map((value) => JSON.stringify(value)).join(','))
+
+    const csv = [headers.join(','), ...rows].join('\n')
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = `employees-${new Date().toISOString().slice(0, 10)}.csv`
+    link.click()
+    URL.revokeObjectURL(url)
+  }
+
+  const handleAddEmployee = async () => {
+    if (!companyId || !employeeForm.email || !employeeForm.roleId) {
+      setMessage({ type: 'error', text: 'Email and role are required to add an employee.' })
+      return
+    }
+
+    try {
+      const { data: user, error: userError } = await supabase
+        .from('users')
+        .select('id')
+        .eq('email', employeeForm.email.trim().toLowerCase())
+        .single()
+
+      if (userError || !user) {
+        throw new Error('No existing user found with that email. Ask the employee to sign up first.')
+      }
+
+      const { error } = await supabase
+        .from('company_employees')
+        .insert({
+          company_id: companyId,
+          user_id: user.id,
+          company_role_id: employeeForm.roleId,
+          department: employeeForm.department || null,
+          position: employeeForm.position || null,
+          employee_id_number: employeeForm.employeeIdNumber || null,
+          salary: employeeForm.salary ? Number(employeeForm.salary) : null,
+          phone_number: employeeForm.phoneNumber || null,
+          status: 'active',
+          joined_at: new Date().toISOString(),
+        })
+
+      if (error) throw error
+
+      setMessage({ type: 'success', text: 'Employee added successfully.' })
+      setEmployeeForm({ email: '', roleId: '', department: '', position: '', salary: '', phoneNumber: '', employeeIdNumber: '' })
+      setShowAddForm(false)
+      setLoading(true)
+      await loadEmployees()
+    } catch (error: any) {
+      setMessage({ type: 'error', text: error.message || 'Failed to add employee.' })
+    }
+  }
+
   return (
     <div className="p-6 lg:p-8 max-w-[1400px] mx-auto">
       {/* Header */}
@@ -87,16 +176,52 @@ export default function EmployeesPage() {
           <p className="text-sm text-gray-500">Manage your team members and their information</p>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" className="text-gray-600">
+          <Button variant="outline" size="sm" className="text-gray-600" onClick={exportEmployees}>
             <Download className="w-4 h-4 mr-1.5" />
             Export
           </Button>
-          <Button size="sm" className="bg-blue-600 hover:bg-blue-700">
+          <Button size="sm" className="bg-blue-600 hover:bg-blue-700" onClick={() => setShowAddForm(!showAddForm)}>
             <Plus className="w-4 h-4 mr-1.5" />
             Add Employee
           </Button>
         </div>
       </div>
+
+      {message && (
+        <div className={`mb-4 px-4 py-3 rounded-lg text-sm font-medium ${
+          message.type === 'success' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-red-50 text-red-600 border border-red-200'
+        }`}>
+          {message.text}
+        </div>
+      )}
+
+      {showAddForm && (
+        <Card className="mb-6 p-4 border border-blue-200 bg-blue-50/30">
+          <h3 className="text-sm font-semibold text-gray-800 mb-3">Add Employee</h3>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <Input placeholder="Employee email *" value={employeeForm.email} onChange={(e) => setEmployeeForm({ ...employeeForm, email: e.target.value })} className="bg-white" />
+            <select
+              className="px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white"
+              value={employeeForm.roleId}
+              onChange={(e) => setEmployeeForm({ ...employeeForm, roleId: e.target.value })}
+            >
+              <option value="">Select role *</option>
+              {roles.map((role) => (
+                <option key={role.id} value={role.id}>{role.name}</option>
+              ))}
+            </select>
+            <Input placeholder="Employee ID" value={employeeForm.employeeIdNumber} onChange={(e) => setEmployeeForm({ ...employeeForm, employeeIdNumber: e.target.value })} className="bg-white" />
+            <Input placeholder="Department" value={employeeForm.department} onChange={(e) => setEmployeeForm({ ...employeeForm, department: e.target.value })} className="bg-white" />
+            <Input placeholder="Position" value={employeeForm.position} onChange={(e) => setEmployeeForm({ ...employeeForm, position: e.target.value })} className="bg-white" />
+            <Input type="number" placeholder="Salary (UGX)" value={employeeForm.salary} onChange={(e) => setEmployeeForm({ ...employeeForm, salary: e.target.value })} className="bg-white" />
+            <Input placeholder="Phone" value={employeeForm.phoneNumber} onChange={(e) => setEmployeeForm({ ...employeeForm, phoneNumber: e.target.value })} className="bg-white md:col-span-2" />
+          </div>
+          <div className="mt-3 flex gap-2">
+            <Button size="sm" onClick={handleAddEmployee}>Save Employee</Button>
+            <Button size="sm" variant="outline" onClick={() => setShowAddForm(false)}>Cancel</Button>
+          </div>
+        </Card>
+      )}
 
       {/* Stats */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">

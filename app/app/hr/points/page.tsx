@@ -19,6 +19,7 @@ export default function HRPointsPage() {
   const [loading, setLoading] = useState(true)
   const [activeTab, setActiveTab] = useState<'balances' | 'transactions' | 'rules'>('balances')
   const [showAwardForm, setShowAwardForm] = useState(false)
+  const [showRuleForm, setShowRuleForm] = useState(false)
   const [companyId, setCompanyId] = useState<string | null>(null)
   const [employees, setEmployees] = useState<any[]>([])
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
@@ -29,6 +30,14 @@ export default function HRPointsPage() {
     actionType: 'gain' as 'gain' | 'loss',
     points: '',
     reason: '',
+  })
+
+  const [ruleForm, setRuleForm] = useState({
+    category: '',
+    indicator: '',
+    actionType: 'gain' as 'gain' | 'loss',
+    pointValue: '',
+    description: '',
   })
 
   useEffect(() => {
@@ -113,6 +122,57 @@ export default function HRPointsPage() {
     }
   }
 
+  const handleCreateRule = async () => {
+    if (!companyId || !ruleForm.category || !ruleForm.indicator || !ruleForm.pointValue) {
+      setMessage({ type: 'error', text: 'Category, indicator, and point value are required.' })
+      return
+    }
+
+    try {
+      const { error } = await supabase
+        .from('point_rules')
+        .insert({
+          company_id: companyId,
+          category: ruleForm.category,
+          indicator: ruleForm.indicator,
+          action_type: ruleForm.actionType,
+          point_value: Number(ruleForm.pointValue),
+          description: ruleForm.description || null,
+          is_active: true,
+        })
+
+      if (error) throw error
+
+      setMessage({ type: 'success', text: 'Point rule created successfully.' })
+      setRuleForm({ category: '', indicator: '', actionType: 'gain', pointValue: '', description: '' })
+      setShowRuleForm(false)
+      await loadData()
+      setActiveTab('rules')
+    } catch (error: any) {
+      setMessage({ type: 'error', text: error.message || 'Failed to create point rule.' })
+    }
+  }
+
+  const exportPoints = () => {
+    const headers = ['employee_name', 'action_type', 'points', 'rule_or_reason', 'recorded_date']
+    const rows = transactions.map((t: any) => [
+      t.company_employees?.users?.full_name || '',
+      t.action_type,
+      t.points,
+      t.point_rules?.indicator || t.reason || '',
+      t.recorded_date,
+    ].map((value) => JSON.stringify(value ?? '')).join(','))
+
+    const csv = [headers.join(','), ...rows].join('\n')
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = `hr-points-${new Date().toISOString().slice(0, 10)}.csv`
+    link.click()
+    URL.revokeObjectURL(url)
+  }
+
   const totalGains = transactions.filter(t => t.action_type === 'gain').reduce((s, t) => s + (t.points || 0), 0)
   const totalLosses = transactions.filter(t => t.action_type === 'loss').reduce((s, t) => s + (t.points || 0), 0)
 
@@ -131,7 +191,7 @@ export default function HRPointsPage() {
           <p className="text-sm text-gray-500">Track employee performance points, awards, and deductions</p>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" className="text-gray-600">
+          <Button variant="outline" size="sm" className="text-gray-600" onClick={exportPoints}>
             <Download className="w-4 h-4 mr-1.5" />
             Export
           </Button>
@@ -248,6 +308,36 @@ export default function HRPointsPage() {
               Record Points
             </Button>
             <Button size="sm" variant="outline" onClick={() => setShowAwardForm(false)}>Cancel</Button>
+          </div>
+        </Card>
+      )}
+
+      {showRuleForm && (
+        <Card className="border border-amber-200 bg-amber-50/30 p-6 mb-6">
+          <h3 className="text-sm font-semibold text-gray-800 mb-4 flex items-center gap-2">
+            <Star className="w-4 h-4 text-amber-600" />
+            Create Point Rule
+          </h3>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <Input placeholder="Category *" value={ruleForm.category} onChange={(e) => setRuleForm({ ...ruleForm, category: e.target.value })} className="bg-white" />
+            <Input placeholder="Indicator *" value={ruleForm.indicator} onChange={(e) => setRuleForm({ ...ruleForm, indicator: e.target.value })} className="bg-white" />
+            <select
+              className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white"
+              value={ruleForm.actionType}
+              onChange={(e) => setRuleForm({ ...ruleForm, actionType: e.target.value as 'gain' | 'loss' })}
+            >
+              <option value="gain">Point Gain (+)</option>
+              <option value="loss">Point Loss (-)</option>
+            </select>
+            <Input type="number" placeholder="Point value *" value={ruleForm.pointValue} onChange={(e) => setRuleForm({ ...ruleForm, pointValue: e.target.value })} className="bg-white" />
+            <Input placeholder="Description (optional)" value={ruleForm.description} onChange={(e) => setRuleForm({ ...ruleForm, description: e.target.value })} className="bg-white md:col-span-2" />
+          </div>
+          <div className="flex items-center gap-3 mt-5">
+            <Button size="sm" className="bg-amber-600 hover:bg-amber-700" onClick={handleCreateRule}>
+              <Plus className="w-4 h-4 mr-1.5" />
+              Save Rule
+            </Button>
+            <Button size="sm" variant="outline" onClick={() => setShowRuleForm(false)}>Cancel</Button>
           </div>
         </Card>
       )}
@@ -369,6 +459,13 @@ export default function HRPointsPage() {
 
       {activeTab === 'rules' && (
         <Card className="border border-gray-200/60 bg-white overflow-hidden">
+          <div className="px-5 py-3 border-b border-gray-100 flex items-center justify-between bg-gray-50/40">
+            <p className="text-xs text-gray-500">Create reusable rules and optionally select them when awarding points.</p>
+            <Button size="sm" variant="outline" onClick={() => setShowRuleForm(!showRuleForm)}>
+              <Plus className="w-4 h-4 mr-1.5" />
+              Add Rule
+            </Button>
+          </div>
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead>
