@@ -276,7 +276,7 @@ export default function HomePage() {
             </div>
           </div>
           <div className="border-t border-border pt-8 text-center text-sm text-muted-foreground">
-            <p>&copy; 2024 Jackisa Office. All rights reserved.</p>
+            <p>&copy; 2024 Jackisa Office, a product of Jackisa OPC. All Rights Reserved.</p>
           </div>
         </div>
       </footer>
