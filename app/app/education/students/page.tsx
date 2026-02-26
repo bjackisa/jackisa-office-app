@@ -7,7 +7,8 @@ import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Label } from '@/components/ui/label'
-import { Plus, Search } from 'lucide-react'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { ChevronDown, Plus, Search } from 'lucide-react'
 import { getSessionContext } from '@/lib/company-context'
 import { supabase } from '@/lib/supabase'
 
@@ -142,39 +143,52 @@ export default function StudentsPage() {
         </div>
 
         <div className="rounded-lg border p-3 space-y-3">
-          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2">
-            <div>
-              <p className="font-medium text-sm">Enroll in modules</p>
-              <p className="text-xs text-muted-foreground">Choose one or many modules for this student.</p>
-            </div>
-            <div className="flex items-center gap-2">
-              <Button variant="outline" size="sm" onClick={() => setForm((prev) => ({ ...prev, module_ids: modules.map((module) => module.id) }))}>Select all</Button>
-              <Button variant="ghost" size="sm" onClick={() => setForm((prev) => ({ ...prev, module_ids: [] }))}>Clear</Button>
-            </div>
+          <div>
+            <p className="font-medium text-sm">Enroll in modules</p>
+            <p className="text-xs text-muted-foreground">Open the dropdown and tick one or many modules for this student.</p>
           </div>
 
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-            <Input className="pl-9" placeholder="Search modules by code or name" value={moduleSearch} onChange={(e) => setModuleSearch(e.target.value)} />
-          </div>
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button variant="outline" className="w-full justify-between">
+                <span className="truncate text-left">
+                  {form.module_ids.length === 0
+                    ? 'Select modules'
+                    : `${form.module_ids.length} module${form.module_ids.length > 1 ? 's' : ''} selected`}
+                </span>
+                <ChevronDown className="w-4 h-4 opacity-70" />
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent align="start" className="w-[min(90vw,420px)] p-3 space-y-3">
+              <div className="flex items-center gap-2">
+                <Button variant="outline" size="sm" onClick={() => setForm((prev) => ({ ...prev, module_ids: modules.map((module) => module.id) }))}>Select all</Button>
+                <Button variant="ghost" size="sm" onClick={() => setForm((prev) => ({ ...prev, module_ids: [] }))}>Clear</Button>
+              </div>
 
-          <div className="max-h-52 overflow-y-auto border rounded-md divide-y">
-            {filteredModules.map((module) => {
-              const checked = form.module_ids.includes(module.id)
-              return (
-                <div key={module.id} className="flex items-center gap-3 px-3 py-2 hover:bg-muted/40 transition-colors">
-                  <Checkbox id={`module-${module.id}`} checked={checked} onCheckedChange={() => toggleModule(module.id)} />
-                  <Label htmlFor={`module-${module.id}`} className="flex-1 cursor-pointer">
-                    <p className="font-medium text-sm">{module.module_code}</p>
-                    <p className="text-xs text-muted-foreground">{module.module_name}</p>
-                  </Label>
-                </div>
-              )
-            })}
-            {filteredModules.length === 0 && (
-              <p className="px-3 py-4 text-sm text-muted-foreground">No modules match your search.</p>
-            )}
-          </div>
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                <Input className="pl-9" placeholder="Search modules by code or name" value={moduleSearch} onChange={(e) => setModuleSearch(e.target.value)} />
+              </div>
+
+              <div className="max-h-52 overflow-y-auto border rounded-md divide-y">
+                {filteredModules.map((module) => {
+                  const checked = form.module_ids.includes(module.id)
+                  return (
+                    <div key={module.id} className="flex items-center gap-3 px-3 py-2 hover:bg-muted/40 transition-colors">
+                      <Checkbox id={`module-${module.id}`} checked={checked} onCheckedChange={() => toggleModule(module.id)} />
+                      <Label htmlFor={`module-${module.id}`} className="flex-1 cursor-pointer">
+                        <p className="font-medium text-sm">{module.module_code}</p>
+                        <p className="text-xs text-muted-foreground">{module.module_name}</p>
+                      </Label>
+                    </div>
+                  )
+                })}
+                {filteredModules.length === 0 && (
+                  <p className="px-3 py-4 text-sm text-muted-foreground">No modules match your search.</p>
+                )}
+              </div>
+            </PopoverContent>
+          </Popover>
 
           <div className="flex flex-wrap gap-2">
             {form.module_ids.length === 0 && <p className="text-xs text-muted-foreground">No modules selected yet.</p>}
