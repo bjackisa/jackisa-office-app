@@ -134,8 +134,12 @@ export default function LoginPage() {
       <div className="w-full max-w-md">
         {/* Logo & Header */}
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-12 h-12 rounded-lg bg-primary mb-4">
-            <Lock className="w-6 h-6 text-primary-foreground" />
+          <div className="inline-flex items-center justify-center w-14 h-14 rounded-xl bg-[#0a1628] p-2 mb-4">
+            <img
+              src="https://res.cloudinary.com/dsijcu1om/image/upload/v1772089694/2_en3tei.png"
+              alt="Jackisa Office logo"
+              className="h-full w-full object-contain"
+            />
           </div>
           <h1 className="text-3xl font-bold text-foreground mb-2">Jackisa Office</h1>
           <p className="text-muted-foreground">Sign in to your account</p>

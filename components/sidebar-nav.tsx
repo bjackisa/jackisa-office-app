@@ -238,8 +238,12 @@ export function SidebarNav({
       {/* Brand Header */}
       <div className="px-5 pt-5 pb-4">
         <div className="flex items-center gap-2.5">
-          <div className="w-8 h-8 rounded-lg bg-blue-500 flex items-center justify-center flex-shrink-0">
-            <Building2 className="w-4.5 h-4.5 text-white" />
+          <div className="w-8 h-8 rounded-lg bg-[#081220] p-1.5 flex items-center justify-center flex-shrink-0">
+            <img
+              src="https://res.cloudinary.com/dsijcu1om/image/upload/v1772089694/2_en3tei.png"
+              alt="Jackisa Office logo"
+              className="h-full w-full object-contain"
+            />
           </div>
           <div className="min-w-0">
             <h1 className="text-white font-semibold text-sm tracking-tight">Jackisa Office</h1>
@@ -352,8 +356,12 @@ export function SidebarNav({
       {/* Mobile Header */}
       <div className="lg:hidden fixed top-0 left-0 right-0 h-14 bg-[#0a1628] flex items-center justify-between px-4 z-50 border-b border-white/[0.06]">
         <div className="flex items-center gap-2">
-          <div className="w-7 h-7 rounded-lg bg-blue-500 flex items-center justify-center">
-            <Building2 className="w-3.5 h-3.5 text-white" />
+          <div className="w-7 h-7 rounded-lg bg-[#081220] p-1 flex items-center justify-center">
+            <img
+              src="https://res.cloudinary.com/dsijcu1om/image/upload/v1772089694/2_en3tei.png"
+              alt="Jackisa Office logo"
+              className="h-full w-full object-contain"
+            />
           </div>
           <span className="text-white font-semibold text-sm">Jackisa Office</span>
         </div>

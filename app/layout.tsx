@@ -10,20 +10,46 @@ const inter = Inter({
 })
 
 export const metadata: Metadata = {
+  metadataBase: new URL('https://office.jackisa.com'),
   title: 'Jackisa Office',
-  description: 'Professional office management tool for companies. Manage employees, accounting, HR, payroll, and more with Jackisa Office.',
+  description: 'Jackisa Office is the all-in-one operating system for modern teams—manage HR, payroll, accounting, sales, education, legal workflows, and more from one secure dashboard.',
   keywords: ['office management', 'HR', 'accounting', 'payroll', 'corporate', 'business'],
   generator: 'Jackisa Office',
-  viewport: 'width=device-width, initial-scale=1',
   authors: [{ name: 'Jackisa Office' }],
   icons: {
-    icon: '/favicon.ico',
+    icon: [
+      {
+        url: 'https://res.cloudinary.com/dsijcu1om/image/upload/v1772089563/3_umjgfn.ico',
+      },
+    ],
+    shortcut: ['https://res.cloudinary.com/dsijcu1om/image/upload/v1772089563/3_umjgfn.ico'],
+    apple: [
+      {
+        url: 'https://res.cloudinary.com/dsijcu1om/image/upload/v1772089958/jackisa.com_logo_cbm52w.png',
+      },
+    ],
   },
   openGraph: {
+    title: 'Jackisa Office | Enterprise Operations Platform',
+    description: 'Run your entire company from one place: HR, payroll, accounting, sales, education, legal documents, and team administration.',
     type: 'website',
     locale: 'en_US',
     url: 'https://office.jackisa.com',
     siteName: 'Jackisa Office',
+    images: [
+      {
+        url: 'https://res.cloudinary.com/dsijcu1om/image/upload/v1772089958/jackisa.com_logo_cbm52w.png',
+        width: 2000,
+        height: 2000,
+        alt: 'Jackisa Office',
+      },
+    ],
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'Jackisa Office | Enterprise Operations Platform',
+    description: 'Run HR, payroll, accounting, sales, education, and legal workflows from one secure dashboard.',
+    images: ['https://res.cloudinary.com/dsijcu1om/image/upload/v1772089958/jackisa.com_logo_cbm52w.png'],
   },
 }
 
