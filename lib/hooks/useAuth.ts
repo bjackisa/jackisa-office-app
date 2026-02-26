@@ -94,7 +94,7 @@ export function useAuth() {
         .from('user_active_company')
         .select('company_id')
         .eq('user_id', authUser.id)
-        .single()
+        .maybeSingle()
 
       if (activeCompanyData) {
         activeCompanyId = activeCompanyData.company_id
