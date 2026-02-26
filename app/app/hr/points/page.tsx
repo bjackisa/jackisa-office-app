@@ -17,7 +17,28 @@ import {
   Download,
   AlertTriangle,
 } from 'lucide-react'
-import { jsPDF } from 'jspdf'
+
+
+const loadJsPdf = async () => {
+  const existing = (window as any).jspdf?.jsPDF
+  if (existing) return existing
+
+  await new Promise<void>((resolve, reject) => {
+    const script = document.createElement('script')
+    script.src = 'https://cdn.jsdelivr.net/npm/jspdf@2.5.2/dist/jspdf.umd.min.js'
+    script.async = true
+    script.onload = () => resolve()
+    script.onerror = () => reject(new Error('Failed to load PDF generator. Please check your internet connection and try again.'))
+    document.head.appendChild(script)
+  })
+
+  const loaded = (window as any).jspdf?.jsPDF
+  if (!loaded) {
+    throw new Error('PDF generator could not be initialized.')
+  }
+
+  return loaded
+}
 
 export default function HRPointsPage() {
   const [transactions, setTransactions] = useState<any[]>([])
@@ -71,11 +92,7 @@ export default function HRPointsPage() {
           .eq('company_id', context.companyId)
           .eq('is_active', true)
           .order('sort_order', { ascending: true }),
-        supabase
-          .from('company_employees')
-          .select('id, users(full_name), status')
-          .eq('company_id', context.companyId)
-          .in('status', ['active', 'suspended']),
+        supabase.from('company_employees').select('id, users(full_name), status').eq('company_id', context.companyId),
       ])
 
       setTransactions(txRes.data || [])
@@ -90,6 +107,58 @@ export default function HRPointsPage() {
   }
 
   const selectedRule = useMemo(() => rules.find((r: any) => r.id === awardForm.ruleId), [rules, awardForm.ruleId])
+
+  const visibleBalances = useMemo(() => {
+    const now = new Date()
+    const currentMonth = now.getMonth() + 1
+    const currentYear = now.getFullYear()
+
+    const latestByEmployee = new Map<string, any>()
+    for (const balance of balances) {
+      if (!latestByEmployee.has(balance.employee_id)) {
+        latestByEmployee.set(balance.employee_id, balance)
+      }
+    }
+
+    return employees
+      .map((employee: any) => {
+        const existing = latestByEmployee.get(employee.id)
+        if (existing) {
+          const closingBalance = Number(existing.closing_balance ?? 30)
+          const monetizablePoints = Math.max(0, Math.min(100, closingBalance) - 30)
+          return {
+            ...existing,
+            company_employees: existing.company_employees || employee,
+            period_month: existing.period_month ?? currentMonth,
+            period_year: existing.period_year ?? currentYear,
+            redeemable_points: monetizablePoints,
+            redeemable_amount_ugx: monetizablePoints * 1000,
+          }
+        }
+
+        return {
+          id: `virtual-${employee.id}`,
+          employee_id: employee.id,
+          company_id: companyId,
+          company_employees: employee,
+          period_month: currentMonth,
+          period_year: currentYear,
+          opening_balance: 30,
+          points_gained: 0,
+          points_lost: 0,
+          closing_balance: 30,
+          redeemable_points: 0,
+          redeemable_amount_ugx: 0,
+          is_termination_flagged: employee.status === 'terminated',
+        }
+      })
+      .sort((a, b) => (a.company_employees?.users?.full_name || '').localeCompare(b.company_employees?.users?.full_name || ''))
+  }, [balances, companyId, employees])
+
+  const awardableEmployees = useMemo(
+    () => employees.filter((employee: any) => ['active', 'suspended'].includes(employee.status)),
+    [employees]
+  )
 
   const handleRecordPoints = async () => {
     if (!awardForm.employeeId || !awardForm.ruleId || !companyId) {
@@ -172,7 +241,8 @@ export default function HRPointsPage() {
       return
     }
 
-    const doc = new jsPDF({ unit: 'pt', format: 'a4' })
+    const JsPdf = await loadJsPdf()
+    const doc = new JsPdf({ unit: 'pt', format: 'a4' })
     const employeeName =
       (data as any)?.company_employees?.users?.full_name ||
       (data as any)?.company_employees?.[0]?.users?.full_name ||
@@ -211,7 +281,7 @@ export default function HRPointsPage() {
 
   const totalGains = transactions.filter((t) => t.action_type === 'gain').reduce((s, t) => s + (t.points || 0), 0)
   const totalLosses = transactions.filter((t) => t.action_type === 'loss').reduce((s, t) => s + (t.points || 0), 0)
-  const flaggedTerminations = balances.filter((b) => b.is_termination_flagged || Number(b.closing_balance) <= 0).length
+  const flaggedTerminations = visibleBalances.filter((b) => b.is_termination_flagged || Number(b.closing_balance) <= 0).length
 
   const tabs = [
     { key: 'balances', label: 'Balances', icon: Target },
@@ -252,7 +322,7 @@ export default function HRPointsPage() {
 
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
         {[
-          { label: 'Employees Tracked', value: balances.length, icon: Target, color: 'text-blue-600', bg: 'bg-blue-50' },
+          { label: 'Employees Tracked', value: visibleBalances.length, icon: Target, color: 'text-blue-600', bg: 'bg-blue-50' },
           { label: 'Total Gains', value: `+${totalGains.toFixed(1)}`, icon: ArrowUpCircle, color: 'text-emerald-600', bg: 'bg-emerald-50' },
           { label: 'Total Losses', value: `-${totalLosses.toFixed(1)}`, icon: ArrowDownCircle, color: 'text-red-600', bg: 'bg-red-50' },
           { label: 'Active Rules', value: rules.length, icon: Star, color: 'text-amber-600', bg: 'bg-amber-50' },
@@ -287,7 +357,7 @@ export default function HRPointsPage() {
                 onChange={(e) => setAwardForm({ ...awardForm, employeeId: e.target.value })}
               >
                 <option value="">Select employee...</option>
-                {employees.map((emp: any) => (
+                {awardableEmployees.map((emp: any) => (
                   <option key={emp.id} value={emp.id}>
                     {emp.users?.full_name || 'Unnamed'}
                   </option>
@@ -424,14 +494,14 @@ export default function HRPointsPage() {
                       Loading...
                     </td>
                   </tr>
-                ) : balances.length === 0 ? (
+                ) : visibleBalances.length === 0 ? (
                   <tr>
                     <td colSpan={7} className="px-5 py-12 text-center text-sm text-gray-400">
                       No point balances yet.
                     </td>
                   </tr>
                 ) : (
-                  balances.map((b: any) => {
+                  visibleBalances.map((b: any) => {
                     const isTerminated = b.is_termination_flagged || Number(b.closing_balance) <= 0
                     return (
                       <tr key={b.id} className={isTerminated ? 'bg-rose-50/40' : 'hover:bg-gray-50/50'}>

@@ -30,13 +30,10 @@ RETURNS DECIMAL
 LANGUAGE plpgsql
 AS $$
 DECLARE
-  redeemable DECIMAL := LEAST(GREATEST(points_value, 0), 100);
+  capped_points DECIMAL := LEAST(GREATEST(points_value, 0), 100);
+  monetizable_points DECIMAL := GREATEST(capped_points - 30, 0);
 BEGIN
-  IF redeemable <= 50 THEN
-    RETURN redeemable * 3000;
-  END IF;
-
-  RETURN (50 * 3000) + ((redeemable - 50) * 10000);
+  RETURN monetizable_points * 1000;
 END;
 $$;
 
@@ -177,7 +174,7 @@ BEGIN
     v_points_gained,
     v_points_lost,
     LEAST(100, GREATEST(0, 30 + v_points_gained - v_points_lost)),
-    LEAST(100, GREATEST(0, 30 + v_points_gained - v_points_lost)),
+    GREATEST(LEAST(100, GREATEST(0, 30 + v_points_gained - v_points_lost)) - 30, 0),
     calculate_point_redemption(LEAST(100, GREATEST(0, 30 + v_points_gained - v_points_lost))),
     FALSE,
     NOW()
@@ -187,7 +184,7 @@ BEGIN
     points_gained = point_balances.points_gained + EXCLUDED.points_gained,
     points_lost = point_balances.points_lost + EXCLUDED.points_lost,
     closing_balance = LEAST(100, GREATEST(0, point_balances.opening_balance + (point_balances.points_gained + EXCLUDED.points_gained) - (point_balances.points_lost + EXCLUDED.points_lost))),
-    redeemable_points = LEAST(100, GREATEST(0, point_balances.opening_balance + (point_balances.points_gained + EXCLUDED.points_gained) - (point_balances.points_lost + EXCLUDED.points_lost))),
+    redeemable_points = GREATEST(LEAST(100, GREATEST(0, point_balances.opening_balance + (point_balances.points_gained + EXCLUDED.points_gained) - (point_balances.points_lost + EXCLUDED.points_lost))) - 30, 0),
     redeemable_amount_ugx = calculate_point_redemption(LEAST(100, GREATEST(0, point_balances.opening_balance + (point_balances.points_gained + EXCLUDED.points_gained) - (point_balances.points_lost + EXCLUDED.points_lost)))),
     updated_at = NOW()
   RETURNING * INTO v_balance;
