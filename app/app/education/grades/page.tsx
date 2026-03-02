@@ -17,7 +17,7 @@ export default function GradesPage() {
     const [studentsRes, modulesRes, daysRes, cwGradesRes, examsRes, examGradesRes] = await Promise.all([
       supabase.from('students').select('id, student_id, full_name').eq('company_id', ctx.companyId),
       supabase.from('education_modules').select('id, module_code, module_name').eq('company_id', ctx.companyId).order('module_code'),
-      supabase.from('coursework_days').select('id, module_id'),
+      supabase.from('coursework_days').select('id, module_id, max_marks'),
       supabase.from('student_grades_coursework').select('student_id, coursework_day_id, marks_obtained'),
       supabase.from('final_exams').select('id, module_id, exam_date').order('exam_date', { ascending: false }),
       supabase.from('student_grades_final_exam').select('student_id, final_exam_id, marks_obtained'),
@@ -59,15 +59,17 @@ export default function GradesPage() {
       if (!student || !module) return
 
       const moduleDays = days.filter((day) => day.module_id === module.id)
-      const dayCount = moduleDays.length
-      const benchmarkDays = Math.max(8, dayCount)
-      const courseworkMax = benchmarkDays * 20
+      const moduleDaysById = new Map(moduleDays.map((day) => [day.id, day]))
+      const courseworkRows = cwGrades.filter(
+        (grade) => grade.student_id === student.id && moduleDaysById.has(grade.coursework_day_id),
+      )
+      const courseworkTotalRaw = courseworkRows.reduce((sum, row) => sum + Number(row.marks_obtained || 0), 0)
+      const courseworkMax = courseworkRows.reduce((sum, row) => {
+        const day = moduleDaysById.get(row.coursework_day_id)
+        return sum + Number(day?.max_marks || 20)
+      }, 0)
 
-      const courseworkTotalRaw = cwGrades
-        .filter((grade) => grade.student_id === student.id && moduleDays.some((day) => day.id === grade.coursework_day_id))
-        .reduce((sum, row) => sum + Number(row.marks_obtained), 0)
-
-      const coursework50 = Math.min((courseworkTotalRaw / (courseworkMax || 1)) * 50, 50)
+      const coursework50 = courseworkMax > 0 ? Math.min((courseworkTotalRaw / courseworkMax) * 50, 50) : 0
 
       const moduleExamIds = exams.filter((exam) => exam.module_id === module.id).map((exam) => exam.id)
       const examRow = examGrades.find((grade) => grade.student_id === student.id && moduleExamIds.includes(grade.final_exam_id))
