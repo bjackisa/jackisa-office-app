@@ -56,6 +56,7 @@ function calculatePAYE(grossSalary: number): PAYECalculation {
 export default function PAYEPage() {
   const [grossSalary, setGrossSalary] = useState('')
   const [result, setResult] = useState<PAYECalculation | null>(null)
+  const [bandSearch, setBandSearch] = useState('')
 
   const handleCalculate = () => {
     const salary = parseFloat(grossSalary)
@@ -137,7 +138,7 @@ export default function PAYEPage() {
               <h3 className="text-sm font-semibold text-gray-800">Uganda PAYE Tax Bands</h3>
             </div>
             <div className="space-y-2">
-              {UGANDA_PAYE_BANDS.map((band, i) => (
+              {filteredBands.map((band, i) => (
                 <div key={i} className="flex items-center justify-between py-1.5 border-b border-gray-50 last:border-0">
                   <div>
                     <p className="text-xs text-gray-700 font-medium">{band.description}</p>
@@ -185,7 +186,7 @@ export default function PAYEPage() {
               </div>
 
               {/* Detailed Breakdown */}
-              <Card className="border border-gray-200/60 bg-white overflow-hidden">
+              <Card className="p-3 border border-gray-200/60 bg-white"><Input placeholder="Filter tax bands by range..." value={bandSearch} onChange={(e) => setBandSearch(e.target.value)} /></Card><Card className="border border-gray-200/60 bg-white overflow-hidden">
                 <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
                   <h3 className="text-sm font-semibold text-gray-800">Tax Breakdown</h3>
                   <Button variant="outline" size="sm" className="text-xs">

@@ -6,12 +6,14 @@ import { getSessionContext } from '@/lib/company-context'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Search } from 'lucide-react'
 
 export default function BookkeepingPage() {
   const [companyId, setCompanyId] = useState<string | null>(null)
   const [userId, setUserId] = useState<string | null>(null)
   const [entries, setEntries] = useState<any[]>([])
   const [accounts, setAccounts] = useState<any[]>([])
+  const [searchQuery, setSearchQuery] = useState('')
   const [form, setForm] = useState({ entry_date: new Date().toISOString().split('T')[0], description: '', reference_number: '', account_id: '', debit: '', credit: '' })
 
   const loadData = async () => {
@@ -111,12 +113,12 @@ export default function BookkeepingPage() {
         <Button onClick={createEntry}>Save Entry</Button>
       </Card>
 
-      <Card className="border border-gray-200/60 overflow-hidden">
+      <Card className="p-3 border border-gray-200/60"><div className="relative"><Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400"/><Input className="pl-10" placeholder="Search description or reference..." value={searchQuery} onChange={(e)=>setSearchQuery(e.target.value)} /></div></Card><Card className="border border-gray-200/60 overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead><tr className="bg-gray-50 border-b text-xs text-gray-500 uppercase"><th className="px-4 py-3 text-left">Date</th><th className="px-4 py-3 text-left">Description</th><th className="px-4 py-3 text-left">Reference</th><th className="px-4 py-3 text-left">Journal Lines</th></tr></thead>
             <tbody>
-              {entries.length === 0 ? <tr><td colSpan={4} className="px-4 py-8 text-center text-gray-400">No entries recorded.</td></tr> : entries.map((entry) => (
+              {filtered.length === 0 ? <tr><td colSpan={4} className="px-4 py-8 text-center text-gray-400">No entries recorded.</td></tr> : filtered.map((entry) => (
                 <tr key={entry.id} className="border-b last:border-0 align-top">
                   <td className="px-4 py-3">{entry.entry_date}</td>
                   <td className="px-4 py-3">{entry.description}</td>

@@ -10,6 +10,7 @@ import {
   TrendingUp, TrendingDown, DollarSign, Percent,
 } from 'lucide-react'
 
+
 const VAT_RATE = 0.18
 
 const statusCfg: Record<string, { label: string; bg: string; text: string; border: string }> = {
@@ -21,6 +22,7 @@ const statusCfg: Record<string, { label: string; bg: string; text: string; borde
 export default function VATPage() {
   const [records, setRecords] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
+  const [searchQuery, setSearchQuery] = useState('')
 
   // Quick calculator state
   const [calcSales, setCalcSales] = useState('')
@@ -122,6 +124,7 @@ export default function VATPage() {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* VAT Records Table */}
+      <Card className="p-3 border border-gray-200/60"><Input placeholder="Search period or status..." value={searchQuery} onChange={(e)=>setSearchQuery(e.target.value)} /></Card>
         <div className="lg:col-span-2">
           <Card className="border border-gray-200/60 bg-white overflow-hidden">
             <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
@@ -144,7 +147,7 @@ export default function VATPage() {
                 <tbody className="divide-y divide-gray-50">
                   {loading ? (
                     <tr><td colSpan={7} className="px-5 py-12 text-center text-sm text-gray-400">Loading VAT records...</td></tr>
-                  ) : records.length === 0 ? (
+                  ) : filtered.length === 0 ? (
                     <tr>
                       <td colSpan={7} className="px-5 py-12 text-center">
                         <Percent className="w-8 h-8 text-gray-200 mx-auto mb-3" />
@@ -153,7 +156,7 @@ export default function VATPage() {
                       </td>
                     </tr>
                   ) : (
-                    records.map((r) => {
+                    filtered.map((r) => {
                       const vat = calcVAT(r.total_sales || 0, r.total_purchases || 0)
                       const cfg = statusCfg[r.status] || statusCfg.draft
                       return (

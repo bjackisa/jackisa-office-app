@@ -6,12 +6,15 @@ import { supabase } from '@/lib/supabase'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Search } from 'lucide-react'
 
 export default function LeavePage() {
   const [companyId, setCompanyId] = useState<string | null>(null)
   const [requests, setRequests] = useState<any[]>([])
   const [types, setTypes] = useState<any[]>([])
   const [employees, setEmployees] = useState<any[]>([])
+  const [searchQuery, setSearchQuery] = useState('')
+  const [statusFilter, setStatusFilter] = useState('')
   const [form, setForm] = useState({ employee_id: '', leave_type_id: '', start_date: '', end_date: '', reason: '' })
 
   const loadData = async () => {
@@ -68,10 +71,10 @@ export default function LeavePage() {
         <Button onClick={submitRequest}>Submit Request</Button>
       </Card>
 
-      <Card className="overflow-x-auto">
+      <Card className="p-3 border border-gray-200/60"><div className="flex flex-col sm:flex-row gap-3"><div className="relative flex-1"><Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400"/><Input className="pl-10" placeholder="Search by employee/type or reason..." value={searchQuery} onChange={e=>setSearchQuery(e.target.value)}/></div><Input placeholder="Filter status/day" value={statusFilter} onChange={e=>setStatusFilter(e.target.value)} /></div></Card><Card className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead><tr className="border-b bg-gray-50 text-xs uppercase text-gray-500"><th className="px-4 py-2 text-left">Employee</th><th className="px-4 py-2 text-left">Type</th><th className="px-4 py-2 text-left">Period</th><th className="px-4 py-2 text-right">Days</th><th className="px-4 py-2 text-left">Status</th></tr></thead>
-          <tbody>{requests.length===0?<tr><td colSpan={5} className="px-4 py-8 text-center text-gray-400">No leave requests</td></tr>:requests.map((r:any)=><tr key={r.id} className="border-b"><td className="px-4 py-2">{r.company_employees?.users?.full_name || 'Unknown'}</td><td className="px-4 py-2">{r.leave_types?.name || '—'}</td><td className="px-4 py-2">{r.start_date} → {r.end_date}</td><td className="px-4 py-2 text-right">{r.days_count}</td><td className="px-4 py-2 capitalize">{r.status}</td></tr>)}</tbody>
+          <tbody>{filtered.length===0?<tr><td colSpan={5} className="px-4 py-8 text-center text-gray-400">No leave requests</td></tr>:filtered.map((r:any)=><tr key={r.id} className="border-b"><td className="px-4 py-2">{r.company_employees?.users?.full_name || 'Unknown'}</td><td className="px-4 py-2">{r.leave_types?.name || '—'}</td><td className="px-4 py-2">{r.start_date} → {r.end_date}</td><td className="px-4 py-2 text-right">{r.days_count}</td><td className="px-4 py-2 capitalize">{r.status}</td></tr>)}</tbody>
         </table>
       </Card>
     </div>

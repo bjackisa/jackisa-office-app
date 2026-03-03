@@ -6,12 +6,15 @@ import { getSessionContext } from '@/lib/company-context'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Search } from 'lucide-react'
 
 export default function DebitNotesPage() {
   const [companyId, setCompanyId] = useState<string | null>(null)
   const [userId, setUserId] = useState<string | null>(null)
   const [invoices, setInvoices] = useState<any[]>([])
   const [debitNotes, setDebitNotes] = useState<any[]>([])
+  const [searchQuery, setSearchQuery] = useState('')
+  const [statusFilter, setStatusFilter] = useState('')
   const [form, setForm] = useState({ invoice_id: '', debit_date: new Date().toISOString().split('T')[0], reason: '', amount: '' })
 
   const loadData = async () => {
@@ -32,6 +35,8 @@ export default function DebitNotesPage() {
   useEffect(() => {
     loadData()
   }, [])
+
+  const filtered = debitNotes.filter((row:any)=>{const q = searchQuery.toLowerCase(); const matchSearch = !searchQuery || JSON.stringify(row).toLowerCase().includes(q); const matchStatus = !statusFilter || row.status===statusFilter || row.day_name===statusFilter; return matchSearch && matchStatus})
 
   const createDebitNote = async () => {
     if (!companyId || !userId || !form.reason || !form.amount) return
@@ -76,7 +81,7 @@ export default function DebitNotesPage() {
           <table className="w-full text-sm">
             <thead><tr className="bg-gray-50 border-b text-xs text-gray-500 uppercase"><th className="px-4 py-3 text-left">Number</th><th className="px-4 py-3 text-left">Invoice</th><th className="px-4 py-3 text-left">Date</th><th className="px-4 py-3 text-left">Reason</th><th className="px-4 py-3 text-right">Amount</th></tr></thead>
             <tbody>
-              {debitNotes.length === 0 ? <tr><td colSpan={5} className="px-4 py-8 text-center text-gray-400">No debit notes found.</td></tr> : debitNotes.map((note) => (
+              {filtered.length === 0 ? <tr><td colSpan={5} className="px-4 py-8 text-center text-gray-400">No debit notes found.</td></tr> : filtered.map((note) => (
                 <tr key={note.id} className="border-b last:border-0"><td className="px-4 py-3 font-medium">{note.debit_note_number}</td><td className="px-4 py-3">{note.invoices?.invoice_number || '—'}</td><td className="px-4 py-3">{note.debit_date}</td><td className="px-4 py-3">{note.reason}</td><td className="px-4 py-3 text-right font-mono">{Number(note.amount || 0).toLocaleString()}</td></tr>
               ))}
             </tbody>
