@@ -6,7 +6,7 @@ import { getSessionContext } from '@/lib/company-context'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import {
-  Plus, Download, Eye, DollarSign, Users, Calculator,
+  Plus, Download, Search, Eye, DollarSign, Users, Calculator,
   Banknote, TrendingDown, CheckCircle, Clock, ArrowRight,
 } from 'lucide-react'
 import Link from 'next/link'
@@ -47,6 +47,8 @@ export default function PayrollPage() {
   const [employees, setEmployees] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [companyId, setCompanyId] = useState<string | null>(null)
+  const [searchQuery, setSearchQuery] = useState('')
+  const [departmentFilter, setDepartmentFilter] = useState('')
 
   useEffect(() => {
     loadData()
@@ -93,9 +95,16 @@ export default function PayrollPage() {
   const now = new Date()
   const monthName = now.toLocaleString('default', { month: 'long', year: 'numeric' })
 
+  const departments = [...new Set(employees.map(emp => emp.department).filter(Boolean))]
+  const filteredPayrollData = payrollData.filter((emp) => {
+    const matchSearch = !searchQuery || emp.employee?.users?.full_name?.toLowerCase().includes(searchQuery.toLowerCase())
+    const matchDept = !departmentFilter || emp.employee?.department === departmentFilter
+    return matchSearch && matchDept
+  })
+
   const exportPayroll = () => {
     const headers = ['employee_name', 'role', 'gross_salary', 'nssf', 'paye', 'net_pay']
-    const rows = payrollData.map((emp) => [
+    const rows = filteredPayrollData.map((emp) => [
       emp.users?.full_name || '',
       emp.company_roles?.name || '',
       emp.gross,
@@ -197,7 +206,7 @@ export default function PayrollPage() {
             <tbody className="divide-y divide-gray-50">
               {loading ? (
                 <tr><td colSpan={6} className="px-5 py-12 text-center text-sm text-gray-400">Loading payroll data...</td></tr>
-              ) : payrollData.length === 0 ? (
+              ) : filteredPayrollData.length === 0 ? (
                 <tr>
                   <td colSpan={6} className="px-5 py-12 text-center">
                     <Users className="w-8 h-8 text-gray-200 mx-auto mb-3" />
@@ -206,7 +215,7 @@ export default function PayrollPage() {
                   </td>
                 </tr>
               ) : (
-                payrollData.map((emp) => (
+                filteredPayrollData.map((emp) => (
                   <tr key={emp.id} className="hover:bg-gray-50/50">
                     <td className="px-5 py-3">
                       <div className="flex items-center gap-2.5">
