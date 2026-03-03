@@ -3,6 +3,7 @@
 import { useAuth } from '@/lib/hooks/useAuth'
 import { SidebarNav } from '@/components/sidebar-nav'
 import { Spinner } from '@/components/ui/spinner'
+import { TableEnhancer } from '@/components/table-enhancer'
 import { Bell, Search, HelpCircle } from 'lucide-react'
 import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
@@ -98,6 +99,7 @@ export default function AppLayout({
 
         {/* Main Content */}
         <main className="flex-1 overflow-auto">
+          <TableEnhancer />
           {children}
         </main>
       </div>
