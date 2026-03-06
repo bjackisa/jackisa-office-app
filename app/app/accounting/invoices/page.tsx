@@ -70,6 +70,12 @@ export default function InvoicesPage() {
 
   const formatUGX = (n: number) => `UGX ${n.toLocaleString('en-US', { minimumFractionDigits: 0 })}`
 
+  const getInvoiceOutstanding = (invoice: any) => {
+    const total = Number(invoice?.total_amount || 0)
+    const paid = Number(invoice?.paid_amount || 0)
+    return Math.max(total - paid, 0)
+  }
+
   const createInvoice = async () => {
     if (!companyId || !userId || !form.customer_name || !form.subtotal || !form.due_date) return
     const subtotal = Number(form.subtotal)
@@ -88,6 +94,7 @@ export default function InvoicesPage() {
       tax_amount: tax,
       total_amount: total,
       paid_amount: 0,
+      outstanding_amount: total,
       status: form.status,
       notes: form.notes || null,
       created_by: userId,
@@ -101,7 +108,10 @@ export default function InvoicesPage() {
   const updateInvoiceStatus = async (id: string, newStatus: string, totalAmount: number) => {
     if (!companyId) return
     const updates: any = { status: newStatus }
-    if (newStatus === 'paid') updates.paid_amount = totalAmount
+    if (newStatus === 'paid') {
+      updates.paid_amount = totalAmount
+      updates.outstanding_amount = 0
+    }
     await supabase.from('invoices').update(updates).eq('id', id)
 
     if (newStatus === 'paid' && totalAmount > 0) {
@@ -246,6 +256,7 @@ export default function InvoicesPage() {
                 </td></tr>
               ) : filtered.map((invoice) => {
                 const sb = statusBadge[invoice.status] || statusBadge.draft
+                const outstanding = getInvoiceOutstanding(invoice)
                 return (
                   <tr key={invoice.id} className="group">
                     <td className="font-semibold text-foreground">{invoice.invoice_number}</td>
@@ -260,7 +271,7 @@ export default function InvoicesPage() {
                       <div className="space-y-0.5">
                         <p className="font-mono font-bold tabular-nums">{formatUGX(invoice.total_amount || 0)}</p>
                         <p className="text-[11px] text-muted-foreground">Paid: {formatUGX(Number(invoice.paid_amount || 0))}</p>
-                        <p className="text-[11px] text-muted-foreground/70">Outstanding: {formatUGX(Number(invoice.outstanding_amount ?? ((invoice.total_amount || 0) - (invoice.paid_amount || 0))))}</p>
+                        <p className="text-[11px] text-muted-foreground/70">Outstanding: {formatUGX(outstanding)}</p>
                       </div>
                     </td>
                     <td>
@@ -311,7 +322,7 @@ export default function InvoicesPage() {
           module="invoicing"
           moduleReferenceId={payInvoice.id}
           moduleReferenceType="invoices"
-          amount={Number(payInvoice.total_amount || 0) - Number(payInvoice.paid_amount || 0)}
+          amount={getInvoiceOutstanding(payInvoice)}
           title={`Collect Payment — ${payInvoice.invoice_number}`}
           description={`From ${payInvoice.customer_name}`}
           metadata={{ invoice_number: payInvoice.invoice_number, customer: payInvoice.customer_name }}

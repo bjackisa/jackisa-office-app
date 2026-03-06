@@ -57,10 +57,8 @@ export default function CreditNotesPage() {
   const getInvoiceOutstanding = (invoice: any) => {
     const total = parseAmount(invoice?.total_amount || 0)
     const paid = parseAmount(invoice?.paid_amount || 0)
-    const explicit = parseAmount(invoice?.outstanding_amount)
     const computed = total - paid
-    if (Number.isFinite(explicit)) return Math.max(explicit, 0)
-    if (Number.isFinite(computed)) return computed
+    if (Number.isFinite(computed)) return Math.max(computed, 0)
     return 0
   }
 
