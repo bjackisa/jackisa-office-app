@@ -121,7 +121,7 @@ export default function InvoicesPage() {
   }
 
   const exportCsv = () => {
-    const headers = ['invoice_number', 'customer_name', 'invoice_date', 'due_date', 'status', 'subtotal', 'tax_amount', 'total_amount', 'paid_amount']
+    const headers = ['invoice_number', 'customer_name', 'invoice_date', 'due_date', 'status', 'subtotal', 'tax_amount', 'total_amount', 'paid_amount', 'outstanding_amount']
     const rows = filtered.map((i) => headers.map((h) => JSON.stringify(i[h] ?? '')).join(','))
     const csv = [headers.join(','), ...rows].join('\n')
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
@@ -223,7 +223,7 @@ export default function InvoicesPage() {
                 <th>Invoice</th>
                 <th>Customer</th>
                 <th>Dates</th>
-                <th className="text-right">Amount</th>
+                <th className="text-right">Amounts</th>
                 <th>Status</th>
                 <th className="text-right">Actions</th>
               </tr>
@@ -256,7 +256,13 @@ export default function InvoicesPage() {
                         <p className="text-xs text-muted-foreground/50">Due: {invoice.due_date}</p>
                       </div>
                     </td>
-                    <td className="text-right font-mono font-bold tabular-nums">{formatUGX(invoice.total_amount || 0)}</td>
+                    <td className="text-right">
+                      <div className="space-y-0.5">
+                        <p className="font-mono font-bold tabular-nums">{formatUGX(invoice.total_amount || 0)}</p>
+                        <p className="text-[11px] text-muted-foreground">Paid: {formatUGX(Number(invoice.paid_amount || 0))}</p>
+                        <p className="text-[11px] text-muted-foreground/70">Outstanding: {formatUGX(Number(invoice.outstanding_amount ?? ((invoice.total_amount || 0) - (invoice.paid_amount || 0))))}</p>
+                      </div>
+                    </td>
                     <td>
                       <span className={`badge ${sb.cls}`}>{sb.label}</span>
                       {invoice.status === 'paid' && <span className="ml-1.5 inline-flex items-center gap-0.5 text-[9px] text-emerald-600"><Landmark className="w-2.5 h-2.5" />Fund</span>}
@@ -296,7 +302,7 @@ export default function InvoicesPage() {
           open={!!payInvoice}
           onClose={() => setPayInvoice(null)}
           onSuccess={async (paymentId, method) => {
-            await updateInvoiceStatus(payInvoice.id, 'paid', Number(payInvoice.total_amount || 0))
+            await loadInvoices()
             setPayInvoice(null)
           }}
           companyId={companyId}

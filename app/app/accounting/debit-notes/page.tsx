@@ -11,11 +11,11 @@ import { Search } from 'lucide-react'
 export default function DebitNotesPage() {
   const [companyId, setCompanyId] = useState<string | null>(null)
   const [userId, setUserId] = useState<string | null>(null)
-  const [invoices, setInvoices] = useState<any[]>([])
+  const [expenses, setExpenses] = useState<any[]>([])
   const [debitNotes, setDebitNotes] = useState<any[]>([])
   const [searchQuery, setSearchQuery] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
-  const [form, setForm] = useState({ invoice_id: '', debit_date: new Date().toISOString().split('T')[0], reason: '', amount: '' })
+  const [form, setForm] = useState({ expense_id: '', debit_date: new Date().toISOString().split('T')[0], reason: '', amount: '' })
 
   const loadData = async () => {
     const ctx = await getSessionContext()
@@ -23,12 +23,12 @@ export default function DebitNotesPage() {
     setCompanyId(ctx.companyId)
     setUserId(ctx.userId)
 
-    const [invoiceRes, noteRes] = await Promise.all([
-      supabase.from('invoices').select('id, invoice_number, customer_name').eq('company_id', ctx.companyId).order('created_at', { ascending: false }),
-      supabase.from('debit_notes').select('*, invoices(invoice_number, customer_name)').eq('company_id', ctx.companyId).order('created_at', { ascending: false }),
+    const [expenseRes, noteRes] = await Promise.all([
+      supabase.from('expenses').select('id, description, amount, expense_date').eq('company_id', ctx.companyId).order('created_at', { ascending: false }),
+      supabase.from('debit_notes').select('*, expenses(description, amount, expense_date)').eq('company_id', ctx.companyId).order('created_at', { ascending: false }),
     ])
 
-    setInvoices(invoiceRes.data || [])
+    setExpenses(expenseRes.data || [])
     setDebitNotes(noteRes.data || [])
   }
 
@@ -44,14 +44,14 @@ export default function DebitNotesPage() {
     await supabase.from('debit_notes').insert({
       company_id: companyId,
       debit_note_number: `DN-${Date.now()}`,
-      invoice_id: form.invoice_id || null,
+      expense_id: form.expense_id || null,
       debit_date: form.debit_date,
       reason: form.reason,
       amount: Number(form.amount),
       created_by: userId,
     })
 
-    setForm({ invoice_id: '', debit_date: new Date().toISOString().split('T')[0], reason: '', amount: '' })
+    setForm({ expense_id: '', debit_date: new Date().toISOString().split('T')[0], reason: '', amount: '' })
     await loadData()
   }
 
@@ -59,7 +59,7 @@ export default function DebitNotesPage() {
     <div className="p-6 lg:p-8 max-w-[1200px] mx-auto space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-foreground tracking-tight">Debit Notes</h1>
-        <p className="text-sm text-muted-foreground mt-0.5">Create and track debit notes for invoice adjustments</p>
+        <p className="text-sm text-muted-foreground mt-0.5">Create and track debit notes for expense settlements</p>
       </div>
 
       <Card className="p-5 border border-primary/15 bg-primary/[0.02] space-y-3">
@@ -69,13 +69,13 @@ export default function DebitNotesPage() {
           </div>
           <div>
             <h3 className="text-sm font-semibold text-foreground">Create Debit Note</h3>
-            <p className="text-[11px] text-muted-foreground/60">Issue a debit against an invoice</p>
+            <p className="text-[11px] text-muted-foreground/60">Issue a debit against an expense</p>
           </div>
         </div>
         <div className="grid md:grid-cols-4 gap-3">
-          <select className="form-select" value={form.invoice_id} onChange={(e) => setForm({ ...form, invoice_id: e.target.value })}>
-            <option value="">No linked invoice</option>
-            {invoices.map((invoice) => <option key={invoice.id} value={invoice.id}>{invoice.invoice_number} — {invoice.customer_name}</option>)}
+          <select className="form-select" value={form.expense_id} onChange={(e) => setForm({ ...form, expense_id: e.target.value })}>
+            <option value="">No linked expense</option>
+            {expenses.map((expense) => <option key={expense.id} value={expense.id}>{expense.description} — {Number(expense.amount || 0).toLocaleString()}</option>)}
           </select>
           <Input type="date" value={form.debit_date} onChange={(e) => setForm({ ...form, debit_date: e.target.value })} />
           <Input placeholder="Reason" value={form.reason} onChange={(e) => setForm({ ...form, reason: e.target.value })} />
@@ -89,10 +89,10 @@ export default function DebitNotesPage() {
       <Card className="overflow-hidden">
         <div className="overflow-x-auto">
           <table className="premium-table">
-            <thead><tr><th>Number</th><th>Invoice</th><th>Date</th><th>Reason</th><th className="text-right">Amount</th></tr></thead>
+            <thead><tr><th>Number</th><th>Expense</th><th>Date</th><th>Reason</th><th className="text-right">Amount</th></tr></thead>
             <tbody>
               {filtered.length === 0 ? <tr><td colSpan={5} className="!py-12 text-center text-muted-foreground/60">No debit notes found.</td></tr> : filtered.map((note) => (
-                <tr key={note.id} className="group"><td className="font-mono text-xs text-muted-foreground">{note.debit_note_number}</td><td className="text-muted-foreground">{note.invoices?.invoice_number || '—'}</td><td className="text-xs text-muted-foreground">{note.debit_date}</td><td className="font-medium text-foreground">{note.reason}</td><td className="text-right font-mono font-bold tabular-nums">{Number(note.amount || 0).toLocaleString()}</td></tr>
+                <tr key={note.id} className="group"><td className="font-mono text-xs text-muted-foreground">{note.debit_note_number}</td><td className="text-muted-foreground">{note.expenses?.description || '—'}</td><td className="text-xs text-muted-foreground">{note.debit_date}</td><td className="font-medium text-foreground">{note.reason}</td><td className="text-right font-mono font-bold tabular-nums">{Number(note.amount || 0).toLocaleString()}</td></tr>
               ))}
             </tbody>
           </table>

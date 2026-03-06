@@ -107,7 +107,7 @@ export default function ExpensesPage() {
   }
 
   const exportCsv = () => {
-    const headers = ['expense_date', 'category', 'description', 'amount', 'status']
+    const headers = ['expense_date', 'category', 'description', 'amount', 'paid_amount', 'outstanding_amount', 'status']
     const rows = filtered.map((e) => headers.map((h) => JSON.stringify(e[h] ?? '')).join(','))
     const csv = [headers.join(','), ...rows].join('\n')
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
@@ -209,7 +209,7 @@ export default function ExpensesPage() {
                     <th>Description</th>
                     <th>Category</th>
                     <th>Date</th>
-                    <th className="text-right">Amount</th>
+                    <th className="text-right">Amounts</th>
                     <th>Status</th>
                     <th className="text-right">Actions</th>
                   </tr>
@@ -235,12 +235,18 @@ export default function ExpensesPage() {
                       <td className="font-medium text-foreground">{exp.description}</td>
                       <td><span className="badge badge-neutral capitalize">{exp.category}</span></td>
                       <td className="text-muted-foreground text-xs">{exp.expense_date}</td>
-                      <td className="text-right font-mono font-bold tabular-nums">{formatUGX(exp.amount || 0)}</td>
+                      <td className="text-right">
+                        <div className="space-y-0.5">
+                          <p className="font-mono font-bold tabular-nums">{formatUGX(exp.amount || 0)}</p>
+                          <p className="text-[11px] text-muted-foreground">Paid: {formatUGX(Number(exp.paid_amount || 0))}</p>
+                          <p className="text-[11px] text-muted-foreground/70">Outstanding: {formatUGX(Number(exp.outstanding_amount ?? ((exp.amount || 0) - (exp.paid_amount || 0))))}</p>
+                        </div>
+                      </td>
                       <td>
-                        <span className={`badge ${exp.status === 'approved' ? 'badge-success' : exp.status === 'rejected' ? 'badge-danger' : 'badge-warning'}`}>
+                        <span className={`badge ${exp.status === 'approved' || exp.status === 'paid' ? 'badge-success' : exp.status === 'partially_paid' ? 'badge-info' : exp.status === 'rejected' ? 'badge-danger' : 'badge-warning'}`}>
                           {exp.status}
                         </span>
-                        {exp.status === 'approved' && <span className="ml-1 inline-flex items-center gap-0.5 text-[9px] text-amber-600"><Landmark className="w-2.5 h-2.5" />Fund</span>}
+                        {(exp.status === 'approved' || exp.status === 'paid' || exp.status === 'partially_paid') && <span className="ml-1 inline-flex items-center gap-0.5 text-[9px] text-amber-600"><Landmark className="w-2.5 h-2.5" />Fund</span>}
                       </td>
                       <td className="text-right">
                         <div className="flex items-center justify-end gap-1">
@@ -250,7 +256,7 @@ export default function ExpensesPage() {
                               <button onClick={() => updateExpenseStatus(exp.id, 'rejected', 0)} className="text-[10px] font-medium px-2 py-1 rounded bg-red-50 text-red-600 hover:bg-red-100 transition-colors">Reject</button>
                             </div>
                           )}
-                          {exp.status === 'approved' && (
+                          {['approved', 'partially_paid'].includes(exp.status) && Number(exp.outstanding_amount ?? ((exp.amount || 0) - (exp.paid_amount || 0))) > 0 && (
                             <button onClick={() => setReimburseExpense(exp)} className="text-[10px] font-medium px-2 py-1 rounded bg-blue-50 text-blue-700 hover:bg-blue-100 transition-colors flex items-center gap-1"><Banknote className="w-3 h-3" />Reimburse</button>
                           )}
                           <button className="p-1.5 rounded-lg text-muted-foreground/40 hover:text-red-500 hover:bg-red-50 transition-all opacity-0 group-hover:opacity-100" onClick={() => deleteExpense(exp.id)}>
@@ -314,7 +320,7 @@ export default function ExpensesPage() {
           module="reimbursement"
           moduleReferenceId={reimburseExpense.id}
           moduleReferenceType="expenses"
-          amount={Number(reimburseExpense.amount || 0)}
+          amount={Number(reimburseExpense.outstanding_amount ?? ((reimburseExpense.amount || 0) - (reimburseExpense.paid_amount || 0)))}
           title={`Reimburse Expense`}
           description={reimburseExpense.description}
           metadata={{ category: reimburseExpense.category, description: reimburseExpense.description }}
