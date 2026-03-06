@@ -4,6 +4,7 @@
  * Supports: Relworx (MTN MoMo, Airtel, Visa/MC) + Cash + Jackisa Pay
  */
 
+import { createClient } from '@supabase/supabase-js'
 import { supabase } from '@/lib/supabase'
 
 // ─── Types ───────────────────────────────────────────────────
@@ -65,6 +66,9 @@ const RELWORX_HEADERS = (apiKey: string) => ({
   'Content-Type': 'application/json',
 })
 
+const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL
+const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY
+
 const RELWORX_ENV_CONFIG: RelworxConfig | null =
   process.env.RELWORX_ACCOUNT_NO && process.env.RELWORX_API_KEY
     ? {
@@ -110,6 +114,19 @@ function validateAmount(amount: number, currency: string, method: PaymentMethodT
   return null
 }
 
+function getPaymentDb() {
+  if (typeof window === 'undefined' && SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY) {
+    return createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false,
+      },
+    })
+  }
+
+  return supabase
+}
+
 // ─── Gateway Config ──────────────────────────────────────────
 
 export async function getGatewayConfig(companyId: string): Promise<RelworxConfig | null> {
@@ -124,8 +141,9 @@ async function logApi(p: {
   endpoint: string; method: string; reqBody?: any
   resStatus?: number; resBody?: any; error?: string; ms?: number
 }) {
+  const db = getPaymentDb()
   try {
-    await supabase.from('payment_gateway_log').insert({
+    await db.from('payment_gateway_log').insert({
       payment_id: p.paymentId, company_id: p.companyId,
       direction: p.direction, endpoint: p.endpoint, http_method: p.method,
       request_body: p.reqBody, response_status: p.resStatus,
@@ -169,6 +187,7 @@ export async function relworxWalletBalance(config: RelworxConfig, currency = 'UG
 export async function initiatePayment(params: InitiatePaymentParams): Promise<PaymentResult> {
   const ourReference = generateRef()
   const currency = params.currency || 'UGX'
+  const db = getPaymentDb()
 
   // Validate amount for Relworx methods
   if (params.paymentMethod !== 'cash' && params.paymentMethod !== 'internal_transfer') {
@@ -177,7 +196,7 @@ export async function initiatePayment(params: InitiatePaymentParams): Promise<Pa
   }
 
   // Create payment record
-  const { data: payment, error: insertErr } = await supabase.from('payments').insert({
+  const { data: payment, error: insertErr } = await db.from('payments').insert({
     company_id: params.companyId, module: params.module,
     module_reference_id: params.moduleReferenceId, module_reference_type: params.moduleReferenceType,
     direction: params.direction, payment_method: params.paymentMethod,
@@ -189,15 +208,22 @@ export async function initiatePayment(params: InitiatePaymentParams): Promise<Pa
   }).select('id').single()
 
   if (insertErr || !payment) {
-    return { success: false, paymentId: '', ourReference, status: 'failed', message: 'Failed to create payment record' }
+    console.error('Payment insert failed:', insertErr)
+    return {
+      success: false,
+      paymentId: '',
+      ourReference,
+      status: 'failed',
+      message: insertErr?.message || 'Failed to create payment record',
+    }
   }
   const paymentId = payment.id
 
   // ── CASH ──
   if (params.paymentMethod === 'cash') {
     const change = Math.max(0, (params.cashTendered || params.amount) - params.amount)
-    await supabase.from('payments').update({ status: 'success', completed_at: new Date().toISOString() }).eq('id', paymentId)
-    await supabase.from('cash_payments').insert({
+    await db.from('payments').update({ status: 'success', completed_at: new Date().toISOString() }).eq('id', paymentId)
+    await db.from('cash_payments').insert({
       payment_id: paymentId, received_by: params.cashReceivedBy || params.initiatedBy,
       cash_tendered: params.cashTendered || params.amount, change_given: change,
     })
@@ -207,26 +233,26 @@ export async function initiatePayment(params: InitiatePaymentParams): Promise<Pa
   // ── MOBILE MONEY (Jackisa Pay / MTN / Airtel) ──
   if (['jackisa_pay', 'mtn_mobile_money', 'airtel_money'].includes(params.paymentMethod)) {
     if (!params.msisdn) {
-      await supabase.from('payments').update({ status: 'failed', failure_reason: 'Phone number required' }).eq('id', paymentId)
+      await db.from('payments').update({ status: 'failed', failure_reason: 'Phone number required' }).eq('id', paymentId)
       return { success: false, paymentId, ourReference, status: 'failed', message: 'Phone number required for mobile money' }
     }
     const config = await getGatewayConfig(params.companyId)
     if (!config) {
-      await supabase.from('payments').update({ status: 'failed', failure_reason: 'Gateway not configured' }).eq('id', paymentId)
+      await db.from('payments').update({ status: 'failed', failure_reason: 'Gateway not configured' }).eq('id', paymentId)
       return { success: false, paymentId, ourReference, status: 'failed', message: 'Payment gateway not configured. Add Relworx API credentials.' }
     }
 
-    await supabase.from('payments').update({ relworx_account_no: config.accountNo, status: 'processing' }).eq('id', paymentId)
+    await db.from('payments').update({ relworx_account_no: config.accountNo, status: 'processing' }).eq('id', paymentId)
 
     const apiParams = { account_no: config.accountNo, reference: ourReference, msisdn: formatMsisdn(params.msisdn), currency, amount: params.amount, description: params.description || '' }
     const endpoint = params.direction === 'collection' ? '/mobile-money/request-payment' : '/mobile-money/send-payment'
     const result = await callRelworx(config, endpoint, 'POST', apiParams)
 
     if (result.success && result.internal_reference) {
-      await supabase.from('payments').update({ relworx_internal_ref: result.internal_reference, status: 'processing', status_message: result.message }).eq('id', paymentId)
+      await db.from('payments').update({ relworx_internal_ref: result.internal_reference, status: 'processing', status_message: result.message }).eq('id', paymentId)
       return { success: true, paymentId, ourReference, status: 'processing', message: params.direction === 'collection' ? 'Payment prompt sent. Waiting for approval.' : 'Disbursement submitted.', relworxInternalRef: result.internal_reference }
     } else {
-      await supabase.from('payments').update({ status: 'failed', failure_reason: result.message }).eq('id', paymentId)
+      await db.from('payments').update({ status: 'failed', failure_reason: result.message }).eq('id', paymentId)
       return { success: false, paymentId, ourReference, status: 'failed', message: result.message || 'Payment request failed' }
     }
   }
@@ -235,23 +261,23 @@ export async function initiatePayment(params: InitiatePaymentParams): Promise<Pa
   if (params.paymentMethod === 'visa_mastercard') {
     const config = await getGatewayConfig(params.companyId)
     if (!config) {
-      await supabase.from('payments').update({ status: 'failed', failure_reason: 'Gateway not configured' }).eq('id', paymentId)
+      await db.from('payments').update({ status: 'failed', failure_reason: 'Gateway not configured' }).eq('id', paymentId)
       return { success: false, paymentId, ourReference, status: 'failed', message: 'Payment gateway not configured' }
     }
-    await supabase.from('payments').update({ relworx_account_no: config.accountNo, status: 'processing' }).eq('id', paymentId)
+    await db.from('payments').update({ relworx_account_no: config.accountNo, status: 'processing' }).eq('id', paymentId)
     const result = await callRelworx(config, '/visa/request-session', 'POST', { account_no: config.accountNo, reference: ourReference, currency, amount: params.amount, description: params.description || '' })
     if (result.success && result.payment_url) {
-      await supabase.from('payments').update({ card_payment_url: result.payment_url, status: 'processing' }).eq('id', paymentId)
+      await db.from('payments').update({ card_payment_url: result.payment_url, status: 'processing' }).eq('id', paymentId)
       return { success: true, paymentId, ourReference, status: 'processing', message: 'Redirecting to card payment page.', paymentUrl: result.payment_url }
     } else {
-      await supabase.from('payments').update({ status: 'failed', failure_reason: result.message }).eq('id', paymentId)
+      await db.from('payments').update({ status: 'failed', failure_reason: result.message }).eq('id', paymentId)
       return { success: false, paymentId, ourReference, status: 'failed', message: result.message || 'Card session failed' }
     }
   }
 
   // ── INTERNAL TRANSFER ──
   if (params.paymentMethod === 'internal_transfer') {
-    await supabase.from('payments').update({ status: 'success', completed_at: new Date().toISOString() }).eq('id', paymentId)
+    await db.from('payments').update({ status: 'success', completed_at: new Date().toISOString() }).eq('id', paymentId)
     return { success: true, paymentId, ourReference, status: 'success', message: 'Internal transfer recorded' }
   }
 
@@ -261,7 +287,8 @@ export async function initiatePayment(params: InitiatePaymentParams): Promise<Pa
 // ─── Check Payment Status ────────────────────────────────────
 
 export async function checkPaymentStatus(paymentId: string): Promise<{ status: PaymentStatus; message: string; completedAt?: string; customerReference?: string }> {
-  const { data: p } = await supabase.from('payments').select('*').eq('id', paymentId).single()
+  const db = getPaymentDb()
+  const { data: p } = await db.from('payments').select('*').eq('id', paymentId).single()
   if (!p) return { status: 'failed', message: 'Payment not found' }
 
   if (['success', 'failed', 'timed_out', 'cancelled', 'refunded'].includes(p.status)) {
@@ -279,7 +306,7 @@ export async function checkPaymentStatus(paymentId: string): Promise<{ status: P
 
     const result = await relworxCheckStatus(config, p.relworx_internal_ref)
     if (result.status === 'success') {
-      await supabase.from('payments').update({
+      await db.from('payments').update({
         status: 'success', customer_reference: result.customer_reference,
         provider_tx_id: result.provider_transaction_id, relworx_charge: result.charge || 0,
         net_amount: (p.gross_amount || 0) - (result.charge || 0),
@@ -289,7 +316,7 @@ export async function checkPaymentStatus(paymentId: string): Promise<{ status: P
       return { status: 'success', message: 'Payment confirmed', completedAt: result.completed_at, customerReference: result.customer_reference }
     }
     if (result.status === 'failed') {
-      await supabase.from('payments').update({ status: 'failed', failure_reason: 'Payment declined or failed' }).eq('id', paymentId)
+      await db.from('payments').update({ status: 'failed', failure_reason: 'Payment declined or failed' }).eq('id', paymentId)
       return { status: 'failed', message: 'Payment was declined or failed' }
     }
   }
@@ -297,7 +324,7 @@ export async function checkPaymentStatus(paymentId: string): Promise<{ status: P
   // Check timeout (10 minutes)
   const initiated = new Date(p.initiated_at).getTime()
   if (Date.now() - initiated > 10 * 60 * 1000) {
-    await supabase.from('payments').update({ status: 'timed_out', failure_reason: 'Payment timed out' }).eq('id', paymentId)
+    await db.from('payments').update({ status: 'timed_out', failure_reason: 'Payment timed out' }).eq('id', paymentId)
     return { status: 'timed_out', message: 'Payment timed out. Please try again.' }
   }
 
