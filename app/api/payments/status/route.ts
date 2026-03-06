@@ -6,6 +6,9 @@ const supabaseAdmin = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 )
 
+const RELWORX_ACCOUNT_NO = process.env.RELWORX_ACCOUNT_NO || process.env.NEXT_PUBLIC_RELWORX_ACCOUNT_NO
+const RELWORX_API_KEY = process.env.RELWORX_API_KEY
+
 export async function GET(req: NextRequest) {
   const paymentId = req.nextUrl.searchParams.get('payment_id')
   if (!paymentId) {
@@ -41,8 +44,8 @@ export async function GET(req: NextRequest) {
 
   // Poll Relworx for mobile money / card
   if (payment.relworx_internal_ref) {
-    const accountNo = payment.relworx_account_no || process.env.RELWORX_ACCOUNT_NO || process.env.NEXT_PUBLIC_RELWORX_ACCOUNT_NO
-    const apiKey = process.env.RELWORX_API_KEY
+    const accountNo = RELWORX_ACCOUNT_NO
+    const apiKey = RELWORX_API_KEY
 
     if (accountNo && apiKey) {
       try {

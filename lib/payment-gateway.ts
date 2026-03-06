@@ -65,6 +65,21 @@ const RELWORX_HEADERS = (apiKey: string) => ({
   'Content-Type': 'application/json',
 })
 
+const RELWORX_ENV_CONFIG: RelworxConfig | null =
+  process.env.RELWORX_ACCOUNT_NO && process.env.RELWORX_API_KEY
+    ? {
+        accountNo: process.env.RELWORX_ACCOUNT_NO,
+        apiKey: process.env.RELWORX_API_KEY,
+        webhookSecret: process.env.RELWORX_WEBHOOK_SECRET,
+      }
+    : process.env.NEXT_PUBLIC_RELWORX_ACCOUNT_NO && process.env.RELWORX_API_KEY
+      ? {
+          accountNo: process.env.NEXT_PUBLIC_RELWORX_ACCOUNT_NO,
+          apiKey: process.env.RELWORX_API_KEY,
+          webhookSecret: process.env.RELWORX_WEBHOOK_SECRET,
+        }
+      : null
+
 // ─── Helpers ─────────────────────────────────────────────────
 
 function generateRef(): string {
@@ -98,21 +113,8 @@ function validateAmount(amount: number, currency: string, method: PaymentMethodT
 // ─── Gateway Config ──────────────────────────────────────────
 
 export async function getGatewayConfig(companyId: string): Promise<RelworxConfig | null> {
-  const { data } = await supabase
-    .from('payment_gateway_config')
-    .select('account_no, api_key_hash')
-    .eq('company_id', companyId)
-    .eq('is_active', true)
-    .eq('is_default', true)
-    .maybeSingle()
-
-  if (data?.account_no && data?.api_key_hash) {
-    return { accountNo: data.account_no, apiKey: data.api_key_hash }
-  }
-  const accountNo = process.env.RELWORX_ACCOUNT_NO || process.env.NEXT_PUBLIC_RELWORX_ACCOUNT_NO
-  const apiKey = process.env.RELWORX_API_KEY
-  if (!accountNo || !apiKey) return null
-  return { accountNo, apiKey }
+  void companyId
+  return RELWORX_ENV_CONFIG
 }
 
 // ─── API Call Logger ─────────────────────────────────────────
