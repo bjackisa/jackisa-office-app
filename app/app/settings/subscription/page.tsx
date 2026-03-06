@@ -99,7 +99,7 @@ export default function SubscriptionPage() {
   return (
     <div className="p-6 max-w-6xl mx-auto">
       <div className="mb-8">
-        <h1 className="text-3xl font-bold text-foreground mb-2">Subscription & Billing</h1>
+        <h1 className="text-3xl font-bold text-foreground tracking-tight mb-2">Subscription & Billing</h1>
         <p className="text-muted-foreground">Manage your Jackisa Office subscription</p>
       </div>
 
@@ -131,7 +131,7 @@ export default function SubscriptionPage() {
 
       {/* Plans Comparison */}
       <div className="mb-8">
-        <h2 className="text-2xl font-bold text-foreground mb-6">Choose Your Plan</h2>
+        <h2 className="text-2xl font-bold text-foreground tracking-tight mb-6">Choose Your Plan</h2>
         <div className="grid md:grid-cols-3 gap-6">
           {plans.map((plan) => {
             const isCurrentPlan = subscription?.plan_id === plan.id
@@ -143,7 +143,7 @@ export default function SubscriptionPage() {
                 className={`p-6 border transition-all ${
                   isCurrentPlan
                     ? 'border-primary bg-primary/5'
-                    : 'border-border hover:shadow-lg'
+                    : 'border-border hover:shadow-elevated'
                 }`}
               >
                 {isCurrentPlan && (
@@ -151,7 +151,7 @@ export default function SubscriptionPage() {
                     Current Plan
                   </div>
                 )}
-                <h3 className="text-2xl font-bold text-foreground mb-2 capitalize">{plan.name}</h3>
+                <h3 className="text-2xl font-bold text-foreground tracking-tight mb-2 capitalize">{plan.name}</h3>
                 <div className="mb-6">
                   <span className="text-3xl font-bold text-foreground">${plan.monthly_price}</span>
                   <span className="text-muted-foreground ml-2">/month</span>

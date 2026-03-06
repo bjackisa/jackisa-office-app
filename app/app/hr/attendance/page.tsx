@@ -92,13 +92,13 @@ export default function AttendancePage() {
 
   const getStatusColor = (status: string) => ({
     present: 'bg-green-100 text-green-800', absent: 'bg-red-100 text-red-800', late: 'bg-yellow-100 text-yellow-800', leave: 'bg-blue-100 text-blue-800',
-  }[status] || 'bg-gray-100 text-gray-800')
+  }[status] || 'bg-muted text-foreground')
 
   return (
     <div className="p-6 max-w-7xl mx-auto">
       <div className="flex items-center justify-between mb-8">
         <div>
-          <h1 className="text-3xl font-bold text-foreground mb-2">Attendance Management</h1>
+          <h1 className="text-3xl font-bold text-foreground tracking-tight mb-2">Attendance Management</h1>
           <p className="text-muted-foreground">Track employee attendance and working hours</p>
         </div>
         <Button onClick={() => setShowForm(!showForm)}>
@@ -109,11 +109,11 @@ export default function AttendancePage() {
 
       {showForm && (
         <Card className="p-4 border border-border mb-6 grid md:grid-cols-5 gap-3">
-          <select className="px-3 py-2 border rounded-md" value={form.employee_id} onChange={(e) => setForm({ ...form, employee_id: e.target.value })}>
+          <select className="px-3 py-2 border border-input rounded-xl" value={form.employee_id} onChange={(e) => setForm({ ...form, employee_id: e.target.value })}>
             <option value="">Select employee</option>
             {employees.map((e: any) => <option key={e.id} value={e.id}>{e.users?.full_name || 'Unnamed'}</option>)}
           </select>
-          <select className="px-3 py-2 border rounded-md" value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })}>
+          <select className="px-3 py-2 border border-input rounded-xl" value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })}>
             <option value="present">Present</option><option value="absent">Absent</option><option value="late">Late</option><option value="leave">Leave</option>
           </select>
           <Input type="time" value={form.clock_in} onChange={(e) => setForm({ ...form, clock_in: e.target.value })} />
@@ -132,8 +132,8 @@ export default function AttendancePage() {
 
       <Card className="p-4 border border-border mb-6 flex flex-wrap items-center gap-4">
         <div className="flex-1 min-w-48 relative"><Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" /><Input placeholder="Search employee..." className="pl-10" value={search} onChange={(e) => setSearch(e.target.value)} /></div>
-        <input type="date" value={dateFilter} onChange={(e) => setDateFilter(e.target.value)} className="px-3 py-2 border border-border rounded-md text-sm" />
-        <select className="px-3 py-2 border border-border rounded-md text-sm" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
+        <input type="date" value={dateFilter} onChange={(e) => setDateFilter(e.target.value)} className="px-3 py-2 border border-border border-input rounded-xl text-sm" />
+        <select className="px-3 py-2 border border-border border-input rounded-xl text-sm" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
           <option value="">All Status</option><option value="present">Present</option><option value="absent">Absent</option><option value="late">Late</option><option value="leave">On Leave</option>
         </select>
       </Card>
@@ -143,7 +143,7 @@ export default function AttendancePage() {
           <table className="w-full">
             <thead className="bg-muted/50 border-b border-border"><tr><th className="px-6 py-3 text-left text-sm font-medium">Date</th><th className="px-6 py-3 text-left text-sm font-medium">Employee</th><th className="px-6 py-3 text-left text-sm font-medium">Check In</th><th className="px-6 py-3 text-left text-sm font-medium">Check Out</th><th className="px-6 py-3 text-left text-sm font-medium">Status</th></tr></thead>
             <tbody>
-              {loading ? <tr><td colSpan={5} className="px-6 py-8 text-center text-sm text-gray-400">Loading attendance...</td></tr> : filtered.length === 0 ? <tr><td colSpan={5} className="px-6 py-8 text-center text-sm text-gray-400">No attendance records found</td></tr> : filtered.map((record) => (
+              {loading ? <tr><td colSpan={5} className="px-6 py-8 text-center text-sm text-muted-foreground/60">Loading attendance...</td></tr> : filtered.length === 0 ? <tr><td colSpan={5} className="px-6 py-8 text-center text-sm text-muted-foreground/60">No attendance records found</td></tr> : filtered.map((record) => (
                 <tr key={record.id} className="border-b border-border"><td className="px-6 py-3">{record.attendance_date}</td><td className="px-6 py-3">{getEmployeeName(record) || 'Unknown'}</td><td className="px-6 py-3">{record.clock_in || '—'}</td><td className="px-6 py-3">{record.clock_out || '—'}</td><td className="px-6 py-3"><span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs ${getStatusColor(record.status)}`}>{record.status === 'present' ? <Check className="w-3 h-3" /> : <X className="w-3 h-3" />} {record.status}</span></td></tr>
               ))}
             </tbody>

@@ -9,7 +9,7 @@ import { Input } from '@/components/ui/input'
 import { Plus, Search, Download, Trash2, FileText, DollarSign, Clock, CheckCircle, AlertTriangle } from 'lucide-react'
 
 const statusConfig: Record<string, { label: string; bg: string; text: string; border: string }> = {
-  draft: { label: 'Draft', bg: 'bg-gray-50', text: 'text-gray-600', border: 'border-gray-200' },
+  draft: { label: 'Draft', bg: 'bg-muted/50', text: 'text-muted-foreground', border: 'border-border' },
   sent: { label: 'Sent', bg: 'bg-blue-50', text: 'text-blue-600', border: 'border-blue-200' },
   paid: { label: 'Paid', bg: 'bg-emerald-50', text: 'text-emerald-600', border: 'border-emerald-200' },
   overdue: { label: 'Overdue', bg: 'bg-red-50', text: 'text-red-600', border: 'border-red-200' },
@@ -113,27 +113,27 @@ export default function InvoicesPage() {
   }
 
   return (
-    <div className="p-6 lg:p-8 max-w-[1400px] mx-auto">
+    <div className="p-6 lg:p-8 max-w-[1400px] mx-auto animate-fade-in">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 mb-1">Invoices</h1>
-          <p className="text-sm text-gray-500">Create, manage, and track customer invoices.</p>
+          <h1 className="text-2xl font-bold text-foreground tracking-tight mb-1">Invoices</h1>
+          <p className="text-sm text-muted-foreground">Create, manage, and track customer invoices.</p>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" className="text-gray-600" onClick={exportCsv}><Download className="w-4 h-4 mr-1.5" />Export</Button>
-          <Button size="sm" className="bg-blue-600 hover:bg-blue-700" onClick={() => setShowForm(!showForm)}><Plus className="w-4 h-4 mr-1.5" />New Invoice</Button>
+          <Button variant="outline" size="sm" className="text-muted-foreground" onClick={exportCsv}><Download className="w-4 h-4 mr-1.5" />Export</Button>
+          <Button size="sm" className="bg-primary hover:bg-primary/90" onClick={() => setShowForm(!showForm)}><Plus className="w-4 h-4 mr-1.5" />New Invoice</Button>
         </div>
       </div>
 
       {showForm && (
-        <Card className="mb-5 p-4 border border-blue-200 bg-blue-50/30">
+        <Card className="mb-5 p-4 border border-primary/20 bg-primary/[0.04]">
           <div className="grid md:grid-cols-3 gap-3">
             <Input placeholder="Customer name" value={form.customer_name} onChange={(e) => setForm({ ...form, customer_name: e.target.value })} />
             <Input placeholder="Customer email" value={form.customer_email} onChange={(e) => setForm({ ...form, customer_email: e.target.value })} />
             <Input type="date" value={form.due_date} onChange={(e) => setForm({ ...form, due_date: e.target.value })} />
             <Input type="number" placeholder="Subtotal" value={form.subtotal} onChange={(e) => setForm({ ...form, subtotal: e.target.value })} />
             <Input type="number" placeholder="Tax amount" value={form.tax_amount} onChange={(e) => setForm({ ...form, tax_amount: e.target.value })} />
-            <select className="px-3 py-2 border rounded-md" value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })}>
+            <select className="px-3 py-2 border border-input rounded-xl" value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })}>
               <option value="draft">Draft</option><option value="sent">Sent</option><option value="paid">Paid</option><option value="overdue">Overdue</option>
             </select>
           </div>
@@ -143,30 +143,30 @@ export default function InvoicesPage() {
       )}
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-        {[{ label: 'Total Invoiced', value: formatUGX(totals.total), icon: FileText, color: 'text-gray-900', bg: 'bg-gray-50' }, { label: 'Paid', value: formatUGX(totals.paid), icon: CheckCircle, color: 'text-emerald-600', bg: 'bg-emerald-50' }, { label: 'Pending', value: formatUGX(totals.pending), icon: Clock, color: 'text-blue-600', bg: 'bg-blue-50' }, { label: 'Overdue', value: formatUGX(totals.overdue), icon: AlertTriangle, color: 'text-red-600', bg: 'bg-red-50' }].map((stat) => (
-          <Card key={stat.label} className="p-4 border border-gray-200/60 bg-white"><div className="flex items-center gap-3"><div className={`p-2 rounded-lg ${stat.bg}`}><stat.icon className={`w-4 h-4 ${stat.color}`} /></div><div className="min-w-0"><p className="text-lg font-bold text-gray-900 truncate">{stat.value}</p><p className="text-xs text-gray-500">{stat.label}</p></div></div></Card>
+        {[{ label: 'Total Invoiced', value: formatUGX(totals.total), icon: FileText, color: 'text-foreground', bg: 'bg-muted/50' }, { label: 'Paid', value: formatUGX(totals.paid), icon: CheckCircle, color: 'text-emerald-600', bg: 'bg-emerald-50' }, { label: 'Pending', value: formatUGX(totals.pending), icon: Clock, color: 'text-blue-600', bg: 'bg-blue-50' }, { label: 'Overdue', value: formatUGX(totals.overdue), icon: AlertTriangle, color: 'text-red-600', bg: 'bg-red-50' }].map((stat) => (
+          <Card key={stat.label} className="p-4 border border-border/50 bg-card"><div className="flex items-center gap-3"><div className={`p-2 rounded-lg ${stat.bg}`}><stat.icon className={`w-4 h-4 ${stat.color}`} /></div><div className="min-w-0"><p className="text-lg font-bold text-foreground truncate">{stat.value}</p><p className="text-xs text-muted-foreground">{stat.label}</p></div></div></Card>
         ))}
       </div>
 
-      <Card className="border border-gray-200/60 bg-white overflow-hidden">
+      <Card className="border border-border/50 bg-card overflow-hidden">
         <div className="p-4 border-b flex gap-3">
-          <div className="relative flex-1"><Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" /><Input className="pl-10" placeholder="Search invoice number or customer..." value={search} onChange={(e) => setSearch(e.target.value)} /></div>
-          <select className="px-3 py-2 border rounded-md" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}><option value="">All statuses</option>{Object.keys(statusConfig).map((s) => <option key={s} value={s}>{statusConfig[s].label}</option>)}</select>
+          <div className="relative flex-1"><Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground/60" /><Input className="pl-10" placeholder="Search invoice number or customer..." value={search} onChange={(e) => setSearch(e.target.value)} /></div>
+          <select className="px-3 py-2 border border-input rounded-xl" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}><option value="">All statuses</option>{Object.keys(statusConfig).map((s) => <option key={s} value={s}>{statusConfig[s].label}</option>)}</select>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full">
-            <thead><tr className="border-b bg-gray-50/50 text-xs uppercase text-gray-500"><th className="px-5 py-3 text-left">Invoice</th><th className="px-5 py-3 text-left">Customer</th><th className="px-5 py-3 text-left">Dates</th><th className="px-5 py-3 text-right">Amount</th><th className="px-5 py-3 text-left">Status</th><th className="px-5 py-3 text-right">Actions</th></tr></thead>
+            <thead><tr className="border-b bg-muted/30 text-xs uppercase text-muted-foreground"><th className="px-5 py-3 text-left">Invoice</th><th className="px-5 py-3 text-left">Customer</th><th className="px-5 py-3 text-left">Dates</th><th className="px-5 py-3 text-right">Amount</th><th className="px-5 py-3 text-left">Status</th><th className="px-5 py-3 text-right">Actions</th></tr></thead>
             <tbody className="divide-y">
-              {loading ? <tr><td colSpan={6} className="px-5 py-10 text-center text-sm text-gray-400">Loading invoices...</td></tr> : filtered.length === 0 ? <tr><td colSpan={6} className="px-5 py-10 text-center text-sm text-gray-400">No invoices found.</td></tr> : filtered.map((invoice) => {
+              {loading ? <tr><td colSpan={6} className="px-5 py-10 text-center text-sm text-muted-foreground/60">Loading invoices...</td></tr> : filtered.length === 0 ? <tr><td colSpan={6} className="px-5 py-10 text-center text-sm text-muted-foreground/60">No invoices found.</td></tr> : filtered.map((invoice) => {
                 const cfg = statusConfig[invoice.status] || statusConfig.draft
                 return (
-                  <tr key={invoice.id} className="hover:bg-gray-50/40">
-                    <td className="px-5 py-3 text-sm font-medium text-gray-900">{invoice.invoice_number}</td>
-                    <td className="px-5 py-3 text-sm text-gray-600">{invoice.customer_name}</td>
-                    <td className="px-5 py-3 text-xs text-gray-500">Issued: {invoice.invoice_date}<br />Due: {invoice.due_date}</td>
+                  <tr key={invoice.id} className="hover:bg-muted/30">
+                    <td className="px-5 py-3 text-sm font-medium text-foreground">{invoice.invoice_number}</td>
+                    <td className="px-5 py-3 text-sm text-muted-foreground">{invoice.customer_name}</td>
+                    <td className="px-5 py-3 text-xs text-muted-foreground">Issued: {invoice.invoice_date}<br />Due: {invoice.due_date}</td>
                     <td className="px-5 py-3 text-sm text-right font-mono font-semibold">{formatUGX(invoice.total_amount || 0)}</td>
                     <td className="px-5 py-3"><span className={`inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-medium border ${cfg.bg} ${cfg.text} ${cfg.border}`}>{cfg.label}</span></td>
-                    <td className="px-5 py-3 text-right"><button onClick={() => deleteInvoice(invoice.id)} className="p-1.5 hover:bg-red-50 rounded-md"><Trash2 className="w-4 h-4 text-gray-500 hover:text-red-500" /></button></td>
+                    <td className="px-5 py-3 text-right"><button onClick={() => deleteInvoice(invoice.id)} className="p-1.5 hover:bg-red-50 rounded-md"><Trash2 className="w-4 h-4 text-muted-foreground hover:text-red-500" /></button></td>
                   </tr>
                 )
               })}

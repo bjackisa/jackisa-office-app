@@ -83,9 +83,9 @@ export default function EmployeesPage() {
       active: 'bg-emerald-50 text-emerald-700 border-emerald-200',
       pending_invitation: 'bg-amber-50 text-amber-700 border-amber-200',
       suspended: 'bg-red-50 text-red-600 border-red-200',
-      terminated: 'bg-gray-100 text-gray-500 border-gray-200',
+      terminated: 'bg-muted text-muted-foreground border-border',
     }
-    return map[status] || 'bg-gray-100 text-gray-500 border-gray-200'
+    return map[status] || 'bg-muted text-muted-foreground border-border'
   }
 
   const getStatusLabel = (status: string) => {
@@ -168,19 +168,19 @@ export default function EmployeesPage() {
   }
 
   return (
-    <div className="p-6 lg:p-8 max-w-[1400px] mx-auto">
+    <div className="p-6 lg:p-8 max-w-[1400px] mx-auto animate-fade-in">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 mb-1">Employee Management</h1>
-          <p className="text-sm text-gray-500">Manage your team members and their information</p>
+          <h1 className="text-2xl font-bold text-foreground tracking-tight mb-1">Employee Management</h1>
+          <p className="text-sm text-muted-foreground">Manage your team members and their information</p>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" className="text-gray-600" onClick={exportEmployees}>
+          <Button variant="outline" size="sm" className="text-muted-foreground" onClick={exportEmployees}>
             <Download className="w-4 h-4 mr-1.5" />
             Export
           </Button>
-          <Button size="sm" className="bg-blue-600 hover:bg-blue-700" onClick={() => setShowAddForm(!showAddForm)}>
+          <Button size="sm" className="bg-primary hover:bg-primary/90" onClick={() => setShowAddForm(!showAddForm)}>
             <Plus className="w-4 h-4 mr-1.5" />
             Add Employee
           </Button>
@@ -196,12 +196,12 @@ export default function EmployeesPage() {
       )}
 
       {showAddForm && (
-        <Card className="mb-6 p-4 border border-blue-200 bg-blue-50/30">
-          <h3 className="text-sm font-semibold text-gray-800 mb-3">Add Employee</h3>
+        <Card className="mb-6 p-4 border border-primary/20 bg-primary/[0.04]">
+          <h3 className="text-sm font-semibold text-foreground mb-3">Add Employee</h3>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-            <Input placeholder="Employee email *" value={employeeForm.email} onChange={(e) => setEmployeeForm({ ...employeeForm, email: e.target.value })} className="bg-white" />
+            <Input placeholder="Employee email *" value={employeeForm.email} onChange={(e) => setEmployeeForm({ ...employeeForm, email: e.target.value })} className="bg-card" />
             <select
-              className="px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white"
+              className="px-3 py-2 border border-border rounded-lg text-sm bg-card"
               value={employeeForm.roleId}
               onChange={(e) => setEmployeeForm({ ...employeeForm, roleId: e.target.value })}
             >
@@ -210,11 +210,11 @@ export default function EmployeesPage() {
                 <option key={role.id} value={role.id}>{role.name}</option>
               ))}
             </select>
-            <Input placeholder="Employee ID" value={employeeForm.employeeIdNumber} onChange={(e) => setEmployeeForm({ ...employeeForm, employeeIdNumber: e.target.value })} className="bg-white" />
-            <Input placeholder="Department" value={employeeForm.department} onChange={(e) => setEmployeeForm({ ...employeeForm, department: e.target.value })} className="bg-white" />
-            <Input placeholder="Position" value={employeeForm.position} onChange={(e) => setEmployeeForm({ ...employeeForm, position: e.target.value })} className="bg-white" />
-            <Input type="number" placeholder="Salary (UGX)" value={employeeForm.salary} onChange={(e) => setEmployeeForm({ ...employeeForm, salary: e.target.value })} className="bg-white" />
-            <Input placeholder="Phone" value={employeeForm.phoneNumber} onChange={(e) => setEmployeeForm({ ...employeeForm, phoneNumber: e.target.value })} className="bg-white md:col-span-2" />
+            <Input placeholder="Employee ID" value={employeeForm.employeeIdNumber} onChange={(e) => setEmployeeForm({ ...employeeForm, employeeIdNumber: e.target.value })} className="bg-card" />
+            <Input placeholder="Department" value={employeeForm.department} onChange={(e) => setEmployeeForm({ ...employeeForm, department: e.target.value })} className="bg-card" />
+            <Input placeholder="Position" value={employeeForm.position} onChange={(e) => setEmployeeForm({ ...employeeForm, position: e.target.value })} className="bg-card" />
+            <Input type="number" placeholder="Salary (UGX)" value={employeeForm.salary} onChange={(e) => setEmployeeForm({ ...employeeForm, salary: e.target.value })} className="bg-card" />
+            <Input placeholder="Phone" value={employeeForm.phoneNumber} onChange={(e) => setEmployeeForm({ ...employeeForm, phoneNumber: e.target.value })} className="bg-card md:col-span-2" />
           </div>
           <div className="mt-3 flex gap-2">
             <Button size="sm" onClick={handleAddEmployee}>Save Employee</Button>
@@ -231,14 +231,14 @@ export default function EmployeesPage() {
           { label: 'Pending', value: pendingCount, icon: Mail, color: 'text-amber-600', bg: 'bg-amber-50' },
           { label: 'Departments', value: departments.length, icon: Building2, color: 'text-violet-600', bg: 'bg-violet-50' },
         ].map(stat => (
-          <Card key={stat.label} className="p-4 border border-gray-200/60 bg-white">
+          <Card key={stat.label} className="p-4 border border-border/50 bg-card">
             <div className="flex items-center gap-3">
               <div className={`p-2 rounded-lg ${stat.bg}`}>
                 <stat.icon className={`w-4 h-4 ${stat.color}`} />
               </div>
               <div>
-                <p className="text-2xl font-bold text-gray-900">{stat.value}</p>
-                <p className="text-xs text-gray-500">{stat.label}</p>
+                <p className="text-2xl font-bold text-foreground">{stat.value}</p>
+                <p className="text-xs text-muted-foreground">{stat.label}</p>
               </div>
             </div>
           </Card>
@@ -246,19 +246,19 @@ export default function EmployeesPage() {
       </div>
 
       {/* Filters */}
-      <Card className="p-3 border border-gray-200/60 bg-white mb-4">
+      <Card className="p-3 border border-border/50 bg-card mb-4">
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
           <div className="flex-1 relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground/60" />
             <Input
               placeholder="Search by name or email..."
-              className="pl-10 bg-gray-50 border-gray-200"
+              className="pl-10 bg-muted/50 border-border"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
             />
           </div>
           <select
-            className="px-3 py-2 border border-gray-200 rounded-lg text-sm text-gray-600 bg-gray-50"
+            className="px-3 py-2 border border-border rounded-xl text-sm text-muted-foreground bg-muted/50"
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
           >
@@ -269,7 +269,7 @@ export default function EmployeesPage() {
             <option value="terminated">Terminated</option>
           </select>
           <select
-            className="px-3 py-2 border border-gray-200 rounded-lg text-sm text-gray-600 bg-gray-50"
+            className="px-3 py-2 border border-border rounded-xl text-sm text-muted-foreground bg-muted/50"
             value={deptFilter}
             onChange={(e) => setDeptFilter(e.target.value)}
           >
@@ -282,35 +282,35 @@ export default function EmployeesPage() {
       </Card>
 
       {/* Table */}
-      <Card className="border border-gray-200/60 bg-white overflow-hidden">
+      <Card className="border border-border/50 bg-card overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead>
-              <tr className="border-b border-gray-100 bg-gray-50/50">
-                <th className="px-5 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Employee</th>
-                <th className="px-5 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Role</th>
-                <th className="px-5 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Department</th>
-                <th className="px-5 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Contact</th>
-                <th className="px-5 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Status</th>
-                <th className="px-5 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">Actions</th>
+              <tr className="border-b border-border/30 bg-muted/30">
+                <th className="px-5 py-3 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider">Employee</th>
+                <th className="px-5 py-3 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider">Role</th>
+                <th className="px-5 py-3 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider">Department</th>
+                <th className="px-5 py-3 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider">Contact</th>
+                <th className="px-5 py-3 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider">Status</th>
+                <th className="px-5 py-3 text-right text-xs font-semibold text-muted-foreground uppercase tracking-wider">Actions</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-50">
+            <tbody className="divide-y divide-border/20">
               {loading ? (
                 <tr>
-                  <td colSpan={6} className="px-5 py-12 text-center text-sm text-gray-400">Loading employees...</td>
+                  <td colSpan={6} className="px-5 py-12 text-center text-sm text-muted-foreground/60">Loading employees...</td>
                 </tr>
               ) : filtered.length === 0 ? (
                 <tr>
                   <td colSpan={6} className="px-5 py-12 text-center">
-                    <Users className="w-8 h-8 text-gray-200 mx-auto mb-3" />
-                    <p className="text-sm text-gray-400 font-medium">No employees found</p>
-                    <p className="text-xs text-gray-300 mt-1">Add team members to get started</p>
+                    <Users className="w-8 h-8 text-muted-foreground/30 mx-auto mb-3" />
+                    <p className="text-sm text-muted-foreground/60 font-medium">No employees found</p>
+                    <p className="text-xs text-muted-foreground/40 mt-1">Add team members to get started</p>
                   </td>
                 </tr>
               ) : (
                 filtered.map((emp) => (
-                  <tr key={emp.id} className="hover:bg-gray-50/50 transition-colors group">
+                  <tr key={emp.id} className="hover:bg-muted/30 transition-colors group">
                     <td className="px-5 py-3.5">
                       <div className="flex items-center gap-3">
                         {emp.users?.avatar_url ? (
@@ -321,25 +321,25 @@ export default function EmployeesPage() {
                           </div>
                         )}
                         <div>
-                          <p className="text-sm font-medium text-gray-900">{emp.users?.full_name || 'Unnamed'}</p>
-                          <p className="text-[11px] text-gray-400">{emp.employee_id_number || 'No ID'}</p>
+                          <p className="text-sm font-medium text-foreground">{emp.users?.full_name || 'Unnamed'}</p>
+                          <p className="text-[11px] text-muted-foreground/60">{emp.employee_id_number || 'No ID'}</p>
                         </div>
                       </div>
                     </td>
                     <td className="px-5 py-3.5">
-                      <p className="text-sm text-gray-700">{emp.position || emp.company_roles?.name || '—'}</p>
+                      <p className="text-sm text-foreground">{emp.position || emp.company_roles?.name || '—'}</p>
                     </td>
                     <td className="px-5 py-3.5">
-                      <p className="text-sm text-gray-500">{emp.department || '—'}</p>
+                      <p className="text-sm text-muted-foreground">{emp.department || '—'}</p>
                     </td>
                     <td className="px-5 py-3.5">
                       <div className="space-y-0.5">
-                        <p className="text-xs text-gray-500 flex items-center gap-1.5">
+                        <p className="text-xs text-muted-foreground flex items-center gap-1.5">
                           <Mail className="w-3 h-3" />
                           {emp.users?.email || '—'}
                         </p>
                         {emp.phone_number && (
-                          <p className="text-xs text-gray-400 flex items-center gap-1.5">
+                          <p className="text-xs text-muted-foreground/60 flex items-center gap-1.5">
                             <Phone className="w-3 h-3" />
                             {emp.phone_number}
                           </p>
@@ -352,7 +352,7 @@ export default function EmployeesPage() {
                       </span>
                     </td>
                     <td className="px-5 py-3.5 text-right">
-                      <button className="p-1.5 rounded-md text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors opacity-0 group-hover:opacity-100">
+                      <button className="p-1.5 rounded-md text-muted-foreground/60 hover:text-muted-foreground hover:bg-muted transition-colors opacity-0 group-hover:opacity-100">
                         <MoreHorizontal className="w-4 h-4" />
                       </button>
                     </td>
@@ -363,8 +363,8 @@ export default function EmployeesPage() {
           </table>
         </div>
         {filtered.length > 0 && (
-          <div className="px-5 py-3 border-t border-gray-100 flex items-center justify-between">
-            <p className="text-xs text-gray-400">Showing {filtered.length} of {employees.length} employees</p>
+          <div className="px-5 py-3 border-t border-border/30 flex items-center justify-between">
+            <p className="text-xs text-muted-foreground/60">Showing {filtered.length} of {employees.length} employees</p>
           </div>
         )}
       </Card>

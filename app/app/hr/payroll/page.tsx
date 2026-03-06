@@ -36,7 +36,7 @@ function calcPAYE(gross: number) {
 }
 
 const statusCfg: Record<string, { label: string; bg: string; text: string; border: string }> = {
-  draft: { label: 'Draft', bg: 'bg-gray-50', text: 'text-gray-600', border: 'border-gray-200' },
+  draft: { label: 'Draft', bg: 'bg-muted/50', text: 'text-muted-foreground', border: 'border-border' },
   processing: { label: 'Processing', bg: 'bg-blue-50', text: 'text-blue-600', border: 'border-blue-200' },
   processed: { label: 'Processed', bg: 'bg-emerald-50', text: 'text-emerald-600', border: 'border-emerald-200' },
   completed: { label: 'Completed', bg: 'bg-emerald-50', text: 'text-emerald-600', border: 'border-emerald-200' },
@@ -124,21 +124,21 @@ export default function PayrollPage() {
   }
 
   return (
-    <div className="p-6 lg:p-8 max-w-[1400px] mx-auto">
+    <div className="p-6 lg:p-8 max-w-[1400px] mx-auto animate-fade-in">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 mb-1">Payroll Management</h1>
-          <p className="text-sm text-gray-500">Process salaries with automatic PAYE & NSSF calculations</p>
+          <h1 className="text-2xl font-bold text-foreground tracking-tight mb-1">Payroll Management</h1>
+          <p className="text-sm text-muted-foreground">Process salaries with automatic PAYE & NSSF calculations</p>
         </div>
         <div className="flex items-center gap-2">
           <Link href="/app/hr/paye">
-            <Button variant="outline" size="sm" className="text-gray-600">
+            <Button variant="outline" size="sm" className="text-muted-foreground">
               <Calculator className="w-4 h-4 mr-1.5" />
               PAYE Calculator
             </Button>
           </Link>
-          <Button variant="outline" size="sm" className="text-gray-600" onClick={exportPayroll}>
+          <Button variant="outline" size="sm" className="text-muted-foreground" onClick={exportPayroll}>
             <Download className="w-4 h-4 mr-1.5" />
             Export
           </Button>
@@ -148,19 +148,19 @@ export default function PayrollPage() {
       {/* Stats */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         {[
-          { label: 'Total Gross', value: formatUGX(totals.gross), icon: DollarSign, color: 'text-gray-900', bg: 'bg-gray-50' },
+          { label: 'Total Gross', value: formatUGX(totals.gross), icon: DollarSign, color: 'text-foreground', bg: 'bg-muted/50' },
           { label: 'NSSF (5%)', value: formatUGX(totals.nssf), icon: TrendingDown, color: 'text-amber-600', bg: 'bg-amber-50' },
           { label: 'PAYE Tax', value: formatUGX(totals.paye), icon: Banknote, color: 'text-red-600', bg: 'bg-red-50' },
           { label: 'Total Net Pay', value: formatUGX(totals.net), icon: CheckCircle, color: 'text-emerald-600', bg: 'bg-emerald-50' },
         ].map(stat => (
-          <Card key={stat.label} className="p-4 border border-gray-200/60 bg-white">
+          <Card key={stat.label} className="p-4 border border-border/50 bg-card">
             <div className="flex items-center gap-3">
               <div className={`p-2 rounded-lg ${stat.bg}`}>
                 <stat.icon className={`w-4 h-4 ${stat.color}`} />
               </div>
               <div className="min-w-0">
-                <p className="text-lg font-bold text-gray-900 truncate">{stat.value}</p>
-                <p className="text-xs text-gray-500">{stat.label}</p>
+                <p className="text-lg font-bold text-foreground truncate">{stat.value}</p>
+                <p className="text-xs text-muted-foreground">{stat.label}</p>
               </div>
             </div>
           </Card>
@@ -168,15 +168,15 @@ export default function PayrollPage() {
       </div>
 
       {/* Current Period */}
-      <Card className="border border-blue-200 bg-blue-50/30 p-5 mb-6">
+      <Card className="border border-primary/20 bg-primary/[0.04] p-5 mb-6">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="p-2 rounded-lg bg-blue-100">
+            <div className="p-2 rounded-xl bg-blue-100">
               <Clock className="w-4 h-4 text-blue-600" />
             </div>
             <div>
-              <h3 className="text-sm font-semibold text-gray-800">{monthName} Payroll</h3>
-              <p className="text-xs text-gray-500">{employees.length} active employees &middot; Auto-calculated PAYE &amp; NSSF</p>
+              <h3 className="text-sm font-semibold text-foreground">{monthName} Payroll</h3>
+              <p className="text-xs text-muted-foreground">{employees.length} active employees &middot; Auto-calculated PAYE &amp; NSSF</p>
             </div>
           </div>
           <span className="inline-flex items-center px-2.5 py-1 rounded-md text-xs font-medium bg-blue-100 text-blue-700 border border-blue-200">
@@ -186,47 +186,47 @@ export default function PayrollPage() {
       </Card>
 
       {/* Payroll Table */}
-      <Card className="border border-gray-200/60 bg-white overflow-hidden mb-6">
-        <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
-          <h3 className="text-sm font-semibold text-gray-800">Employee Payroll Breakdown</h3>
-          <span className="text-xs text-gray-400">{employees.length} employees</span>
+      <Card className="border border-border/50 bg-card overflow-hidden mb-6">
+        <div className="px-5 py-4 border-b border-border/30 flex items-center justify-between">
+          <h3 className="text-sm font-semibold text-foreground">Employee Payroll Breakdown</h3>
+          <span className="text-xs text-muted-foreground/60">{employees.length} employees</span>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead>
-              <tr className="border-b border-gray-100 bg-gray-50/50">
-                <th className="px-5 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Employee</th>
-                <th className="px-5 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Role</th>
-                <th className="px-5 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">Gross Salary</th>
-                <th className="px-5 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">NSSF (5%)</th>
-                <th className="px-5 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">PAYE Tax</th>
-                <th className="px-5 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">Net Pay</th>
+              <tr className="border-b border-border/30 bg-muted/30">
+                <th className="px-5 py-3 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider">Employee</th>
+                <th className="px-5 py-3 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider">Role</th>
+                <th className="px-5 py-3 text-right text-xs font-semibold text-muted-foreground uppercase tracking-wider">Gross Salary</th>
+                <th className="px-5 py-3 text-right text-xs font-semibold text-muted-foreground uppercase tracking-wider">NSSF (5%)</th>
+                <th className="px-5 py-3 text-right text-xs font-semibold text-muted-foreground uppercase tracking-wider">PAYE Tax</th>
+                <th className="px-5 py-3 text-right text-xs font-semibold text-muted-foreground uppercase tracking-wider">Net Pay</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-50">
+            <tbody className="divide-y divide-border/20">
               {loading ? (
-                <tr><td colSpan={6} className="px-5 py-12 text-center text-sm text-gray-400">Loading payroll data...</td></tr>
+                <tr><td colSpan={6} className="px-5 py-12 text-center text-sm text-muted-foreground/60">Loading payroll data...</td></tr>
               ) : filteredPayrollData.length === 0 ? (
                 <tr>
                   <td colSpan={6} className="px-5 py-12 text-center">
-                    <Users className="w-8 h-8 text-gray-200 mx-auto mb-3" />
-                    <p className="text-sm text-gray-400 font-medium">No employees with salary data</p>
-                    <p className="text-xs text-gray-300 mt-1">Add employees and set their salaries to generate payroll</p>
+                    <Users className="w-8 h-8 text-muted-foreground/30 mx-auto mb-3" />
+                    <p className="text-sm text-muted-foreground/60 font-medium">No employees with salary data</p>
+                    <p className="text-xs text-muted-foreground/40 mt-1">Add employees and set their salaries to generate payroll</p>
                   </td>
                 </tr>
               ) : (
                 filteredPayrollData.map((emp) => (
-                  <tr key={emp.id} className="hover:bg-gray-50/50">
+                  <tr key={emp.id} className="hover:bg-muted/30">
                     <td className="px-5 py-3">
                       <div className="flex items-center gap-2.5">
                         <div className="w-7 h-7 rounded-full bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center text-[10px] font-bold text-white">
                           {(emp.users?.full_name || '?')[0].toUpperCase()}
                         </div>
-                        <span className="text-sm font-medium text-gray-900">{emp.users?.full_name || '—'}</span>
+                        <span className="text-sm font-medium text-foreground">{emp.users?.full_name || '—'}</span>
                       </div>
                     </td>
-                    <td className="px-5 py-3 text-sm text-gray-500">{emp.company_roles?.name || '—'}</td>
-                    <td className="px-5 py-3 text-sm text-gray-900 text-right font-mono font-medium">{formatUGX(emp.gross)}</td>
+                    <td className="px-5 py-3 text-sm text-muted-foreground">{emp.company_roles?.name || '—'}</td>
+                    <td className="px-5 py-3 text-sm text-foreground text-right font-mono font-medium">{formatUGX(emp.gross)}</td>
                     <td className="px-5 py-3 text-sm text-amber-600 text-right font-mono">-{formatUGX(emp.nssf)}</td>
                     <td className="px-5 py-3 text-sm text-red-500 text-right font-mono">-{formatUGX(emp.paye)}</td>
                     <td className="px-5 py-3 text-sm font-bold text-emerald-600 text-right font-mono">{formatUGX(emp.net)}</td>
@@ -236,9 +236,9 @@ export default function PayrollPage() {
             </tbody>
             {payrollData.length > 0 && (
               <tfoot>
-                <tr className="border-t-2 border-gray-200 bg-gray-50">
-                  <td className="px-5 py-3 text-sm font-semibold text-gray-800" colSpan={2}>Totals</td>
-                  <td className="px-5 py-3 text-sm font-bold text-gray-900 text-right font-mono">{formatUGX(totals.gross)}</td>
+                <tr className="border-t-2 border-border bg-muted/50">
+                  <td className="px-5 py-3 text-sm font-semibold text-foreground" colSpan={2}>Totals</td>
+                  <td className="px-5 py-3 text-sm font-bold text-foreground text-right font-mono">{formatUGX(totals.gross)}</td>
                   <td className="px-5 py-3 text-sm font-bold text-amber-600 text-right font-mono">-{formatUGX(totals.nssf)}</td>
                   <td className="px-5 py-3 text-sm font-bold text-red-500 text-right font-mono">-{formatUGX(totals.paye)}</td>
                   <td className="px-5 py-3 text-sm font-bold text-emerald-600 text-right font-mono">{formatUGX(totals.net)}</td>
@@ -250,9 +250,9 @@ export default function PayrollPage() {
       </Card>
 
       {/* Tax Bands Reference */}
-      <Card className="border border-gray-200/60 bg-white p-6">
+      <Card className="border border-border/50 bg-card p-6">
         <div className="flex items-center justify-between mb-4">
-          <h3 className="text-sm font-semibold text-gray-800">Uganda PAYE Tax Bands</h3>
+          <h3 className="text-sm font-semibold text-foreground">Uganda PAYE Tax Bands</h3>
           <Link href="/app/hr/paye" className="text-xs text-blue-600 hover:text-blue-700 flex items-center gap-1">
             Open Calculator <ArrowRight className="w-3 h-3" />
           </Link>
@@ -260,8 +260,8 @@ export default function PayrollPage() {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="space-y-2">
             {PAYE_BANDS.map((band, i) => (
-              <div key={i} className="flex items-center justify-between py-1.5 border-b border-gray-50 last:border-0">
-                <span className="text-xs text-gray-600">
+              <div key={i} className="flex items-center justify-between py-1.5 border-b border-border/20 last:border-0">
+                <span className="text-xs text-muted-foreground">
                   {formatUGX(band.lower)} — {band.upper === Infinity ? '∞' : formatUGX(band.upper)}
                 </span>
                 <span className={`text-xs font-bold px-2 py-0.5 rounded ${
@@ -277,13 +277,13 @@ export default function PayrollPage() {
             ))}
           </div>
           <div className="space-y-3">
-            <div className="p-3 bg-gray-50 rounded-lg">
-              <p className="text-xs text-gray-700 font-medium">NSSF Employee Contribution</p>
-              <p className="text-xs text-gray-500 mt-0.5">5% of gross salary deducted before PAYE calculation</p>
+            <div className="p-3 bg-muted/50 rounded-lg">
+              <p className="text-xs text-foreground font-medium">NSSF Employee Contribution</p>
+              <p className="text-xs text-muted-foreground mt-0.5">5% of gross salary deducted before PAYE calculation</p>
             </div>
-            <div className="p-3 bg-gray-50 rounded-lg">
-              <p className="text-xs text-gray-700 font-medium">Net Pay Formula</p>
-              <p className="text-xs text-gray-500 mt-0.5 font-mono">Net = Gross - NSSF - PAYE</p>
+            <div className="p-3 bg-muted/50 rounded-lg">
+              <p className="text-xs text-foreground font-medium">Net Pay Formula</p>
+              <p className="text-xs text-muted-foreground mt-0.5 font-mono">Net = Gross - NSSF - PAYE</p>
             </div>
           </div>
         </div>

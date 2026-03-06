@@ -60,9 +60,9 @@ export default function PerformancePage() {
     <div className="p-6 lg:p-8 max-w-[1200px] mx-auto space-y-6">
       <h1 className="text-2xl font-bold">Performance Reviews</h1>
       <div className="grid md:grid-cols-3 gap-4">
-        <Card className="p-4"><p className="text-xs text-gray-500">Total Reviews</p><p className="text-2xl font-bold">{records.length}</p></Card>
-        <Card className="p-4"><p className="text-xs text-gray-500">Average Score</p><p className="text-2xl font-bold">{records.length ? (records.reduce((s:number,r:any)=>s+Number(r.points||0),0)/records.length).toFixed(1) : '0.0'}</p></Card>
-        <Card className="p-4"><p className="text-xs text-gray-500">Employees Rated</p><p className="text-2xl font-bold">{leaderboard.length}</p></Card>
+        <Card className="p-4"><p className="text-xs text-muted-foreground">Total Reviews</p><p className="text-2xl font-bold">{records.length}</p></Card>
+        <Card className="p-4"><p className="text-xs text-muted-foreground">Average Score</p><p className="text-2xl font-bold">{records.length ? (records.reduce((s:number,r:any)=>s+Number(r.points||0),0)/records.length).toFixed(1) : '0.0'}</p></Card>
+        <Card className="p-4"><p className="text-xs text-muted-foreground">Employees Rated</p><p className="text-2xl font-bold">{leaderboard.length}</p></Card>
       </div>
 
       <Card className="p-4 space-y-3">
@@ -78,11 +78,11 @@ export default function PerformancePage() {
       <div className="grid md:grid-cols-2 gap-4">
         <Card className="p-4">
           <h3 className="font-semibold mb-2">Leaderboard</h3>
-          <div className="space-y-2 text-sm">{leaderboard.length===0?<p className="text-gray-400">No scores yet</p>:leaderboard.map((l,idx)=><div key={idx} className="flex justify-between"><span>{l.name}</span><span className="font-mono">{l.score}</span></div>)}</div>
+          <div className="space-y-2 text-sm">{leaderboard.length===0?<p className="text-muted-foreground/60">No scores yet</p>:leaderboard.map((l,idx)=><div key={idx} className="flex justify-between"><span>{l.name}</span><span className="font-mono">{l.score}</span></div>)}</div>
         </Card>
         <Card className="p-4 overflow-x-auto">
           <h3 className="font-semibold mb-2">Recent Records</h3>
-          <div className="space-y-2 text-sm">{records.length===0?<p className="text-gray-400">No records</p>:records.slice(0,12).map((r:any)=><div key={r.id} className="border rounded px-2 py-1"><div className="flex justify-between"><span>{r.company_employees?.users?.full_name || 'Unknown'}</span><span className="font-mono">{r.points}</span></div><p className="text-xs text-gray-500">{r.description || 'No note'}</p></div>)}</div>
+          <div className="space-y-2 text-sm">{records.length===0?<p className="text-muted-foreground/60">No records</p>:records.slice(0,12).map((r:any)=><div key={r.id} className="border rounded px-2 py-1"><div className="flex justify-between"><span>{r.company_employees?.users?.full_name || 'Unknown'}</span><span className="font-mono">{r.points}</span></div><p className="text-xs text-muted-foreground">{r.description || 'No note'}</p></div>)}</div>
         </Card>
       </div>
     </div>

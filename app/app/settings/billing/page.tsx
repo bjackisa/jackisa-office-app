@@ -32,21 +32,21 @@ export default function BillingPage() {
     <div className="p-6 lg:p-8 max-w-[1000px] mx-auto space-y-6">
       <h1 className="text-2xl font-bold">Billing</h1>
       <div className="grid md:grid-cols-3 gap-4">
-        <Card className="p-4"><p className="text-xs text-gray-500">Billed Total</p><p className="text-2xl font-bold">{invoiceTotals.total.toLocaleString()}</p></Card>
-        <Card className="p-4"><p className="text-xs text-gray-500">Collected</p><p className="text-2xl font-bold">{invoiceTotals.paid.toLocaleString()}</p></Card>
-        <Card className="p-4"><p className="text-xs text-gray-500">Outstanding</p><p className="text-2xl font-bold">{invoiceTotals.outstanding.toLocaleString()}</p></Card>
+        <Card className="p-4"><p className="text-xs text-muted-foreground">Billed Total</p><p className="text-2xl font-bold">{invoiceTotals.total.toLocaleString()}</p></Card>
+        <Card className="p-4"><p className="text-xs text-muted-foreground">Collected</p><p className="text-2xl font-bold">{invoiceTotals.paid.toLocaleString()}</p></Card>
+        <Card className="p-4"><p className="text-xs text-muted-foreground">Outstanding</p><p className="text-2xl font-bold">{invoiceTotals.outstanding.toLocaleString()}</p></Card>
       </div>
 
       <Card className="p-5">
         <h2 className="font-semibold mb-2">Current Subscription</h2>
         {subscription ? (
           <div className="text-sm space-y-1">
-            <p><span className="text-gray-500">Tier:</span> {subscription.tier}</p>
-            <p><span className="text-gray-500">Status:</span> {subscription.status}</p>
-            <p><span className="text-gray-500">Billing cycle:</span> {subscription.billing_cycle}</p>
-            <p><span className="text-gray-500">Monthly cost:</span> {Number(subscription.monthly_cost || 0).toLocaleString()}</p>
+            <p><span className="text-muted-foreground">Tier:</span> {subscription.tier}</p>
+            <p><span className="text-muted-foreground">Status:</span> {subscription.status}</p>
+            <p><span className="text-muted-foreground">Billing cycle:</span> {subscription.billing_cycle}</p>
+            <p><span className="text-muted-foreground">Monthly cost:</span> {Number(subscription.monthly_cost || 0).toLocaleString()}</p>
           </div>
-        ) : <p className="text-sm text-gray-500">No subscription record found.</p>}
+        ) : <p className="text-sm text-muted-foreground">No subscription record found.</p>}
       </Card>
     </div>
   )

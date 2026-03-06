@@ -90,32 +90,32 @@ export default function CompanySettings() {
   }
 
   return (
-    <div className="p-6 max-w-4xl mx-auto">
+    <div className="p-6 lg:p-8 max-w-4xl mx-auto animate-fade-in">
       <div className="mb-8">
-        <h1 className="text-3xl font-bold text-foreground mb-2">Company Settings</h1>
-        <p className="text-muted-foreground">Manage your company information</p>
+        <h1 className="text-2xl font-bold text-foreground tracking-tight mb-1">Company Settings</h1>
+        <p className="text-sm text-muted-foreground">Manage your company information</p>
       </div>
 
       {message && (
-        <div className={`mb-6 flex items-gap-3 rounded-lg p-4 ${
+        <div className={`mb-6 flex items-center gap-3 rounded-xl p-4 ${
           message.type === 'success' 
-            ? 'bg-green-500/10 text-green-700' 
-            : 'bg-red-500/10 text-red-700'
+            ? 'bg-emerald-500/10 text-emerald-700 border border-emerald-500/20' 
+            : 'bg-red-500/10 text-red-600 border border-red-500/20'
         }`}>
           {message.type === 'success' ? (
-            <CheckCircle className="w-5 h-5 flex-shrink-0 mt-0.5" />
+            <CheckCircle className="w-5 h-5 flex-shrink-0" />
           ) : (
-            <AlertCircle className="w-5 h-5 flex-shrink-0 mt-0.5" />
+            <AlertCircle className="w-5 h-5 flex-shrink-0" />
           )}
-          <p className="text-sm">{message.text}</p>
+          <p className="text-sm font-medium">{message.text}</p>
         </div>
       )}
 
       {company && (
-        <Card className="p-6 border border-border space-y-6">
+        <Card className="p-6 space-y-6">
           {/* Company Name */}
           <div>
-            <label htmlFor="name" className="block text-sm font-medium text-foreground mb-2">
+            <label htmlFor="name" className="block text-sm font-semibold text-foreground mb-2">
               Company Name
             </label>
             <Input
@@ -128,7 +128,7 @@ export default function CompanySettings() {
 
           {/* Email */}
           <div>
-            <label htmlFor="email" className="block text-sm font-medium text-foreground mb-2">
+            <label htmlFor="email" className="block text-sm font-semibold text-foreground mb-2">
               Email
             </label>
             <Input
@@ -142,7 +142,7 @@ export default function CompanySettings() {
 
           {/* Phone */}
           <div>
-            <label htmlFor="phone" className="block text-sm font-medium text-foreground mb-2">
+            <label htmlFor="phone" className="block text-sm font-semibold text-foreground mb-2">
               Phone
             </label>
             <Input
@@ -155,7 +155,7 @@ export default function CompanySettings() {
 
           {/* Address */}
           <div>
-            <label htmlFor="address" className="block text-sm font-medium text-foreground mb-2">
+            <label htmlFor="address" className="block text-sm font-semibold text-foreground mb-2">
               Address
             </label>
             <Input
@@ -168,7 +168,7 @@ export default function CompanySettings() {
 
           {/* City */}
           <div>
-            <label htmlFor="city" className="block text-sm font-medium text-foreground mb-2">
+            <label htmlFor="city" className="block text-sm font-semibold text-foreground mb-2">
               City
             </label>
             <Input
@@ -181,7 +181,7 @@ export default function CompanySettings() {
 
           {/* Industry */}
           <div>
-            <label htmlFor="industry" className="block text-sm font-medium text-foreground mb-2">
+            <label htmlFor="industry" className="block text-sm font-semibold text-foreground mb-2">
               Industry
             </label>
             <Input

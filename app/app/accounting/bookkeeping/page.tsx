@@ -90,35 +90,35 @@ export default function BookkeepingPage() {
   return (
     <div className="p-6 lg:p-8 max-w-[1300px] mx-auto space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-gray-900 mb-1">Bookkeeping</h1>
-        <p className="text-sm text-gray-500">Record journal entries and track bookkeeping totals.</p>
+        <h1 className="text-2xl font-bold text-foreground tracking-tight mb-1">Bookkeeping</h1>
+        <p className="text-sm text-muted-foreground">Record journal entries and track bookkeeping totals.</p>
       </div>
 
       <div className="grid md:grid-cols-3 gap-4">
-        <Card className="p-4 border border-gray-200/60"><p className="text-xs text-gray-500">Entries</p><p className="text-2xl font-bold">{entries.length}</p></Card>
-        <Card className="p-4 border border-gray-200/60"><p className="text-xs text-gray-500">Total Debits</p><p className="text-2xl font-bold">{totals.debit.toLocaleString()}</p></Card>
-        <Card className="p-4 border border-gray-200/60"><p className="text-xs text-gray-500">Total Credits</p><p className="text-2xl font-bold">{totals.credit.toLocaleString()}</p></Card>
+        <Card className="p-4 border border-border/50"><p className="text-xs text-muted-foreground">Entries</p><p className="text-2xl font-bold">{entries.length}</p></Card>
+        <Card className="p-4 border border-border/50"><p className="text-xs text-muted-foreground">Total Debits</p><p className="text-2xl font-bold">{totals.debit.toLocaleString()}</p></Card>
+        <Card className="p-4 border border-border/50"><p className="text-xs text-muted-foreground">Total Credits</p><p className="text-2xl font-bold">{totals.credit.toLocaleString()}</p></Card>
       </div>
 
-      <Card className="p-5 border border-gray-200/60 space-y-3">
+      <Card className="p-5 border border-border/50 space-y-3">
         <h2 className="text-sm font-semibold">Record Entry</h2>
         <div className="grid md:grid-cols-6 gap-3">
           <Input type="date" value={form.entry_date} onChange={(e) => setForm({ ...form, entry_date: e.target.value })} />
           <Input placeholder="Description" className="md:col-span-2" value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} />
           <Input placeholder="Reference" value={form.reference_number} onChange={(e) => setForm({ ...form, reference_number: e.target.value })} />
-          <select className="px-3 py-2 border rounded-md" value={form.account_id} onChange={(e) => setForm({ ...form, account_id: e.target.value })}><option value="">Select account</option>{accounts.map((account) => <option key={account.id} value={account.id}>{account.account_code} - {account.account_name}</option>)}</select>
+          <select className="px-3 py-2 border border-input rounded-xl" value={form.account_id} onChange={(e) => setForm({ ...form, account_id: e.target.value })}><option value="">Select account</option>{accounts.map((account) => <option key={account.id} value={account.id}>{account.account_code} - {account.account_name}</option>)}</select>
           <Input type="number" placeholder="Debit" value={form.debit} onChange={(e) => setForm({ ...form, debit: e.target.value })} />
           <Input type="number" placeholder="Credit" value={form.credit} onChange={(e) => setForm({ ...form, credit: e.target.value })} />
         </div>
         <Button onClick={createEntry}>Save Entry</Button>
       </Card>
 
-      <Card className="p-3 border border-gray-200/60"><div className="relative"><Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400"/><Input className="pl-10" placeholder="Search description or reference..." value={searchQuery} onChange={(e)=>setSearchQuery(e.target.value)} /></div></Card><Card className="border border-gray-200/60 overflow-hidden">
+      <Card className="p-3 border border-border/50"><div className="relative"><Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground/60"/><Input className="pl-10" placeholder="Search description or reference..." value={searchQuery} onChange={(e)=>setSearchQuery(e.target.value)} /></div></Card><Card className="border border-border/50 overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
-            <thead><tr className="bg-gray-50 border-b text-xs text-gray-500 uppercase"><th className="px-4 py-3 text-left">Date</th><th className="px-4 py-3 text-left">Description</th><th className="px-4 py-3 text-left">Reference</th><th className="px-4 py-3 text-left">Journal Lines</th></tr></thead>
+            <thead><tr className="bg-muted/50 border-b text-xs text-muted-foreground uppercase"><th className="px-4 py-3 text-left">Date</th><th className="px-4 py-3 text-left">Description</th><th className="px-4 py-3 text-left">Reference</th><th className="px-4 py-3 text-left">Journal Lines</th></tr></thead>
             <tbody>
-              {filtered.length === 0 ? <tr><td colSpan={4} className="px-4 py-8 text-center text-gray-400">No entries recorded.</td></tr> : filtered.map((entry) => (
+              {filtered.length === 0 ? <tr><td colSpan={4} className="px-4 py-8 text-center text-muted-foreground/60">No entries recorded.</td></tr> : filtered.map((entry) => (
                 <tr key={entry.id} className="border-b last:border-0 align-top">
                   <td className="px-4 py-3">{entry.entry_date}</td>
                   <td className="px-4 py-3">{entry.description}</td>
@@ -127,7 +127,7 @@ export default function BookkeepingPage() {
                     {(entry.journal_entries || []).length === 0 ? '—' : (
                       <div className="space-y-1">
                         {(entry.journal_entries || []).map((journal: any) => (
-                          <div key={journal.id} className="text-xs text-gray-600 border rounded px-2 py-1">
+                          <div key={journal.id} className="text-xs text-muted-foreground border rounded px-2 py-1">
                             {journal.accounting_accounts?.account_code} {journal.accounting_accounts?.account_name} | Dr {Number(journal.debit || 0).toLocaleString()} | Cr {Number(journal.credit || 0).toLocaleString()}
                           </div>
                         ))}

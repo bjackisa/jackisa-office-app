@@ -82,7 +82,7 @@ export default function ModulesPage() {
     <div className="p-6 max-w-7xl mx-auto space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-foreground mb-2">Module Management</h1>
+          <h1 className="text-3xl font-bold text-foreground tracking-tight mb-2">Module Management</h1>
           <p className="text-muted-foreground">Add modules, auto-generate codes, assign instructors, and track student load</p>
         </div>
       </div>
@@ -91,7 +91,7 @@ export default function ModulesPage() {
         <h2 className="font-semibold">Create module</h2>
         <div className="grid md:grid-cols-3 gap-3">
           <Input placeholder="Module name" value={form.module_name} onChange={(e) => setForm({ ...form, module_name: e.target.value })} />
-          <select className="px-3 py-2 border border-border rounded-md text-sm" value={form.instructor_id} onChange={(e) => setForm({ ...form, instructor_id: e.target.value })}>
+          <select className="px-3 py-2 border border-border border-input rounded-xl text-sm" value={form.instructor_id} onChange={(e) => setForm({ ...form, instructor_id: e.target.value })}>
             <option value="">Instructor (optional)</option>
             {employees.map((employee: any) => <option key={employee.id} value={employee.id}>{employee.users?.full_name}</option>)}
           </select>

@@ -131,7 +131,7 @@ export default function TeamManagementPage() {
     const map: Record<string, { bg: string; icon: any; label: string }> = {
       pending: { bg: 'bg-amber-50 text-amber-700 border-amber-200', icon: Clock, label: 'Pending' },
       accepted: { bg: 'bg-emerald-50 text-emerald-700 border-emerald-200', icon: CheckCircle, label: 'Accepted' },
-      expired: { bg: 'bg-gray-100 text-gray-500 border-gray-200', icon: XCircle, label: 'Expired' },
+      expired: { bg: 'bg-muted text-muted-foreground border-border', icon: XCircle, label: 'Expired' },
       revoked: { bg: 'bg-red-50 text-red-600 border-red-200', icon: XCircle, label: 'Revoked' },
     }
     return map[status] || map.pending
@@ -141,16 +141,16 @@ export default function TeamManagementPage() {
   const acceptedCount = invitations.filter(i => i.status === 'accepted').length
 
   return (
-    <div className="p-6 lg:p-8 max-w-[1400px] mx-auto">
+    <div className="p-6 lg:p-8 max-w-[1400px] mx-auto animate-fade-in">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 mb-1">Team Management</h1>
-          <p className="text-sm text-gray-500">Invite and manage team members for your workspace</p>
+          <h1 className="text-2xl font-bold text-foreground tracking-tight mb-1">Team Management</h1>
+          <p className="text-sm text-muted-foreground">Invite and manage team members for your workspace</p>
         </div>
         <Button
           size="sm"
-          className="bg-blue-600 hover:bg-blue-700"
+          className="bg-primary hover:bg-primary/90"
           onClick={() => setShowInviteForm(!showInviteForm)}
         >
           <UserPlus className="w-4 h-4 mr-1.5" />
@@ -174,14 +174,14 @@ export default function TeamManagementPage() {
           { label: 'Pending', value: pendingCount, icon: Clock, color: 'text-amber-600', bg: 'bg-amber-50' },
           { label: 'Accepted', value: acceptedCount, icon: CheckCircle, color: 'text-emerald-600', bg: 'bg-emerald-50' },
         ].map(stat => (
-          <Card key={stat.label} className="p-4 border border-gray-200/60 bg-white">
+          <Card key={stat.label} className="p-4 border border-border/50 bg-card">
             <div className="flex items-center gap-3">
               <div className={`p-2 rounded-lg ${stat.bg}`}>
                 <stat.icon className={`w-4 h-4 ${stat.color}`} />
               </div>
               <div>
-                <p className="text-2xl font-bold text-gray-900">{stat.value}</p>
-                <p className="text-xs text-gray-500">{stat.label}</p>
+                <p className="text-2xl font-bold text-foreground">{stat.value}</p>
+                <p className="text-xs text-muted-foreground">{stat.label}</p>
               </div>
             </div>
           </Card>
@@ -190,35 +190,35 @@ export default function TeamManagementPage() {
 
       {/* Invite Form */}
       {showInviteForm && (
-        <Card className="border border-blue-200 bg-blue-50/30 p-6 mb-6">
-          <h3 className="text-sm font-semibold text-gray-800 mb-4 flex items-center gap-2">
+        <Card className="border border-primary/20 bg-primary/[0.04] p-6 mb-6">
+          <h3 className="text-sm font-semibold text-foreground mb-4 flex items-center gap-2">
             <UserPlus className="w-4 h-4 text-blue-600" />
             Send Invitation
           </h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1.5">Email *</label>
+              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Email *</label>
               <Input
                 type="email"
                 placeholder="colleague@company.com"
                 value={form.email}
                 onChange={(e) => setForm({ ...form, email: e.target.value })}
-                className="bg-white"
+                className="bg-card"
               />
             </div>
             <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1.5">Full Name *</label>
+              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Full Name *</label>
               <Input
                 placeholder="John Doe"
                 value={form.fullName}
                 onChange={(e) => setForm({ ...form, fullName: e.target.value })}
-                className="bg-white"
+                className="bg-card"
               />
             </div>
             <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1.5">Role *</label>
+              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Role *</label>
               <select
-                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white"
+                className="w-full px-3 py-2 border border-border rounded-lg text-sm bg-card"
                 value={form.roleId}
                 onChange={(e) => setForm({ ...form, roleId: e.target.value })}
               >
@@ -229,38 +229,38 @@ export default function TeamManagementPage() {
               </select>
             </div>
             <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1.5">Department</label>
+              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Department</label>
               <Input
                 placeholder="e.g. Finance"
                 value={form.department}
                 onChange={(e) => setForm({ ...form, department: e.target.value })}
-                className="bg-white"
+                className="bg-card"
               />
             </div>
             <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1.5">Position</label>
+              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Position</label>
               <Input
                 placeholder="e.g. Senior Accountant"
                 value={form.position}
                 onChange={(e) => setForm({ ...form, position: e.target.value })}
-                className="bg-white"
+                className="bg-card"
               />
             </div>
             <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1.5">Monthly Salary (UGX)</label>
+              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Monthly Salary (UGX)</label>
               <Input
                 type="number"
                 placeholder="0"
                 value={form.salary}
                 onChange={(e) => setForm({ ...form, salary: e.target.value })}
-                className="bg-white"
+                className="bg-card"
               />
             </div>
           </div>
           <div className="flex items-center gap-3 mt-5">
             <Button
               size="sm"
-              className="bg-blue-600 hover:bg-blue-700"
+              className="bg-primary hover:bg-primary/90"
               onClick={handleInvite}
               disabled={sending}
             >
@@ -279,36 +279,36 @@ export default function TeamManagementPage() {
       )}
 
       {/* Invitations Table */}
-      <Card className="border border-gray-200/60 bg-white overflow-hidden">
-        <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
-          <h3 className="text-sm font-semibold text-gray-800">Invitations</h3>
-          <button onClick={loadData} className="p-1.5 rounded-md text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors">
+      <Card className="border border-border/50 bg-card overflow-hidden">
+        <div className="px-5 py-4 border-b border-border/30 flex items-center justify-between">
+          <h3 className="text-sm font-semibold text-foreground">Invitations</h3>
+          <button onClick={loadData} className="p-1.5 rounded-md text-muted-foreground/60 hover:text-muted-foreground hover:bg-muted transition-colors">
             <RefreshCw className="w-4 h-4" />
           </button>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead>
-              <tr className="border-b border-gray-100 bg-gray-50/50">
-                <th className="px-5 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Invitee</th>
-                <th className="px-5 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Role</th>
-                <th className="px-5 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Department</th>
-                <th className="px-5 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Status</th>
-                <th className="px-5 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Sent</th>
-                <th className="px-5 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">Actions</th>
+              <tr className="border-b border-border/30 bg-muted/30">
+                <th className="px-5 py-3 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider">Invitee</th>
+                <th className="px-5 py-3 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider">Role</th>
+                <th className="px-5 py-3 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider">Department</th>
+                <th className="px-5 py-3 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider">Status</th>
+                <th className="px-5 py-3 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider">Sent</th>
+                <th className="px-5 py-3 text-right text-xs font-semibold text-muted-foreground uppercase tracking-wider">Actions</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-50">
+            <tbody className="divide-y divide-border/20">
               {loading ? (
                 <tr>
-                  <td colSpan={6} className="px-5 py-12 text-center text-sm text-gray-400">Loading...</td>
+                  <td colSpan={6} className="px-5 py-12 text-center text-sm text-muted-foreground/60">Loading...</td>
                 </tr>
               ) : invitations.length === 0 ? (
                 <tr>
                   <td colSpan={6} className="px-5 py-12 text-center">
-                    <Mail className="w-8 h-8 text-gray-200 mx-auto mb-3" />
-                    <p className="text-sm text-gray-400 font-medium">No invitations yet</p>
-                    <p className="text-xs text-gray-300 mt-1">Click &quot;Invite Member&quot; to get started</p>
+                    <Mail className="w-8 h-8 text-muted-foreground/30 mx-auto mb-3" />
+                    <p className="text-sm text-muted-foreground/60 font-medium">No invitations yet</p>
+                    <p className="text-xs text-muted-foreground/40 mt-1">Click &quot;Invite Member&quot; to get started</p>
                   </td>
                 </tr>
               ) : (
@@ -316,21 +316,21 @@ export default function TeamManagementPage() {
                   const badge = getStatusBadge(inv.status)
                   const StatusIcon = badge.icon
                   return (
-                    <tr key={inv.id} className="hover:bg-gray-50/50 transition-colors group">
+                    <tr key={inv.id} className="hover:bg-muted/30 transition-colors group">
                       <td className="px-5 py-3.5">
                         <div>
-                          <p className="text-sm font-medium text-gray-900">{inv.full_name}</p>
-                          <p className="text-[11px] text-gray-400">{inv.email}</p>
+                          <p className="text-sm font-medium text-foreground">{inv.full_name}</p>
+                          <p className="text-[11px] text-muted-foreground/60">{inv.email}</p>
                         </div>
                       </td>
                       <td className="px-5 py-3.5">
                         <div className="flex items-center gap-1.5">
-                          <Shield className="w-3 h-3 text-gray-400" />
-                          <span className="text-sm text-gray-600">{inv.company_roles?.name || '—'}</span>
+                          <Shield className="w-3 h-3 text-muted-foreground/60" />
+                          <span className="text-sm text-muted-foreground">{inv.company_roles?.name || '—'}</span>
                         </div>
                       </td>
                       <td className="px-5 py-3.5">
-                        <span className="text-sm text-gray-500">{inv.department || '—'}</span>
+                        <span className="text-sm text-muted-foreground">{inv.department || '—'}</span>
                       </td>
                       <td className="px-5 py-3.5">
                         <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-medium border ${badge.bg}`}>
@@ -339,7 +339,7 @@ export default function TeamManagementPage() {
                         </span>
                       </td>
                       <td className="px-5 py-3.5">
-                        <span className="text-xs text-gray-400">
+                        <span className="text-xs text-muted-foreground/60">
                           {new Date(inv.created_at).toLocaleDateString()}
                         </span>
                       </td>
@@ -347,7 +347,7 @@ export default function TeamManagementPage() {
                         {inv.status === 'pending' && (
                           <button
                             onClick={() => revokeInvitation(inv.id)}
-                            className="p-1.5 rounded-md text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors opacity-0 group-hover:opacity-100"
+                            className="p-1.5 rounded-md text-muted-foreground/60 hover:text-red-500 hover:bg-red-50 transition-colors opacity-0 group-hover:opacity-100"
                             title="Revoke invitation"
                           >
                             <Trash2 className="w-4 h-4" />

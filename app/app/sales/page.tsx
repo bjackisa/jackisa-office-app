@@ -15,7 +15,7 @@ export default function SalesDashboard() {
   return (
     <div className="p-6 max-w-7xl mx-auto">
       <div className="mb-8">
-        <h1 className="text-3xl font-bold text-foreground mb-2">Sales & Marketing</h1>
+        <h1 className="text-3xl font-bold text-foreground tracking-tight mb-2">Sales & Marketing</h1>
         <p className="text-muted-foreground">Track sales, commissions, and affiliate programs</p>
       </div>
 

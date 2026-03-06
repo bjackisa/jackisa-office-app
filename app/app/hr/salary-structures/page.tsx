@@ -71,11 +71,11 @@ export default function SalaryStructuresPage() {
   return (
     <div className="p-6 lg:p-8 max-w-[1200px] mx-auto space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-gray-900 mb-1">Salary Structures</h1>
-        <p className="text-sm text-gray-500">Create and maintain employee salary structures from the database.</p>
+        <h1 className="text-2xl font-bold text-foreground tracking-tight mb-1">Salary Structures</h1>
+        <p className="text-sm text-muted-foreground">Create and maintain employee salary structures from the database.</p>
       </div>
 
-      <Card className="p-5 border border-gray-200/60 space-y-4">
+      <Card className="p-5 border border-border/50 space-y-4">
         <h2 className="text-sm font-semibold flex items-center gap-2"><Plus className="w-4 h-4" /> Add Salary Structure</h2>
         <div className="grid md:grid-cols-3 gap-3">
           <select className="px-3 py-2 border rounded-lg text-sm" value={form.employee_id} onChange={(e) => setForm({ ...form, employee_id: e.target.value })}>
@@ -88,16 +88,16 @@ export default function SalaryStructuresPage() {
           <Input type="number" placeholder="Transport allowance" value={form.transport_allowance} onChange={(e) => setForm({ ...form, transport_allowance: e.target.value })} />
           <Input type="number" placeholder="Medical allowance" value={form.medical_allowance} onChange={(e) => setForm({ ...form, medical_allowance: e.target.value })} />
         </div>
-        <Button onClick={saveStructure} className="bg-blue-600 hover:bg-blue-700">Save Structure</Button>
+        <Button onClick={saveStructure} className="bg-primary hover:bg-primary/90">Save Structure</Button>
       </Card>
 
-      <Card className="p-3 border border-gray-200/60"><div className="relative"><Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400"/><Input className="pl-10" placeholder="Search employee..." value={searchQuery} onChange={(e)=>setSearchQuery(e.target.value)} /></div></Card><Card className="border border-gray-200/60 overflow-hidden">
-        <div className="px-5 py-4 border-b bg-gray-50/60"><h2 className="text-sm font-semibold text-gray-800 flex items-center gap-2"><Wallet className="w-4 h-4" /> Current Salary Structures</h2></div>
+      <Card className="p-3 border border-border/50"><div className="relative"><Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground/60"/><Input className="pl-10" placeholder="Search employee..." value={searchQuery} onChange={(e)=>setSearchQuery(e.target.value)} /></div></Card><Card className="border border-border/50 overflow-hidden">
+        <div className="px-5 py-4 border-b bg-muted/50/60"><h2 className="text-sm font-semibold text-foreground flex items-center gap-2"><Wallet className="w-4 h-4" /> Current Salary Structures</h2></div>
         <div className="overflow-x-auto">
           <table className="w-full">
-            <thead><tr className="border-b text-xs text-gray-500 uppercase"><th className="px-5 py-3 text-left">Employee</th><th className="px-5 py-3 text-right">Basic</th><th className="px-5 py-3 text-right">Allowances</th><th className="px-5 py-3 text-right">Total</th><th className="px-5 py-3 text-left">Effective</th></tr></thead>
+            <thead><tr className="border-b text-xs text-muted-foreground uppercase"><th className="px-5 py-3 text-left">Employee</th><th className="px-5 py-3 text-right">Basic</th><th className="px-5 py-3 text-right">Allowances</th><th className="px-5 py-3 text-right">Total</th><th className="px-5 py-3 text-left">Effective</th></tr></thead>
             <tbody>
-              {loading ? <tr><td colSpan={5} className="px-5 py-10 text-center text-sm text-gray-400">Loading salary structures...</td></tr> : filtered.length === 0 ? <tr><td colSpan={5} className="px-5 py-10 text-center text-sm text-gray-400">No salary structures found.</td></tr> : filtered.map((row: any) => (
+              {loading ? <tr><td colSpan={5} className="px-5 py-10 text-center text-sm text-muted-foreground/60">Loading salary structures...</td></tr> : filtered.length === 0 ? <tr><td colSpan={5} className="px-5 py-10 text-center text-sm text-muted-foreground/60">No salary structures found.</td></tr> : filtered.map((row: any) => (
                 <tr key={row.id} className="border-b last:border-0 text-sm">
                   <td className="px-5 py-3">{row.company_employees?.users?.full_name || 'Unknown'}</td>
                   <td className="px-5 py-3 text-right">{Number(row.basic_salary || 0).toLocaleString()}</td>

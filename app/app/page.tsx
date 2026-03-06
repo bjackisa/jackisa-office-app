@@ -183,20 +183,20 @@ export default function DashboardPage() {
   }
 
   return (
-    <div className="p-6 lg:p-8 max-w-[1400px] mx-auto">
+    <div className="p-6 lg:p-8 max-w-[1400px] mx-auto animate-fade-in">
       {/* Welcome Header */}
       <div className="mb-8">
         <div className="flex items-start justify-between">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900 mb-1">
+            <h1 className="text-2xl font-bold text-foreground mb-1 tracking-tight">
               {greeting}, {userName || 'there'}
             </h1>
-            <p className="text-gray-500 text-sm">
+            <p className="text-muted-foreground text-sm">
               Here&apos;s what&apos;s happening with your business today.
             </p>
           </div>
-          <div className="hidden md:flex items-center gap-2">
-            <span className="text-xs text-gray-400">
+          <div className="hidden md:flex items-center gap-2 px-3 py-1.5 rounded-xl bg-muted/50 border border-border/50">
+            <span className="text-xs text-muted-foreground font-medium">
               {new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
             </span>
           </div>
@@ -205,21 +205,21 @@ export default function DashboardPage() {
 
       {/* Stats Grid */}
       {!loading && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8 stagger-children">
           {statCards.map((stat) => (
             <Link key={stat.title} href={stat.href}>
-              <Card className="p-5 border border-gray-200/60 bg-white hover:shadow-md hover:border-gray-300/60 transition-all duration-200 cursor-pointer group">
-                <div className="flex items-start justify-between mb-3">
-                  <div className={`p-2.5 rounded-xl ${stat.bgLight}`}>
+              <Card className="p-5 hover:shadow-elevated hover:border-border transition-all duration-300 cursor-pointer group hover-lift">
+                <div className="flex items-start justify-between mb-4">
+                  <div className={`p-2.5 rounded-2xl ${stat.bgLight}`}>
                     <stat.icon className={`w-5 h-5 ${stat.textColor}`} />
                   </div>
-                  <ChevronRight className="w-4 h-4 text-gray-300 group-hover:text-gray-400 transition-colors" />
+                  <ChevronRight className="w-4 h-4 text-muted-foreground/30 group-hover:text-muted-foreground/60 group-hover:translate-x-0.5 transition-all duration-200" />
                 </div>
-                <p className="text-2xl font-bold text-gray-900 mb-0.5">{stat.value}</p>
+                <p className="text-2xl font-bold text-foreground mb-0.5 tracking-tight">{stat.value}</p>
                 <div className="flex items-center justify-between">
-                  <p className="text-xs text-gray-500 font-medium">{stat.title}</p>
+                  <p className="text-xs text-muted-foreground font-medium">{stat.title}</p>
                   {stat.change && (
-                    <span className="text-[11px] text-gray-400">{stat.change}</span>
+                    <span className="text-[11px] text-muted-foreground/60">{stat.change}</span>
                   )}
                 </div>
               </Card>
@@ -229,26 +229,28 @@ export default function DashboardPage() {
       )}
 
       {/* Main Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
         {/* Quick Actions */}
         <div className="lg:col-span-2">
-          <Card className="border border-gray-200/60 bg-white overflow-hidden">
-            <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Zap className="w-4 h-4 text-amber-500" />
-                <h2 className="text-sm font-semibold text-gray-800">Quick Actions</h2>
+          <Card className="overflow-hidden">
+            <div className="px-6 py-4 border-b border-border/50 flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <div className="p-1.5 rounded-lg bg-amber-500/10">
+                  <Zap className="w-4 h-4 text-amber-500" />
+                </div>
+                <h2 className="text-sm font-semibold text-foreground">Quick Actions</h2>
               </div>
             </div>
             <div className="p-4">
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-3 stagger-children">
                 {quickActions.map((action) => (
                   <Link key={action.label} href={action.href}>
-                    <div className="p-4 rounded-xl border border-gray-100 hover:border-gray-200 hover:shadow-sm bg-gray-50/50 hover:bg-white transition-all duration-200 cursor-pointer group">
-                      <div className={`w-9 h-9 rounded-lg ${action.color} flex items-center justify-center mb-3`}>
-                        <action.icon className="w-4 h-4 text-white" />
+                    <div className="p-4 rounded-2xl border border-border/40 hover:border-border hover:shadow-soft bg-muted/30 hover:bg-card transition-all duration-300 cursor-pointer group">
+                      <div className={`w-10 h-10 rounded-xl ${action.color} flex items-center justify-center mb-3 shadow-sm`}>
+                        <action.icon className="w-4.5 h-4.5 text-white" />
                       </div>
-                      <p className="text-sm font-medium text-gray-800 group-hover:text-gray-900">{action.label}</p>
-                      <p className="text-[11px] text-gray-400 mt-0.5">{action.desc}</p>
+                      <p className="text-sm font-semibold text-foreground group-hover:text-foreground">{action.label}</p>
+                      <p className="text-[11px] text-muted-foreground/60 mt-0.5">{action.desc}</p>
                     </div>
                   </Link>
                 ))}
@@ -260,19 +262,21 @@ export default function DashboardPage() {
         {/* Subscription & Storage */}
         <div className="space-y-4">
           {/* Subscription Card */}
-          <Card className="border border-gray-200/60 bg-white overflow-hidden">
+          <Card className="overflow-hidden">
             <div className="p-5">
-              <div className="flex items-center gap-2 mb-4">
-                <CreditCard className="w-4 h-4 text-blue-500" />
-                <h2 className="text-sm font-semibold text-gray-800">Subscription</h2>
+              <div className="flex items-center gap-2.5 mb-4">
+                <div className="p-1.5 rounded-lg bg-primary/10">
+                  <CreditCard className="w-4 h-4 text-primary" />
+                </div>
+                <h2 className="text-sm font-semibold text-foreground">Subscription</h2>
               </div>
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
-                  <span className="text-xs text-gray-500">Plan</span>
-                  <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${
+                  <span className="text-xs text-muted-foreground">Plan</span>
+                  <span className={`text-xs font-semibold px-2.5 py-1 rounded-lg ${
                     stats.activeSubscription
-                      ? 'bg-emerald-50 text-emerald-700'
-                      : 'bg-red-50 text-red-600'
+                      ? 'bg-emerald-500/10 text-emerald-600'
+                      : 'bg-red-500/10 text-red-500'
                   }`}>
                     {stats.subscriptionTier
                       ? stats.subscriptionTier.charAt(0).toUpperCase() + stats.subscriptionTier.slice(1)
@@ -280,16 +284,16 @@ export default function DashboardPage() {
                   </span>
                 </div>
                 <div className="flex items-center justify-between">
-                  <span className="text-xs text-gray-500">Status</span>
+                  <span className="text-xs text-muted-foreground">Status</span>
                   <span className="flex items-center gap-1.5">
-                    <span className={`w-1.5 h-1.5 rounded-full ${stats.activeSubscription ? 'bg-emerald-500' : 'bg-red-500'}`} />
-                    <span className="text-xs text-gray-700">{stats.activeSubscription ? 'Active' : 'Inactive'}</span>
+                    <span className={`w-2 h-2 rounded-full ${stats.activeSubscription ? 'bg-emerald-500' : 'bg-red-500'}`} />
+                    <span className="text-xs font-medium text-foreground">{stats.activeSubscription ? 'Active' : 'Inactive'}</span>
                   </span>
                 </div>
               </div>
               <Link
                 href="/app/settings/subscription"
-                className="mt-4 block w-full text-center px-4 py-2 rounded-lg bg-blue-600 text-white text-xs font-medium hover:bg-blue-700 transition-colors"
+                className="mt-4 block w-full text-center px-4 py-2.5 rounded-xl bg-primary text-white text-xs font-semibold hover:bg-primary/90 transition-all duration-200 shadow-sm"
               >
                 Manage Subscription
               </Link>
@@ -297,25 +301,27 @@ export default function DashboardPage() {
           </Card>
 
           {/* Storage Card */}
-          <Card className="border border-gray-200/60 bg-white overflow-hidden">
+          <Card className="overflow-hidden">
             <div className="p-5">
-              <div className="flex items-center gap-2 mb-4">
-                <HardDrive className="w-4 h-4 text-violet-500" />
-                <h2 className="text-sm font-semibold text-gray-800">Storage</h2>
+              <div className="flex items-center gap-2.5 mb-4">
+                <div className="p-1.5 rounded-lg bg-violet-500/10">
+                  <HardDrive className="w-4 h-4 text-violet-500" />
+                </div>
+                <h2 className="text-sm font-semibold text-foreground">Storage</h2>
               </div>
               <div className="mb-3">
-                <div className="flex items-end justify-between mb-2">
-                  <span className="text-xl font-bold text-gray-900">{stats.storageUsed.toFixed(1)} GB</span>
-                  <span className="text-xs text-gray-400">of {stats.storageLimit.toFixed(0)} GB</span>
+                <div className="flex items-end justify-between mb-2.5">
+                  <span className="text-xl font-bold text-foreground tracking-tight">{stats.storageUsed.toFixed(1)} GB</span>
+                  <span className="text-xs text-muted-foreground/60">of {stats.storageLimit.toFixed(0)} GB</span>
                 </div>
-                <div className="w-full h-2 bg-gray-100 rounded-full overflow-hidden">
+                <div className="w-full h-2 bg-muted rounded-full overflow-hidden">
                   <div
-                    className="h-full bg-gradient-to-r from-violet-500 to-purple-500 rounded-full transition-all duration-500"
+                    className="h-full bg-gradient-to-r from-violet-500 to-purple-500 rounded-full transition-all duration-700 ease-out"
                     style={{ width: `${stats.storageLimit > 0 ? Math.min((stats.storageUsed / stats.storageLimit) * 100, 100) : 0}%` }}
                   />
                 </div>
               </div>
-              <p className="text-[11px] text-gray-400">
+              <p className="text-[11px] text-muted-foreground/60">
                 {stats.storageLimit > 0
                   ? `${((stats.storageUsed / stats.storageLimit) * 100).toFixed(0)}% of storage used`
                   : 'No storage allocated'}
@@ -326,34 +332,38 @@ export default function DashboardPage() {
       </div>
 
       {/* Recent Activity */}
-      <div className="mt-6">
-        <Card className="border border-gray-200/60 bg-white overflow-hidden">
-          <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Activity className="w-4 h-4 text-blue-500" />
-              <h2 className="text-sm font-semibold text-gray-800">Recent Activity</h2>
+      <div className="mt-5">
+        <Card className="overflow-hidden">
+          <div className="px-6 py-4 border-b border-border/50 flex items-center justify-between">
+            <div className="flex items-center gap-2.5">
+              <div className="p-1.5 rounded-lg bg-primary/10">
+                <Activity className="w-4 h-4 text-primary" />
+              </div>
+              <h2 className="text-sm font-semibold text-foreground">Recent Activity</h2>
             </div>
-            <span className="text-xs text-gray-400">{recentActivity.length} events</span>
+            <span className="text-xs text-muted-foreground/60 px-2 py-1 rounded-lg bg-muted/50">{recentActivity.length} events</span>
           </div>
-          <div className="divide-y divide-gray-50">
+          <div className="divide-y divide-border/30">
             {recentActivity.length > 0 ? (
               recentActivity.map((log) => (
-                <div key={log.id} className="px-6 py-3.5 flex items-center gap-3 hover:bg-gray-50/50 transition-colors">
-                  <div className="w-8 h-8 rounded-full bg-blue-50 flex items-center justify-center flex-shrink-0">
-                    <Activity className="w-3.5 h-3.5 text-blue-500" />
+                <div key={log.id} className="px-6 py-3.5 flex items-center gap-3 hover:bg-muted/30 transition-colors duration-200">
+                  <div className="w-9 h-9 rounded-xl bg-primary/[0.06] flex items-center justify-center flex-shrink-0">
+                    <Activity className="w-4 h-4 text-primary/70" />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm text-gray-700 truncate">{log.action}</p>
-                    <p className="text-[11px] text-gray-400">{log.resource_type || 'System'}</p>
+                    <p className="text-sm text-foreground truncate">{log.action}</p>
+                    <p className="text-[11px] text-muted-foreground/60">{log.resource_type || 'System'}</p>
                   </div>
-                  <span className="text-[11px] text-gray-400 flex-shrink-0">{formatTimeAgo(log.created_at)}</span>
+                  <span className="text-[11px] text-muted-foreground/50 flex-shrink-0 font-medium">{formatTimeAgo(log.created_at)}</span>
                 </div>
               ))
             ) : (
-              <div className="px-6 py-12 text-center">
-                <Activity className="w-8 h-8 text-gray-200 mx-auto mb-3" />
-                <p className="text-sm text-gray-400 font-medium">No recent activity</p>
-                <p className="text-xs text-gray-300 mt-1">Activity from your team will appear here</p>
+              <div className="px-6 py-16 text-center">
+                <div className="w-12 h-12 rounded-2xl bg-muted/50 flex items-center justify-center mx-auto mb-4">
+                  <Activity className="w-6 h-6 text-muted-foreground/30" />
+                </div>
+                <p className="text-sm text-muted-foreground font-medium">No recent activity</p>
+                <p className="text-xs text-muted-foreground/50 mt-1">Activity from your team will appear here</p>
               </div>
             )}
           </div>

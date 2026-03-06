@@ -154,7 +154,7 @@ export default function StudentsPage() {
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-6">
       <div>
-        <h1 className="text-3xl font-bold text-foreground mb-2">Student Management</h1>
+        <h1 className="text-3xl font-bold text-foreground tracking-tight mb-2">Student Management</h1>
         <p className="text-muted-foreground">Add non-user students and enroll them in one or many modules</p>
       </div>
 
@@ -164,7 +164,7 @@ export default function StudentsPage() {
           <Input placeholder="Student email (optional)" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
         </div>
 
-        <div className="rounded-lg border p-3 space-y-3">
+        <div className="rounded-xl border p-3 space-y-3">
           <div>
             <p className="font-medium text-sm">Enroll in modules</p>
             <p className="text-xs text-muted-foreground">Open the dropdown and tick one or many modules for this student.</p>
@@ -192,7 +192,7 @@ export default function StudentsPage() {
                 <Input className="pl-9" placeholder="Search modules by code or name" value={moduleSearch} onChange={(e) => setModuleSearch(e.target.value)} />
               </div>
 
-              <div className="max-h-52 overflow-y-auto border rounded-md divide-y">
+              <div className="max-h-52 overflow-y-auto border border-input rounded-xl divide-y">
                 {filteredModules.map((module) => {
                   const checked = form.module_ids.includes(module.id)
                   return (

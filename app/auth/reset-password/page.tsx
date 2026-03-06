@@ -82,10 +82,10 @@ function ResetPasswordInner() {
   if (checking) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
-        <div className="bg-card border border-border rounded-lg p-8 w-full max-w-md text-center">
+        <div className="bg-card border border-border/50 rounded-2xl shadow-elevated p-8 w-full max-w-md text-center animate-fade-in">
           <div className="flex items-center justify-center gap-3">
             <Spinner />
-            <p className="text-foreground">Verifying reset link...</p>
+            <p className="text-foreground text-sm font-medium">Verifying reset link...</p>
           </div>
         </div>
       </div>
@@ -93,49 +93,53 @@ function ResetPasswordInner() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-primary/10 via-background to-secondary/5 p-4">
-      <div className="w-full max-w-md">
+    <div className="min-h-screen flex items-center justify-center bg-background p-4 relative overflow-hidden">
+      <div className="absolute inset-0 dot-pattern opacity-20" />
+      <div className="absolute top-1/4 left-1/2 -translate-x-1/2 w-[500px] h-[500px] bg-primary/5 rounded-full blur-3xl" />
+      <div className="w-full max-w-md relative animate-fade-in">
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-12 h-12 rounded-lg bg-primary mb-4">
-            <Lock className="w-6 h-6 text-primary-foreground" />
+          <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-primary/10 p-3 mb-5 ring-1 ring-primary/20">
+            <Lock className="w-6 h-6 text-primary" />
           </div>
-          <h1 className="text-3xl font-bold text-foreground mb-2">New Password</h1>
-          <p className="text-muted-foreground">Enter your new password below</p>
+          <h1 className="text-2xl font-bold text-foreground mb-1.5 tracking-tight">New Password</h1>
+          <p className="text-muted-foreground text-sm">Enter your new password below</p>
         </div>
 
-        <div className="bg-card rounded-lg shadow-lg border border-border p-8">
+        <div className="bg-card rounded-2xl shadow-elevated border border-border/50 p-8">
           {success ? (
             <div className="text-center">
-              <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-green-100 mb-4">
-                <CheckCircle className="w-8 h-8 text-green-600" />
+              <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-emerald-500/10 mb-5">
+                <CheckCircle className="w-8 h-8 text-emerald-500" />
               </div>
-              <h2 className="text-lg font-semibold text-foreground mb-2">Password Updated</h2>
+              <h2 className="text-base font-semibold text-foreground mb-2">Password Updated</h2>
               <p className="text-sm text-muted-foreground">Redirecting to your dashboard...</p>
             </div>
           ) : !sessionReady ? (
             <div className="text-center">
-              <AlertCircle className="w-10 h-10 text-destructive mx-auto mb-4" />
-              <p className="text-sm text-destructive mb-4">{error}</p>
+              <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-destructive/10 mb-5">
+                <AlertCircle className="w-7 h-7 text-destructive" />
+              </div>
+              <p className="text-sm text-destructive mb-5">{error}</p>
               <Link href="/auth/forgot-password">
-                <Button className="w-full">Request New Reset Link</Button>
+                <Button className="w-full shadow-glow-primary">Request New Reset Link</Button>
               </Link>
             </div>
           ) : (
             <>
               {error && (
-                <div className="mb-6 flex items-gap-3 rounded-lg bg-destructive/10 p-4 text-destructive">
-                  <AlertCircle className="w-5 h-5 flex-shrink-0 mt-0.5" />
+                <div className="mb-6 flex items-center gap-3 rounded-xl bg-destructive/[0.06] border border-destructive/15 p-4 text-destructive">
+                  <AlertCircle className="w-5 h-5 flex-shrink-0" />
                   <p className="text-sm">{error}</p>
                 </div>
               )}
 
-              <form onSubmit={handleSubmit} className="space-y-4">
+              <form onSubmit={handleSubmit} className="space-y-5">
                 <div>
-                  <label htmlFor="password" className="block text-sm font-medium text-foreground mb-2">
+                  <label htmlFor="password" className="block text-sm font-semibold text-foreground mb-2">
                     New Password
                   </label>
                   <div className="relative">
-                    <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                    <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground/50" />
                     <Input
                       id="password"
                       type="password"
@@ -147,15 +151,15 @@ function ResetPasswordInner() {
                       disabled={loading}
                     />
                   </div>
-                  <p className="text-xs text-muted-foreground mt-1">At least 8 characters</p>
+                  <p className="text-xs text-muted-foreground/50 mt-1.5">At least 8 characters</p>
                 </div>
 
                 <div>
-                  <label htmlFor="confirm" className="block text-sm font-medium text-foreground mb-2">
+                  <label htmlFor="confirm" className="block text-sm font-semibold text-foreground mb-2">
                     Confirm New Password
                   </label>
                   <div className="relative">
-                    <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                    <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground/50" />
                     <Input
                       id="confirm"
                       type="password"
@@ -172,7 +176,7 @@ function ResetPasswordInner() {
                 <Button
                   type="submit"
                   disabled={loading}
-                  className="w-full h-10 text-base font-medium"
+                  className="w-full h-11 text-sm font-semibold shadow-glow-primary"
                 >
                   {loading ? 'Updating...' : 'Update Password'}
                 </Button>
@@ -190,10 +194,10 @@ export default function ResetPasswordPage() {
     <Suspense
       fallback={
         <div className="min-h-screen flex items-center justify-center bg-background">
-          <div className="bg-card border border-border rounded-lg p-8 w-full max-w-md text-center">
+          <div className="bg-card border border-border/50 rounded-2xl shadow-elevated p-8 w-full max-w-md text-center">
             <div className="flex items-center justify-center gap-3">
               <Spinner />
-              <p className="text-foreground">Loading...</p>
+              <p className="text-foreground text-sm font-medium">Loading...</p>
             </div>
           </div>
         </div>

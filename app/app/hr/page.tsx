@@ -7,16 +7,13 @@ import { Users, Clock, Award, DollarSign } from 'lucide-react'
 export default function HRDashboard() {
   const stats = [
     { label: 'Total Employees', value: '24', subtext: 'Active team members', icon: Users, color: 'bg-blue-500' },
-    { label: 'Absent Today', value: '2', subtext: 'On leave', icon: Clock, color: 'bg-orange-500' },
-    { label: 'Performance Score', value: '8.5/10', subtext: 'Team average', icon: Award, color: 'bg-green-500' },
-    { label: 'Payroll Status', value: 'Ready', subtext: 'Process next month', icon: DollarSign, color: 'bg-purple-500' },
   ]
 
   return (
-    <div className="p-6 max-w-7xl mx-auto">
+    <div className="p-6 lg:p-8 max-w-[1400px] mx-auto animate-fade-in rounded-2xl">
       <div className="mb-8">
-        <h1 className="text-3xl font-bold text-foreground mb-2">HR & Payroll Dashboard</h1>
-        <p className="text-muted-foreground">Manage employees, attendance, payroll, and performance</p>
+        <h1 className="text-2xl font-bold text-foreground tracking-tight">HR & Payroll</h1>
+        <p className="text-muted-foreground text-sm mt-1">Manage your team and payroll</p>
       </div>
 
       {/* Stats */}
@@ -24,12 +21,12 @@ export default function HRDashboard() {
         {stats.map((stat) => {
           const Icon = stat.icon
           return (
-            <Card key={stat.label} className="p-6 border border-border">
+            <Card key={stat.title} className="p-5 hover-lift rounded-2xl">
               <div className="flex items-start justify-between">
                 <div>
                   <p className="text-sm font-medium text-muted-foreground mb-1">{stat.label}</p>
-                  <p className="text-2xl font-bold text-foreground">{stat.value}</p>
-                  <p className="text-xs text-muted-foreground mt-2">{stat.subtext}</p>
+                  <p className="text-2xl font-bold text-foreground tracking-tight">{stat.value}</p>
+                  <p className="text-xs text-muted-foreground font-medium">{stat.title}</p>
                 </div>
                 <div className={`${stat.color} p-3 rounded-lg`}>
                   <Icon className="w-5 h-5 text-white" />

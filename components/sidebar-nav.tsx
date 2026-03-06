@@ -156,19 +156,19 @@ function NavGroupComponent({ group, collapsed }: { group: NavGroup; collapsed: b
       <button
         onClick={() => setOpen(!open)}
         className={cn(
-          'w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-[13px] font-medium transition-all duration-150',
+          'w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-[13px] font-medium transition-all duration-200',
           isActive
-            ? 'text-white bg-white/10'
-            : 'text-blue-200/70 hover:text-white hover:bg-white/5'
+            ? 'text-white bg-white/[0.08]'
+            : 'text-white/50 hover:text-white/80 hover:bg-white/[0.04]'
         )}
       >
-        <span className="flex-shrink-0 opacity-80">{group.icon}</span>
+        <span className="flex-shrink-0 opacity-75">{group.icon}</span>
         {!collapsed && (
           <>
             <span className="flex-1 text-left truncate">{group.label}</span>
             <ChevronDown
               className={cn(
-                'w-3.5 h-3.5 opacity-50 transition-transform duration-200',
+                'w-3.5 h-3.5 opacity-40 transition-transform duration-300 ease-out',
                 open && 'rotate-180'
               )}
             />
@@ -176,7 +176,7 @@ function NavGroupComponent({ group, collapsed }: { group: NavGroup; collapsed: b
         )}
       </button>
       {open && !collapsed && (
-        <div className="mt-0.5 ml-3 pl-3 border-l border-white/10 space-y-0.5">
+        <div className="mt-1 ml-[18px] pl-3 border-l border-white/[0.06] space-y-0.5">
           {group.children.map(child => {
             const active = pathname === child.href
             return (
@@ -184,13 +184,13 @@ function NavGroupComponent({ group, collapsed }: { group: NavGroup; collapsed: b
                 key={child.href}
                 href={child.href}
                 className={cn(
-                  'flex items-center gap-2 px-2.5 py-1.5 rounded-md text-[12.5px] transition-all duration-150',
+                  'flex items-center gap-2 px-2.5 py-[7px] rounded-lg text-[12.5px] transition-all duration-200',
                   active
-                    ? 'text-white bg-white/15 font-medium'
-                    : 'text-blue-200/60 hover:text-white hover:bg-white/5'
+                    ? 'text-white bg-white/[0.12] font-medium'
+                    : 'text-white/40 hover:text-white/70 hover:bg-white/[0.04]'
                 )}
               >
-                <span className="opacity-70">{child.icon}</span>
+                <span className="opacity-60">{child.icon}</span>
                 <span className="truncate">{child.label}</span>
               </Link>
             )
@@ -234,11 +234,11 @@ export function SidebarNav({
   }, [userName])
 
   const sidebarContent = (
-    <aside className="w-[260px] h-full bg-gradient-to-b from-[#0a1628] to-[#0d2847] flex flex-col">
+    <aside className="w-[264px] h-full bg-[hsl(224,40%,8%)] flex flex-col">
       {/* Brand Header */}
-      <div className="px-5 pt-5 pb-4">
+      <div className="px-5 pt-5 pb-3">
         <div className="flex items-center gap-2.5">
-          <div className="w-8 h-8 rounded-lg bg-[#081220] p-1.5 flex items-center justify-center flex-shrink-0">
+          <div className="w-9 h-9 rounded-xl bg-white/[0.06] p-1.5 flex items-center justify-center flex-shrink-0 ring-1 ring-white/[0.08]">
             <img
               src="https://res.cloudinary.com/dsijcu1om/image/upload/v1772089694/2_en3tei.png"
               alt="Jackisa Office logo"
@@ -246,34 +246,34 @@ export function SidebarNav({
             />
           </div>
           <div className="min-w-0">
-            <h1 className="text-white font-semibold text-sm tracking-tight">Jackisa Office</h1>
-            <p className="text-blue-300/50 text-[10px] font-medium uppercase tracking-wider">Enterprise Suite</p>
+            <h1 className="text-white font-semibold text-[14px] tracking-tight leading-tight">Jackisa Office</h1>
+            <p className="text-white/25 text-[10px] font-medium uppercase tracking-widest">Enterprise</p>
           </div>
         </div>
       </div>
 
       {/* Company Switcher */}
-      <div className="px-3 mb-3">
+      <div className="px-3 mb-2">
         <button
           onClick={() => companies.length > 1 && setCompanySwitcherOpen(!companySwitcherOpen)}
           className={cn(
-            'w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg bg-white/5 border border-white/10 transition-all',
-            companies.length > 1 && 'hover:bg-white/10 cursor-pointer'
+            'w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl bg-white/[0.04] border border-white/[0.06] transition-all duration-200',
+            companies.length > 1 && 'hover:bg-white/[0.07] cursor-pointer'
           )}
         >
-          <div className="w-7 h-7 rounded-md bg-blue-500/20 flex items-center justify-center flex-shrink-0">
+          <div className="w-7 h-7 rounded-lg bg-primary/15 flex items-center justify-center flex-shrink-0">
             <Building2 className="w-3.5 h-3.5 text-blue-400" />
           </div>
           <div className="flex-1 min-w-0 text-left">
-            <p className="text-white text-xs font-medium truncate">{companyName}</p>
-            <p className="text-blue-300/40 text-[10px]">Workspace</p>
+            <p className="text-white/90 text-xs font-medium truncate">{companyName}</p>
+            <p className="text-white/25 text-[10px]">Workspace</p>
           </div>
           {companies.length > 1 && (
-            <ChevronsUpDown className="w-3.5 h-3.5 text-blue-300/40 flex-shrink-0" />
+            <ChevronsUpDown className="w-3.5 h-3.5 text-white/25 flex-shrink-0" />
           )}
         </button>
         {companySwitcherOpen && companies.length > 1 && (
-          <div className="mt-1 rounded-lg bg-[#0d1f3c] border border-white/10 overflow-hidden">
+          <div className="mt-1.5 rounded-xl bg-white/[0.04] border border-white/[0.06] overflow-hidden animate-scale-in">
             {companies.map(c => (
               <button
                 key={c.id}
@@ -281,7 +281,7 @@ export function SidebarNav({
                   onSwitchCompany?.(c.id)
                   setCompanySwitcherOpen(false)
                 }}
-                className="w-full flex items-center gap-2 px-3 py-2 text-xs text-blue-200/70 hover:text-white hover:bg-white/5 transition-colors"
+                className="w-full flex items-center gap-2 px-3 py-2.5 text-xs text-white/50 hover:text-white/80 hover:bg-white/[0.04] transition-all duration-200"
               >
                 <Building2 className="w-3.5 h-3.5" />
                 <span className="truncate">{c.name}</span>
@@ -292,16 +292,19 @@ export function SidebarNav({
       </div>
 
       {/* Search */}
-      <div className="px-3 mb-2">
-        <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-white/5 border border-white/[0.06]">
-          <Search className="w-3.5 h-3.5 text-blue-300/40" />
-          <span className="text-blue-300/30 text-xs">Search tools...</span>
-          <span className="ml-auto text-[10px] text-blue-300/20 bg-white/5 px-1.5 py-0.5 rounded">⌘K</span>
+      <div className="px-3 mb-3">
+        <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-white/[0.03] border border-white/[0.05] transition-colors hover:bg-white/[0.05]">
+          <Search className="w-3.5 h-3.5 text-white/20" />
+          <span className="text-white/20 text-xs">Search...</span>
+          <span className="ml-auto text-[10px] text-white/15 bg-white/[0.05] px-1.5 py-0.5 rounded-md font-mono">⌘K</span>
         </div>
       </div>
 
+      {/* Divider */}
+      <div className="mx-4 mb-2 h-px bg-white/[0.05]" />
+
       {/* Navigation */}
-      <nav className="flex-1 overflow-y-auto px-3 py-2 space-y-1 scrollbar-thin">
+      <nav className="flex-1 overflow-y-auto px-3 py-1 space-y-0.5">
         {NAV.map(entry => {
           if (isGroup(entry)) {
             return <NavGroupComponent key={entry.label} group={entry} collapsed={false} />
@@ -312,13 +315,13 @@ export function SidebarNav({
               key={entry.href}
               href={entry.href}
               className={cn(
-                'flex items-center gap-2.5 px-3 py-2 rounded-lg text-[13px] font-medium transition-all duration-150',
+                'flex items-center gap-2.5 px-3 py-2 rounded-xl text-[13px] font-medium transition-all duration-200',
                 active
-                  ? 'text-white bg-blue-500/20 shadow-sm shadow-blue-500/10'
-                  : 'text-blue-200/70 hover:text-white hover:bg-white/5'
+                  ? 'text-white bg-primary/20 shadow-sm shadow-primary/10'
+                  : 'text-white/50 hover:text-white/80 hover:bg-white/[0.04]'
               )}
             >
-              <span className="flex-shrink-0 opacity-80">{entry.icon}</span>
+              <span className="flex-shrink-0 opacity-75">{entry.icon}</span>
               <span>{entry.label}</span>
             </Link>
           )
@@ -326,22 +329,22 @@ export function SidebarNav({
       </nav>
 
       {/* User Footer */}
-      <div className="p-3 border-t border-white/[0.06]">
-        <div className="flex items-center gap-2.5 px-2 py-2">
+      <div className="p-3 border-t border-white/[0.05]">
+        <div className="flex items-center gap-2.5 px-2 py-2 rounded-xl hover:bg-white/[0.03] transition-colors duration-200">
           {userAvatar ? (
-            <img src={userAvatar} alt="" className="w-8 h-8 rounded-full object-cover" />
+            <img src={userAvatar} alt="" className="w-8 h-8 rounded-full object-cover ring-2 ring-white/[0.08]" />
           ) : (
-            <div className="w-8 h-8 rounded-full bg-blue-500/20 flex items-center justify-center text-blue-300 text-xs font-semibold">
+            <div className="w-8 h-8 rounded-full bg-primary/15 flex items-center justify-center text-blue-300 text-xs font-semibold ring-2 ring-white/[0.06]">
               {initials}
             </div>
           )}
           <div className="flex-1 min-w-0">
-            <p className="text-white text-xs font-medium truncate">{userName}</p>
-            <p className="text-blue-300/40 text-[10px] truncate">{userEmail}</p>
+            <p className="text-white/85 text-xs font-medium truncate">{userName}</p>
+            <p className="text-white/25 text-[10px] truncate">{userEmail}</p>
           </div>
           <button
             onClick={onLogout}
-            className="p-1.5 rounded-md text-blue-300/40 hover:text-red-400 hover:bg-white/5 transition-colors"
+            className="p-1.5 rounded-lg text-white/25 hover:text-red-400 hover:bg-white/[0.05] transition-all duration-200"
             title="Sign out"
           >
             <LogOut className="w-4 h-4" />
@@ -354,24 +357,24 @@ export function SidebarNav({
   return (
     <>
       {/* Mobile Header */}
-      <div className="lg:hidden fixed top-0 left-0 right-0 h-14 bg-[#0a1628] flex items-center justify-between px-4 z-50 border-b border-white/[0.06]">
-        <div className="flex items-center gap-2">
-          <div className="w-7 h-7 rounded-lg bg-[#081220] p-1 flex items-center justify-center">
+      <div className="lg:hidden fixed top-0 left-0 right-0 h-14 bg-[hsl(224,40%,8%)]/95 backdrop-blur-xl flex items-center justify-between px-4 z-50 border-b border-white/[0.06]">
+        <div className="flex items-center gap-2.5">
+          <div className="w-8 h-8 rounded-xl bg-white/[0.06] p-1.5 flex items-center justify-center ring-1 ring-white/[0.08]">
             <img
               src="https://res.cloudinary.com/dsijcu1om/image/upload/v1772089694/2_en3tei.png"
               alt="Jackisa Office logo"
               className="h-full w-full object-contain"
             />
           </div>
-          <span className="text-white font-semibold text-sm">Jackisa Office</span>
+          <span className="text-white font-semibold text-sm tracking-tight">Jackisa Office</span>
         </div>
-        <div className="flex items-center gap-2">
-          <button className="p-2 text-blue-300/50 hover:text-white transition-colors">
+        <div className="flex items-center gap-1">
+          <button className="p-2 rounded-lg text-white/40 hover:text-white/70 hover:bg-white/[0.05] transition-all duration-200">
             <Bell className="w-4.5 h-4.5" />
           </button>
           <button
             onClick={() => setMobileOpen(!mobileOpen)}
-            className="p-2 text-blue-300/50 hover:text-white transition-colors"
+            className="p-2 rounded-lg text-white/40 hover:text-white/70 hover:bg-white/[0.05] transition-all duration-200"
           >
             {mobileOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
           </button>
@@ -381,7 +384,7 @@ export function SidebarNav({
       {/* Mobile Overlay */}
       {mobileOpen && (
         <div
-          className="lg:hidden fixed inset-0 bg-black/60 backdrop-blur-sm z-40"
+          className="lg:hidden fixed inset-0 bg-black/50 backdrop-blur-sm z-40"
           onClick={() => setMobileOpen(false)}
         />
       )}

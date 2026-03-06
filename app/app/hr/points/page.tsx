@@ -290,18 +290,18 @@ export default function HRPointsPage() {
   ] as const
 
   return (
-    <div className="p-6 lg:p-8 max-w-[1400px] mx-auto">
+    <div className="p-6 lg:p-8 max-w-[1400px] mx-auto animate-fade-in">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 mb-1">HR Points System</h1>
-          <p className="text-sm text-gray-500">Rule-driven points, monthly balances, monetization, and automated termination workflow</p>
+          <h1 className="text-2xl font-bold text-foreground tracking-tight mb-1">HR Points System</h1>
+          <p className="text-sm text-muted-foreground">Rule-driven points, monthly balances, monetization, and automated termination workflow</p>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" className="text-gray-600" onClick={exportPoints}>
+          <Button variant="outline" size="sm" className="text-muted-foreground" onClick={exportPoints}>
             <Download className="w-4 h-4 mr-1.5" />
             Export
           </Button>
-          <Button size="sm" className="bg-blue-600 hover:bg-blue-700" onClick={() => setShowAwardForm(!showAwardForm)}>
+          <Button size="sm" className="bg-primary hover:bg-primary/90" onClick={() => setShowAwardForm(!showAwardForm)}>
             <Plus className="w-4 h-4 mr-1.5" />
             Record Points by Rule
           </Button>
@@ -328,14 +328,14 @@ export default function HRPointsPage() {
           { label: 'Active Rules', value: rules.length, icon: Star, color: 'text-amber-600', bg: 'bg-amber-50' },
           { label: 'Termination Flags', value: flaggedTerminations, icon: AlertTriangle, color: 'text-rose-700', bg: 'bg-rose-50' },
         ].map((stat) => (
-          <Card key={stat.label} className="p-4 border border-gray-200/60 bg-white">
+          <Card key={stat.label} className="p-4 border border-border/50 bg-card">
             <div className="flex items-center gap-3">
               <div className={`p-2 rounded-lg ${stat.bg}`}>
                 <stat.icon className={`w-4 h-4 ${stat.color}`} />
               </div>
               <div>
-                <p className="text-2xl font-bold text-gray-900">{stat.value}</p>
-                <p className="text-xs text-gray-500">{stat.label}</p>
+                <p className="text-2xl font-bold text-foreground">{stat.value}</p>
+                <p className="text-xs text-muted-foreground">{stat.label}</p>
               </div>
             </div>
           </Card>
@@ -343,16 +343,16 @@ export default function HRPointsPage() {
       </div>
 
       {showAwardForm && (
-        <Card className="border border-blue-200 bg-blue-50/30 p-6 mb-6">
-          <h3 className="text-sm font-semibold text-gray-800 mb-4 flex items-center gap-2">
+        <Card className="border border-primary/20 bg-primary/[0.04] p-6 mb-6">
+          <h3 className="text-sm font-semibold text-foreground mb-4 flex items-center gap-2">
             <Award className="w-4 h-4 text-blue-600" />
             Record Points
           </h3>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1.5">Employee *</label>
+              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Employee *</label>
               <select
-                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white"
+                className="w-full px-3 py-2 border border-border rounded-lg text-sm bg-card"
                 value={awardForm.employeeId}
                 onChange={(e) => setAwardForm({ ...awardForm, employeeId: e.target.value })}
               >
@@ -366,9 +366,9 @@ export default function HRPointsPage() {
             </div>
 
             <div className="md:col-span-2">
-              <label className="block text-xs font-medium text-gray-600 mb-1.5">Rule *</label>
+              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Rule *</label>
               <select
-                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white"
+                className="w-full px-3 py-2 border border-border rounded-lg text-sm bg-card"
                 value={awardForm.ruleId}
                 onChange={(e) => setAwardForm({ ...awardForm, ruleId: e.target.value })}
               >
@@ -383,17 +383,17 @@ export default function HRPointsPage() {
             </div>
 
             <div className="md:col-span-3">
-              <label className="block text-xs font-medium text-gray-600 mb-1.5">Reason (optional)</label>
+              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Reason (optional)</label>
               <Input
                 placeholder="Optional note/context for this event..."
                 value={awardForm.reason}
                 onChange={(e) => setAwardForm({ ...awardForm, reason: e.target.value })}
-                className="bg-white"
+                className="bg-card"
               />
             </div>
           </div>
           <div className="flex items-center gap-3 mt-5">
-            <Button size="sm" className="bg-blue-600 hover:bg-blue-700" onClick={handleRecordPoints}>
+            <Button size="sm" className="bg-primary hover:bg-primary/90" onClick={handleRecordPoints}>
               <Award className="w-4 h-4 mr-1.5" />
               Apply Rule
             </Button>
@@ -406,7 +406,7 @@ export default function HRPointsPage() {
 
       {showRuleForm && (
         <Card className="border border-amber-200 bg-amber-50/30 p-6 mb-6">
-          <h3 className="text-sm font-semibold text-gray-800 mb-4 flex items-center gap-2">
+          <h3 className="text-sm font-semibold text-foreground mb-4 flex items-center gap-2">
             <Star className="w-4 h-4 text-amber-600" />
             Create Point Rule
           </h3>
@@ -415,16 +415,16 @@ export default function HRPointsPage() {
               placeholder="Category *"
               value={ruleForm.category}
               onChange={(e) => setRuleForm({ ...ruleForm, category: e.target.value })}
-              className="bg-white"
+              className="bg-card"
             />
             <Input
               placeholder="Indicator *"
               value={ruleForm.indicator}
               onChange={(e) => setRuleForm({ ...ruleForm, indicator: e.target.value })}
-              className="bg-white"
+              className="bg-card"
             />
             <select
-              className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white"
+              className="w-full px-3 py-2 border border-border rounded-lg text-sm bg-card"
               value={ruleForm.actionType}
               onChange={(e) => setRuleForm({ ...ruleForm, actionType: e.target.value as 'gain' | 'loss' })}
             >
@@ -436,13 +436,13 @@ export default function HRPointsPage() {
               placeholder="Point value *"
               value={ruleForm.pointValue}
               onChange={(e) => setRuleForm({ ...ruleForm, pointValue: e.target.value })}
-              className="bg-white"
+              className="bg-card"
             />
             <Input
               placeholder="Description (optional)"
               value={ruleForm.description}
               onChange={(e) => setRuleForm({ ...ruleForm, description: e.target.value })}
-              className="bg-white md:col-span-2"
+              className="bg-card md:col-span-2"
             />
           </div>
           <div className="flex items-center gap-3 mt-5">
@@ -457,13 +457,13 @@ export default function HRPointsPage() {
         </Card>
       )}
 
-      <div className="flex items-center gap-1 mb-4 border-b border-gray-200">
+      <div className="flex items-center gap-1 mb-4 border-b border-border">
         {tabs.map((tab) => (
           <button
             key={tab.key}
             onClick={() => setActiveTab(tab.key)}
             className={`flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
-              activeTab === tab.key ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'
+              activeTab === tab.key ? 'border-blue-600 text-blue-600' : 'border-transparent text-muted-foreground hover:text-foreground'
             }`}
           >
             <tab.icon className="w-4 h-4" />
@@ -473,30 +473,30 @@ export default function HRPointsPage() {
       </div>
 
       {activeTab === 'balances' && (
-        <Card className="border border-gray-200/60 bg-white overflow-hidden">
+        <Card className="border border-border/50 bg-card overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead>
-                <tr className="border-b border-gray-100 bg-gray-50/50">
-                  <th className="px-5 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Employee</th>
-                  <th className="px-5 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Period</th>
-                  <th className="px-5 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">Closing Points</th>
-                  <th className="px-5 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">Redeemable (pts)</th>
-                  <th className="px-5 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">Monetary Value (UGX)</th>
-                  <th className="px-5 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Status</th>
-                  <th className="px-5 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Actions</th>
+                <tr className="border-b border-border/30 bg-muted/30">
+                  <th className="px-5 py-3 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider">Employee</th>
+                  <th className="px-5 py-3 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider">Period</th>
+                  <th className="px-5 py-3 text-right text-xs font-semibold text-muted-foreground uppercase tracking-wider">Closing Points</th>
+                  <th className="px-5 py-3 text-right text-xs font-semibold text-muted-foreground uppercase tracking-wider">Redeemable (pts)</th>
+                  <th className="px-5 py-3 text-right text-xs font-semibold text-muted-foreground uppercase tracking-wider">Monetary Value (UGX)</th>
+                  <th className="px-5 py-3 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider">Status</th>
+                  <th className="px-5 py-3 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider">Actions</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-50">
+              <tbody className="divide-y divide-border/20">
                 {loading ? (
                   <tr>
-                    <td colSpan={7} className="px-5 py-12 text-center text-sm text-gray-400">
+                    <td colSpan={7} className="px-5 py-12 text-center text-sm text-muted-foreground/60">
                       Loading...
                     </td>
                   </tr>
                 ) : visibleBalances.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="px-5 py-12 text-center text-sm text-gray-400">
+                    <td colSpan={7} className="px-5 py-12 text-center text-sm text-muted-foreground/60">
                       No point balances yet.
                     </td>
                   </tr>
@@ -504,12 +504,12 @@ export default function HRPointsPage() {
                   visibleBalances.map((b: any) => {
                     const isTerminated = b.is_termination_flagged || Number(b.closing_balance) <= 0
                     return (
-                      <tr key={b.id} className={isTerminated ? 'bg-rose-50/40' : 'hover:bg-gray-50/50'}>
-                        <td className="px-5 py-3 text-sm font-medium text-gray-900">{b.company_employees?.users?.full_name || '—'}</td>
-                        <td className="px-5 py-3 text-sm text-gray-500">
+                      <tr key={b.id} className={isTerminated ? 'bg-rose-50/40' : 'hover:bg-muted/30'}>
+                        <td className="px-5 py-3 text-sm font-medium text-foreground">{b.company_employees?.users?.full_name || '—'}</td>
+                        <td className="px-5 py-3 text-sm text-muted-foreground">
                           {b.period_month}/{b.period_year}
                         </td>
-                        <td className={`px-5 py-3 text-sm font-bold text-right font-mono ${isTerminated ? 'text-rose-700' : 'text-gray-900'}`}>
+                        <td className={`px-5 py-3 text-sm font-bold text-right font-mono ${isTerminated ? 'text-rose-700' : 'text-foreground'}`}>
                           {b.closing_balance}
                         </td>
                         <td className="px-5 py-3 text-sm text-right font-mono text-blue-700">{b.redeemable_points ?? b.closing_balance}</td>
@@ -545,42 +545,42 @@ export default function HRPointsPage() {
       )}
 
       {activeTab === 'transactions' && (
-        <Card className="border border-gray-200/60 bg-white overflow-hidden">
+        <Card className="border border-border/50 bg-card overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead>
-                <tr className="border-b border-gray-100 bg-gray-50/50">
-                  <th className="px-5 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Employee</th>
-                  <th className="px-5 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Type</th>
-                  <th className="px-5 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">Points</th>
-                  <th className="px-5 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Rule / Reason</th>
-                  <th className="px-5 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Date</th>
+                <tr className="border-b border-border/30 bg-muted/30">
+                  <th className="px-5 py-3 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider">Employee</th>
+                  <th className="px-5 py-3 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider">Type</th>
+                  <th className="px-5 py-3 text-right text-xs font-semibold text-muted-foreground uppercase tracking-wider">Points</th>
+                  <th className="px-5 py-3 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider">Rule / Reason</th>
+                  <th className="px-5 py-3 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider">Date</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-50">
+              <tbody className="divide-y divide-border/20">
                 {loading ? (
                   <tr>
-                    <td colSpan={5} className="px-5 py-12 text-center text-sm text-gray-400">
+                    <td colSpan={5} className="px-5 py-12 text-center text-sm text-muted-foreground/60">
                       Loading...
                     </td>
                   </tr>
                 ) : transactions.length === 0 ? (
                   <tr>
-                    <td colSpan={5} className="px-5 py-12 text-center text-sm text-gray-400">
+                    <td colSpan={5} className="px-5 py-12 text-center text-sm text-muted-foreground/60">
                       No transactions yet.
                     </td>
                   </tr>
                 ) : (
                   transactions.map((t: any) => (
-                    <tr key={t.id} className="hover:bg-gray-50/50">
-                      <td className="px-5 py-3 text-sm font-medium text-gray-900">{t.company_employees?.users?.full_name || '—'}</td>
+                    <tr key={t.id} className="hover:bg-muted/30">
+                      <td className="px-5 py-3 text-sm font-medium text-foreground">{t.company_employees?.users?.full_name || '—'}</td>
                       <td className="px-5 py-3 text-sm">{t.action_type === 'gain' ? 'Gain' : 'Loss'}</td>
                       <td className={`px-5 py-3 text-sm font-bold text-right font-mono ${t.action_type === 'gain' ? 'text-emerald-600' : 'text-red-500'}`}>
                         {t.action_type === 'gain' ? '+' : '-'}
                         {t.points}
                       </td>
-                      <td className="px-5 py-3 text-sm text-gray-500">{t.point_rules?.indicator || t.reason || '—'}</td>
-                      <td className="px-5 py-3 text-xs text-gray-400">{new Date(t.recorded_date).toLocaleDateString()}</td>
+                      <td className="px-5 py-3 text-sm text-muted-foreground">{t.point_rules?.indicator || t.reason || '—'}</td>
+                      <td className="px-5 py-3 text-xs text-muted-foreground/60">{new Date(t.recorded_date).toLocaleDateString()}</td>
                     </tr>
                   ))
                 )}
@@ -591,9 +591,9 @@ export default function HRPointsPage() {
       )}
 
       {activeTab === 'rules' && (
-        <Card className="border border-gray-200/60 bg-white overflow-hidden">
-          <div className="px-5 py-3 border-b border-gray-100 flex items-center justify-between bg-gray-50/40">
-            <p className="text-xs text-gray-500">Rule value decides gain/loss automatically while recording points.</p>
+        <Card className="border border-border/50 bg-card overflow-hidden">
+          <div className="px-5 py-3 border-b border-border/30 flex items-center justify-between bg-muted/50/40">
+            <p className="text-xs text-muted-foreground">Rule value decides gain/loss automatically while recording points.</p>
             <Button size="sm" variant="outline" onClick={() => setShowRuleForm(!showRuleForm)}>
               <Plus className="w-4 h-4 mr-1.5" />
               Add Rule
@@ -602,31 +602,31 @@ export default function HRPointsPage() {
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead>
-                <tr className="border-b border-gray-100 bg-gray-50/50">
-                  <th className="px-5 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Category</th>
-                  <th className="px-5 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Indicator</th>
-                  <th className="px-5 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Type</th>
-                  <th className="px-5 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">Points</th>
+                <tr className="border-b border-border/30 bg-muted/30">
+                  <th className="px-5 py-3 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider">Category</th>
+                  <th className="px-5 py-3 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider">Indicator</th>
+                  <th className="px-5 py-3 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider">Type</th>
+                  <th className="px-5 py-3 text-right text-xs font-semibold text-muted-foreground uppercase tracking-wider">Points</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-50">
+              <tbody className="divide-y divide-border/20">
                 {loading ? (
                   <tr>
-                    <td colSpan={4} className="px-5 py-12 text-center text-sm text-gray-400">
+                    <td colSpan={4} className="px-5 py-12 text-center text-sm text-muted-foreground/60">
                       Loading...
                     </td>
                   </tr>
                 ) : rules.length === 0 ? (
                   <tr>
-                    <td colSpan={4} className="px-5 py-12 text-center text-sm text-gray-400">
+                    <td colSpan={4} className="px-5 py-12 text-center text-sm text-muted-foreground/60">
                       No point rules configured.
                     </td>
                   </tr>
                 ) : (
                   rules.map((r: any) => (
-                    <tr key={r.id} className="hover:bg-gray-50/50">
+                    <tr key={r.id} className="hover:bg-muted/30">
                       <td className="px-5 py-3 text-xs font-medium px-2">{r.category}</td>
-                      <td className="px-5 py-3 text-sm font-medium text-gray-900">{r.indicator}</td>
+                      <td className="px-5 py-3 text-sm font-medium text-foreground">{r.indicator}</td>
                       <td className="px-5 py-3 text-sm">{r.action_type === 'gain' ? 'Gain' : 'Loss'}</td>
                       <td className={`px-5 py-3 text-sm font-bold text-right font-mono ${r.action_type === 'gain' ? 'text-emerald-600' : 'text-red-500'}`}>
                         {r.action_type === 'gain' ? '+' : '-'}
