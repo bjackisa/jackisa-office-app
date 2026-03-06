@@ -29,6 +29,9 @@ export default function CreditNotesPage() {
       supabase.from('credit_notes').select('*, invoices(invoice_number, customer_name)').eq('company_id', ctx.companyId).order('created_at', { ascending: false }),
     ])
 
+    if (invoiceRes.error) console.error('Load invoices error', invoiceRes.error)
+    if (noteRes.error) console.error('Load credit notes error', noteRes.error)
+
     setInvoices(invoiceRes.data || [])
     setCreditNotes(noteRes.data || [])
   }
@@ -45,7 +48,15 @@ export default function CreditNotesPage() {
     const paid = Number(invoice?.paid_amount || 0)
     const explicit = invoice?.outstanding_amount
     const computed = total - paid
-    return Number(explicit ?? computed)
+    const val = Number(explicit ?? computed)
+    if (Number.isFinite(val)) return val
+    if (Number.isFinite(computed)) return computed
+    return 0
+  }
+
+  const invoiceHasBalance = (invoice: any) => {
+    const outstanding = getInvoiceOutstanding(invoice)
+    return !Number.isFinite(outstanding) || outstanding > 0
   }
 
   const selectedOutstanding = getInvoiceOutstanding(selectedInvoice)
@@ -100,11 +111,11 @@ export default function CreditNotesPage() {
         <div className="grid md:grid-cols-4 gap-3">
           <select className="form-select" value={form.invoice_id} onChange={(e) => { setError(null); setForm({ ...form, invoice_id: e.target.value }) }}>
             <option value="">No linked invoice</option>
-            {invoices.filter((invoice) => getInvoiceOutstanding(invoice) > 0).map((invoice) => {
+            {invoices.filter(invoiceHasBalance).map((invoice) => {
               const outstanding = getInvoiceOutstanding(invoice)
               return (
                 <option key={invoice.id} value={invoice.id}>
-                  {invoice.invoice_number} — {invoice.customer_name} — Outstanding {outstanding.toLocaleString()}
+                  {invoice.invoice_number} — {invoice.customer_name} — Outstanding {Number(outstanding || 0).toLocaleString()}
                 </option>
               )
             })}
