@@ -6,8 +6,9 @@ import { supabase } from '@/lib/supabase'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Search, Landmark, TrendingUp } from 'lucide-react'
+import { Search, Landmark, TrendingUp, Banknote } from 'lucide-react'
 import { logEcosystemEvent, allocateToFund } from '@/lib/ecosystem'
+import PaymentModal from '@/components/payment-modal'
 
 export default function SalesOrdersPage() {
   const [companyId, setCompanyId] = useState<string | null>(null)
@@ -17,6 +18,7 @@ export default function SalesOrdersPage() {
   const [statusFilter, setStatusFilter] = useState('')
   const [form, setForm] = useState({ customer_name: '', customer_email: '', customer_phone: '', order_date: new Date().toISOString().split('T')[0], subtotal: '', tax_amount: '', notes: '' })
   const [fundAllocMsg, setFundAllocMsg] = useState<string | null>(null)
+  const [payOrder, setPayOrder] = useState<any | null>(null)
 
   const loadData = async () => {
     const ctx = await getSessionContext()
@@ -139,12 +141,15 @@ export default function SalesOrdersPage() {
                   </td>
                   <td>
                     {o.status !== 'paid' && o.status !== 'cancelled' && (
-                      <select className="form-select text-xs py-1 w-auto" defaultValue="" onChange={(e) => { if (e.target.value) updateStatus(o.id, e.target.value, Number(o.total_amount || 0)); e.target.value = '' }}>
-                        <option value="" disabled>Change...</option>
-                        {o.status === 'draft' && <option value="pending">→ Pending</option>}
-                        <option value="paid">→ Mark Paid</option>
-                        <option value="cancelled">→ Cancel</option>
-                      </select>
+                      <div className="flex gap-1">
+                        <button onClick={() => setPayOrder(o)} className="text-[10px] font-medium px-2 py-1 rounded bg-emerald-50 text-emerald-700 hover:bg-emerald-100 transition-colors flex items-center gap-1"><Banknote className="w-3 h-3" />Collect</button>
+                        <select className="form-select text-xs py-1 w-auto" defaultValue="" onChange={(e) => { if (e.target.value) updateStatus(o.id, e.target.value, Number(o.total_amount || 0)); e.target.value = '' }}>
+                          <option value="" disabled>More...</option>
+                          {o.status === 'draft' && <option value="pending">→ Pending</option>}
+                          <option value="paid">→ Mark Paid (manual)</option>
+                          <option value="cancelled">→ Cancel</option>
+                        </select>
+                      </div>
                     )}
                   </td>
                 </tr>
@@ -153,6 +158,27 @@ export default function SalesOrdersPage() {
           </table>
         </div>
       </Card>
+      {payOrder && companyId && (
+        <PaymentModal
+          open={!!payOrder}
+          onClose={() => setPayOrder(null)}
+          onSuccess={async () => {
+            await updateStatus(payOrder.id, 'paid', Number(payOrder.total_amount || 0))
+            setPayOrder(null)
+          }}
+          companyId={companyId}
+          userId={userId || undefined}
+          direction="collection"
+          module="sales"
+          moduleReferenceId={payOrder.id}
+          moduleReferenceType="sales_orders"
+          amount={Number(payOrder.total_amount || 0)}
+          title={`Collect Payment — ${payOrder.order_number}`}
+          description={`From ${payOrder.customer_name}`}
+          recipientPhone={payOrder.customer_phone || undefined}
+          metadata={{ order_number: payOrder.order_number, customer: payOrder.customer_name }}
+        />
+      )}
     </div>
   )
 }

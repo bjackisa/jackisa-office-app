@@ -78,6 +78,7 @@ function isGroup(entry: NavEntry): entry is NavGroup {
 
 const NAV: NavEntry[] = [
   { label: 'Dashboard', href: '/app', icon: <LayoutDashboard className="w-[18px] h-[18px]" /> },
+  { label: 'Payments Hub', href: '/app/payments', icon: <CreditCard className="w-[18px] h-[18px]" /> },
   {
     label: 'Accounting & Finance',
     icon: <DollarSign className="w-[18px] h-[18px]" />,

@@ -16,6 +16,7 @@ import {
   CheckCircle,
 } from 'lucide-react'
 import { CreateFundCard } from '@/components/create-fund-card'
+import PaymentModal from '@/components/payment-modal'
 
 export default function BuyUnitsPage() {
   const [fund, setFund] = useState<any>(null)
@@ -28,6 +29,7 @@ export default function BuyUnitsPage() {
   const [submitting, setSubmitting] = useState(false)
   const [success, setSuccess] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [showPayment, setShowPayment] = useState(false)
 
   useEffect(() => { loadData() }, [])
 
@@ -216,11 +218,33 @@ export default function BuyUnitsPage() {
           </div>
         )}
 
-        <Button onClick={handleBuy} disabled={submitting || grossAmount <= 0} className="w-full">
-          {submitting ? <RefreshCw className="w-4 h-4 mr-1.5 animate-spin" /> : <ArrowUpCircle className="w-4 h-4 mr-1.5" />}
-          {submitting ? 'Processing...' : `Invest ${fund.currency} ${grossAmount.toLocaleString()}`}
+        <Button onClick={() => { setError(null); setSuccess(null); setShowPayment(true) }} disabled={submitting || grossAmount <= 0} className="w-full">
+          <ArrowUpCircle className="w-4 h-4 mr-1.5" />
+          Invest {fund.currency} {grossAmount.toLocaleString()}
         </Button>
       </Card>
+
+      {showPayment && companyId && (
+        <PaymentModal
+          open={showPayment}
+          onClose={() => setShowPayment(false)}
+          onSuccess={async () => {
+            setShowPayment(false)
+            await handleBuy()
+          }}
+          companyId={companyId}
+          userId={userId || undefined}
+          direction="collection"
+          module="investment"
+          moduleReferenceId={fund.id}
+          moduleReferenceType="workspace_funds"
+          amount={grossAmount}
+          currency={fund.currency}
+          title="Investment Contribution"
+          description={`Buy units in ${fund.fund_name}`}
+          metadata={{ fund_name: fund.fund_name, units_preview: preview?.units }}
+        />
+      )}
     </div>
   )
 }

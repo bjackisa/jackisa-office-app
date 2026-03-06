@@ -6,8 +6,9 @@ import { getSessionContext } from '@/lib/company-context'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Plus, Search, Download, Trash2, FileText, DollarSign, Clock, CheckCircle, AlertTriangle, Landmark } from 'lucide-react'
+import { Plus, Search, Download, Trash2, FileText, DollarSign, Clock, CheckCircle, AlertTriangle, Landmark, Banknote } from 'lucide-react'
 import { logEcosystemEvent, allocateToFund } from '@/lib/ecosystem'
+import PaymentModal from '@/components/payment-modal'
 
 const statusBadge: Record<string, { label: string; cls: string }> = {
   draft: { label: 'Draft', cls: 'badge-neutral' },
@@ -28,6 +29,7 @@ export default function InvoicesPage() {
   const [showForm, setShowForm] = useState(false)
   const [form, setForm] = useState({ customer_name: '', customer_email: '', subtotal: '', tax_amount: '', due_date: '', status: 'draft', notes: '' })
   const [fundAllocMsg, setFundAllocMsg] = useState<string | null>(null)
+  const [payInvoice, setPayInvoice] = useState<any | null>(null)
 
   const loadInvoices = async () => {
     try {
@@ -262,12 +264,15 @@ export default function InvoicesPage() {
                     <td className="text-right">
                       <div className="flex items-center justify-end gap-1">
                         {invoice.status !== 'paid' && invoice.status !== 'cancelled' && (
-                          <select className="form-select text-xs py-1 w-auto" defaultValue="" onChange={(e) => { if (e.target.value) updateInvoiceStatus(invoice.id, e.target.value, Number(invoice.total_amount || 0)); e.target.value = '' }}>
-                            <option value="" disabled>Change...</option>
-                            <option value="paid">→ Mark Paid</option>
-                            <option value="overdue">→ Overdue</option>
-                            <option value="cancelled">→ Cancel</option>
-                          </select>
+                          <div className="flex gap-1">
+                            <button onClick={() => setPayInvoice(invoice)} className="text-[10px] font-medium px-2 py-1 rounded bg-emerald-50 text-emerald-700 hover:bg-emerald-100 transition-colors flex items-center gap-1"><Banknote className="w-3 h-3" />Collect</button>
+                            <select className="form-select text-xs py-1 w-auto" defaultValue="" onChange={(e) => { if (e.target.value) updateInvoiceStatus(invoice.id, e.target.value, Number(invoice.total_amount || 0)); e.target.value = '' }}>
+                              <option value="" disabled>More...</option>
+                              <option value="paid">→ Mark Paid (manual)</option>
+                              <option value="overdue">→ Overdue</option>
+                              <option value="cancelled">→ Cancel</option>
+                            </select>
+                          </div>
                         )}
                         <button onClick={() => deleteInvoice(invoice.id)} className="p-1.5 rounded-lg text-muted-foreground/40 hover:text-red-500 hover:bg-red-50 transition-all opacity-0 group-hover:opacity-100">
                           <Trash2 className="w-4 h-4" />
@@ -286,6 +291,26 @@ export default function InvoicesPage() {
           </div>
         )}
       </Card>
+      {payInvoice && companyId && (
+        <PaymentModal
+          open={!!payInvoice}
+          onClose={() => setPayInvoice(null)}
+          onSuccess={async (paymentId, method) => {
+            await updateInvoiceStatus(payInvoice.id, 'paid', Number(payInvoice.total_amount || 0))
+            setPayInvoice(null)
+          }}
+          companyId={companyId}
+          userId={userId || undefined}
+          direction="collection"
+          module="invoicing"
+          moduleReferenceId={payInvoice.id}
+          moduleReferenceType="invoices"
+          amount={Number(payInvoice.total_amount || 0) - Number(payInvoice.paid_amount || 0)}
+          title={`Collect Payment — ${payInvoice.invoice_number}`}
+          description={`From ${payInvoice.customer_name}`}
+          metadata={{ invoice_number: payInvoice.invoice_number, customer: payInvoice.customer_name }}
+        />
+      )}
     </div>
   )
 }

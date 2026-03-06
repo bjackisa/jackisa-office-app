@@ -11,6 +11,7 @@ import {
 } from 'lucide-react'
 import Link from 'next/link'
 import { logEcosystemEvent, autoContributeFromPayroll } from '@/lib/ecosystem'
+import PaymentModal from '@/components/payment-modal'
 
 const NSSF_RATE = 0.05
 const PAYE_BANDS = [
@@ -53,6 +54,7 @@ export default function PayrollPage() {
   const [userId, setUserId] = useState<string | null>(null)
   const [ecosystemMsg, setEcosystemMsg] = useState<string | null>(null)
   const [processing, setProcessing] = useState(false)
+  const [payEmployee, setPayEmployee] = useState<any | null>(null)
 
   useEffect(() => {
     loadData()
@@ -255,6 +257,7 @@ export default function PayrollPage() {
                 <th className="px-5 py-3 text-right text-xs font-semibold text-muted-foreground uppercase tracking-wider">NSSF (5%)</th>
                 <th className="px-5 py-3 text-right text-xs font-semibold text-muted-foreground uppercase tracking-wider">PAYE Tax</th>
                 <th className="px-5 py-3 text-right text-xs font-semibold text-muted-foreground uppercase tracking-wider">Net Pay</th>
+                <th className="px-5 py-3 text-right text-xs font-semibold text-muted-foreground uppercase tracking-wider">Pay</th>
               </tr>
             </thead>
             <tbody>
@@ -284,6 +287,9 @@ export default function PayrollPage() {
                     <td className="px-5 py-3 text-sm text-amber-600 text-right font-mono">-{formatUGX(emp.nssf)}</td>
                     <td className="px-5 py-3 text-sm text-red-500 text-right font-mono">-{formatUGX(emp.paye)}</td>
                     <td className="px-5 py-3 text-sm font-bold text-emerald-600 text-right font-mono">{formatUGX(emp.net)}</td>
+                    <td className="px-5 py-3 text-right">
+                      <button onClick={() => setPayEmployee(emp)} className="text-[10px] font-medium px-2.5 py-1 rounded bg-emerald-50 text-emerald-700 hover:bg-emerald-100 transition-colors">Pay</button>
+                    </td>
                   </tr>
                 ))
               )}
@@ -296,6 +302,7 @@ export default function PayrollPage() {
                   <td className="px-5 py-3 text-sm font-bold text-amber-600 text-right font-mono">-{formatUGX(totals.nssf)}</td>
                   <td className="px-5 py-3 text-sm font-bold text-red-500 text-right font-mono">-{formatUGX(totals.paye)}</td>
                   <td className="px-5 py-3 text-sm font-bold text-emerald-600 text-right font-mono">{formatUGX(totals.net)}</td>
+                  <td></td>
                 </tr>
               </tfoot>
             )}
@@ -342,6 +349,23 @@ export default function PayrollPage() {
           </div>
         </div>
       </Card>
+      {payEmployee && companyId && (
+        <PaymentModal
+          open={!!payEmployee}
+          onClose={() => setPayEmployee(null)}
+          onSuccess={async () => { setPayEmployee(null) }}
+          companyId={companyId}
+          userId={userId || undefined}
+          direction="disbursement"
+          module="payroll"
+          moduleReferenceId={payEmployee.id}
+          moduleReferenceType="company_employees"
+          amount={payEmployee.net}
+          title={`Pay Salary — ${payEmployee.users?.full_name || 'Employee'}`}
+          description={`Net salary for ${new Date().toLocaleString('default', { month: 'long', year: 'numeric' })}`}
+          metadata={{ employee: payEmployee.users?.full_name, gross: payEmployee.gross, nssf: payEmployee.nssf, paye: payEmployee.paye, net: payEmployee.net }}
+        />
+      )}
     </div>
   )
 }

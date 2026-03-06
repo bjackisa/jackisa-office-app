@@ -6,8 +6,9 @@ import { supabase } from '@/lib/supabase'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Search, Landmark, Zap } from 'lucide-react'
+import { Search, Landmark, Zap, Banknote } from 'lucide-react'
 import { logEcosystemEvent, allocateToFund } from '@/lib/ecosystem'
+import PaymentModal from '@/components/payment-modal'
 
 export default function CommissionsPage() {
   const [companyId, setCompanyId] = useState<string | null>(null)
@@ -19,6 +20,7 @@ export default function CommissionsPage() {
   const [form, setForm] = useState({ employee_id: '', sales_order_id: '', commission_rate: '' })
   const [userId, setUserId] = useState<string | null>(null)
   const [ecosystemMsg, setEcosystemMsg] = useState<string | null>(null)
+  const [payCommission, setPayCommission] = useState<any | null>(null)
 
   const loadData = async () => {
     const ctx = await getSessionContext(); if (!ctx?.companyId) return
@@ -141,11 +143,16 @@ export default function CommissionsPage() {
                   </td>
                   <td>
                     {c.status !== 'paid' && (
-                      <select className="form-select text-xs py-1 w-auto" defaultValue="" onChange={(e) => { if (e.target.value) updateCommissionStatus(c.id, e.target.value, Number(c.commission_amount || 0)); e.target.value = '' }}>
-                        <option value="" disabled>Change...</option>
-                        {c.status === 'pending' && <option value="approved">→ Approve</option>}
-                        <option value="paid">→ Mark Paid</option>
-                      </select>
+                      <div className="flex gap-1">
+                        {c.status === 'approved' && (
+                          <button onClick={() => setPayCommission(c)} className="text-[10px] font-medium px-2 py-1 rounded bg-emerald-50 text-emerald-700 hover:bg-emerald-100 transition-colors flex items-center gap-1"><Banknote className="w-3 h-3" />Pay</button>
+                        )}
+                        <select className="form-select text-xs py-1 w-auto" defaultValue="" onChange={(e) => { if (e.target.value) updateCommissionStatus(c.id, e.target.value, Number(c.commission_amount || 0)); e.target.value = '' }}>
+                          <option value="" disabled>More...</option>
+                          {c.status === 'pending' && <option value="approved">→ Approve</option>}
+                          <option value="paid">→ Mark Paid (manual)</option>
+                        </select>
+                      </div>
                     )}
                   </td>
                 </tr>
@@ -154,6 +161,26 @@ export default function CommissionsPage() {
           </table>
         </div>
       </Card>
+      {payCommission && companyId && (
+        <PaymentModal
+          open={!!payCommission}
+          onClose={() => setPayCommission(null)}
+          onSuccess={async () => {
+            await updateCommissionStatus(payCommission.id, 'paid', Number(payCommission.commission_amount || 0))
+            setPayCommission(null)
+          }}
+          companyId={companyId}
+          userId={userId || undefined}
+          direction="disbursement"
+          module="commissions"
+          moduleReferenceId={payCommission.id}
+          moduleReferenceType="sales_commissions"
+          amount={Number(payCommission.commission_amount || 0)}
+          title={`Pay Commission — ${payCommission.company_employees?.users?.full_name || 'Employee'}`}
+          description={`Commission on order ${payCommission.sales_orders?.order_number || ''}`}
+          metadata={{ employee: payCommission.company_employees?.users?.full_name, order: payCommission.sales_orders?.order_number }}
+        />
+      )}
     </div>
   )
 }

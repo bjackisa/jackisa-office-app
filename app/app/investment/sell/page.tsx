@@ -14,11 +14,14 @@ import {
   CheckCircle,
   AlertTriangle,
 } from 'lucide-react'
+import PaymentModal from '@/components/payment-modal'
 
 export default function SellUnitsPage() {
   const [fund, setFund] = useState<any>(null)
   const [position, setPosition] = useState<any>(null)
   const [userId, setUserId] = useState<string | null>(null)
+  const [companyId, setCompanyId] = useState<string | null>(null)
+  const [showPayment, setShowPayment] = useState(false)
   const [unitsToSell, setUnitsToSell] = useState('')
   const [mode, setMode] = useState<'units' | 'amount'>('units')
   const [targetAmount, setTargetAmount] = useState('')
@@ -33,6 +36,7 @@ export default function SellUnitsPage() {
     const ctx = await getSessionContext()
     if (!ctx?.companyId || !ctx.userId) { setLoading(false); return }
     setUserId(ctx.userId)
+    setCompanyId(ctx.companyId)
 
     const { data: fundData } = await supabase
       .from('workspace_funds').select('*').eq('company_id', ctx.companyId).maybeSingle()
@@ -253,11 +257,33 @@ export default function SellUnitsPage() {
           </div>
         )}
 
-        <Button onClick={handleSell} disabled={submitting || effectiveUnits <= 0} variant="destructive" className="w-full">
-          {submitting ? <RefreshCw className="w-4 h-4 mr-1.5 animate-spin" /> : <ArrowDownCircle className="w-4 h-4 mr-1.5" />}
-          {submitting ? 'Processing...' : `Sell ${effectiveUnits.toFixed(4)} Units`}
+        <Button onClick={() => { setError(null); setSuccess(null); setShowPayment(true) }} disabled={submitting || effectiveUnits <= 0} variant="destructive" className="w-full">
+          <ArrowDownCircle className="w-4 h-4 mr-1.5" />
+          Sell {effectiveUnits.toFixed(4)} Units — Receive {fund.currency} {(preview?.net || 0).toLocaleString()}
         </Button>
       </Card>
+
+      {showPayment && companyId && preview && (
+        <PaymentModal
+          open={showPayment}
+          onClose={() => setShowPayment(false)}
+          onSuccess={async () => {
+            setShowPayment(false)
+            await handleSell()
+          }}
+          companyId={companyId}
+          userId={userId || undefined}
+          direction="disbursement"
+          module="investment"
+          moduleReferenceId={fund.id}
+          moduleReferenceType="workspace_funds"
+          amount={preview.net}
+          currency={fund.currency}
+          title="Investment Redemption Payout"
+          description={`Selling ${effectiveUnits.toFixed(4)} units from ${fund.fund_name}`}
+          metadata={{ fund_name: fund.fund_name, units: effectiveUnits, gross: preview.gross, net: preview.net }}
+        />
+      )}
     </div>
   )
 }

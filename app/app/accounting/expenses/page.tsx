@@ -6,8 +6,9 @@ import { getSessionContext } from '@/lib/company-context'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Plus, Search, Download, Trash2, Receipt, CheckCircle, Clock, Tag, TrendingUp, Landmark } from 'lucide-react'
+import { Plus, Search, Download, Trash2, Receipt, CheckCircle, Clock, Tag, TrendingUp, Landmark, Banknote } from 'lucide-react'
 import { logEcosystemEvent } from '@/lib/ecosystem'
+import PaymentModal from '@/components/payment-modal'
 
 const categories = ['utilities', 'salaries', 'rent', 'equipment', 'travel', 'supplies', 'marketing', 'maintenance', 'other']
 
@@ -21,6 +22,7 @@ export default function ExpensesPage() {
   const [showForm, setShowForm] = useState(false)
   const [form, setForm] = useState({ expense_date: new Date().toISOString().split('T')[0], category: 'other', description: '', amount: '', status: 'pending' })
   const [ecosystemMsg, setEcosystemMsg] = useState<string | null>(null)
+  const [reimburseExpense, setReimburseExpense] = useState<any | null>(null)
 
   const loadExpenses = async () => {
     try {
@@ -248,6 +250,9 @@ export default function ExpensesPage() {
                               <button onClick={() => updateExpenseStatus(exp.id, 'rejected', 0)} className="text-[10px] font-medium px-2 py-1 rounded bg-red-50 text-red-600 hover:bg-red-100 transition-colors">Reject</button>
                             </div>
                           )}
+                          {exp.status === 'approved' && (
+                            <button onClick={() => setReimburseExpense(exp)} className="text-[10px] font-medium px-2 py-1 rounded bg-blue-50 text-blue-700 hover:bg-blue-100 transition-colors flex items-center gap-1"><Banknote className="w-3 h-3" />Reimburse</button>
+                          )}
                           <button className="p-1.5 rounded-lg text-muted-foreground/40 hover:text-red-500 hover:bg-red-50 transition-all opacity-0 group-hover:opacity-100" onClick={() => deleteExpense(exp.id)}>
                             <Trash2 className="w-4 h-4" />
                           </button>
@@ -298,6 +303,23 @@ export default function ExpensesPage() {
           </Card>
         </div>
       </div>
+      {reimburseExpense && companyId && (
+        <PaymentModal
+          open={!!reimburseExpense}
+          onClose={() => setReimburseExpense(null)}
+          onSuccess={async () => { setReimburseExpense(null); await loadExpenses() }}
+          companyId={companyId}
+          userId={userId || undefined}
+          direction="disbursement"
+          module="reimbursement"
+          moduleReferenceId={reimburseExpense.id}
+          moduleReferenceType="expenses"
+          amount={Number(reimburseExpense.amount || 0)}
+          title={`Reimburse Expense`}
+          description={reimburseExpense.description}
+          metadata={{ category: reimburseExpense.category, description: reimburseExpense.description }}
+        />
+      )}
     </div>
   )
 }
