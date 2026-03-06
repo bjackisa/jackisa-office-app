@@ -47,6 +47,13 @@ import {
   Shield,
   CreditCard,
   UserPlus,
+  Landmark,
+  Heart,
+  GitBranch,
+  Compass,
+  ArrowUpCircle,
+  ArrowDownCircle,
+  AlertTriangle,
 } from 'lucide-react'
 import { useState, useMemo } from 'react'
 import type { User, Company, CompanyRole } from '@/types'
@@ -120,6 +127,23 @@ const NAV: NavEntry[] = [
       { label: 'Overview', href: '/app/sales', icon: <TrendingUp className="w-4 h-4" /> },
       { label: 'Sales Orders', href: '/app/sales/orders', icon: <ShoppingCart className="w-4 h-4" /> },
       { label: 'Commissions', href: '/app/sales/commissions', icon: <DollarSign className="w-4 h-4" /> },
+    ],
+  },
+  {
+    label: 'Investment & Wealth',
+    icon: <Landmark className="w-[18px] h-[18px]" />,
+    children: [
+      { label: 'Fund Dashboard', href: '/app/investment', icon: <TrendingUp className="w-4 h-4" /> },
+      { label: 'My Investment', href: '/app/investment/my-portfolio', icon: <Wallet className="w-4 h-4" /> },
+      { label: 'Buy Units', href: '/app/investment/buy', icon: <ArrowUpCircle className="w-4 h-4" /> },
+      { label: 'Sell Units', href: '/app/investment/sell', icon: <ArrowDownCircle className="w-4 h-4" /> },
+      { label: 'Portfolio Manager', href: '/app/investment/assets', icon: <PieChart className="w-4 h-4" /> },
+      { label: 'Liabilities', href: '/app/investment/liabilities', icon: <AlertTriangle className="w-4 h-4" /> },
+      { label: 'Revenue Share', href: '/app/investment/revenue-share', icon: <GitBranch className="w-4 h-4" /> },
+      { label: 'Beneficiaries', href: '/app/investment/beneficiaries', icon: <Heart className="w-4 h-4" /> },
+      { label: 'Investment Clubs', href: '/app/investment/clubs', icon: <Users className="w-4 h-4" /> },
+      { label: 'Projections', href: '/app/investment/projections', icon: <Compass className="w-4 h-4" /> },
+      { label: 'Reports', href: '/app/investment/reports', icon: <FileText className="w-4 h-4" /> },
     ],
   },
   {
