@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect } from 'react'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -8,7 +8,6 @@ import {
   Banknote, Smartphone, CreditCard, X, CheckCircle, AlertCircle,
   Loader2, ArrowRight, Shield, Landmark, Phone,
 } from 'lucide-react'
-import { initiatePayment, checkPaymentStatus, formatMsisdn } from '@/lib/payment-gateway'
 import type { PaymentDirection, PaymentModule, PaymentMethodType } from '@/lib/payment-gateway'
 
 interface PaymentModalProps {
@@ -110,21 +109,28 @@ export default function PaymentModal({
     setStep('processing')
     setStatusMsg(chosenMethod === 'cash' ? 'Recording cash payment...' : 'Sending payment request...')
 
-    const result = await initiatePayment({
-      companyId,
-      module,
-      moduleReferenceId,
-      moduleReferenceType,
-      direction,
-      paymentMethod: chosenMethod,
-      msisdn: phoneNumber || phone || undefined,
-      currency,
-      amount,
-      description,
-      metadata,
-      initiatedBy: userId,
-      cashTendered: chosenMethod === 'cash' ? Number(cashTendered) || amount : undefined,
+    const response = await fetch('/api/payments/initiate', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        companyId,
+        module,
+        moduleReferenceId,
+        moduleReferenceType,
+        direction,
+        paymentMethod: chosenMethod,
+        msisdn: phoneNumber || phone || undefined,
+        currency,
+        amount,
+        description,
+        metadata,
+        initiatedBy: userId,
+        cashTendered: chosenMethod === 'cash' ? Number(cashTendered) || amount : undefined,
+      }),
     })
+    const result = await response.json()
 
     setPaymentId(result.paymentId)
 
