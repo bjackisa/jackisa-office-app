@@ -6,7 +6,8 @@ import { supabase } from '@/lib/supabase'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Search } from 'lucide-react'
+import { Search, Landmark, Zap } from 'lucide-react'
+import { logEcosystemEvent } from '@/lib/ecosystem'
 
 export default function LeavePage() {
   const [companyId, setCompanyId] = useState<string | null>(null)
@@ -16,11 +17,14 @@ export default function LeavePage() {
   const [searchQuery, setSearchQuery] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
   const [form, setForm] = useState({ employee_id: '', leave_type_id: '', start_date: '', end_date: '', reason: '' })
+  const [userId, setUserId] = useState<string | null>(null)
+  const [ecosystemMsg, setEcosystemMsg] = useState<string | null>(null)
 
   const loadData = async () => {
     const ctx = await getSessionContext()
     if (!ctx?.companyId) return
     setCompanyId(ctx.companyId)
+    setUserId(ctx.userId)
 
     const [reqRes, typeRes, empRes] = await Promise.all([
       supabase.from('leave_requests').select('*, leave_types(name), company_employees(users(full_name))').eq('company_id', ctx.companyId).order('created_at', { ascending: false }),
@@ -53,6 +57,18 @@ export default function LeavePage() {
     })
 
     setForm({ employee_id: '', leave_type_id: '', start_date: '', end_date: '', reason: '' })
+    await loadData()
+  }
+
+  const updateLeaveStatus = async (id: string, newStatus: string, employeeId: string, days: number) => {
+    if (!companyId) return
+    await supabase.from('leave_requests').update({ status: newStatus }).eq('id', id)
+
+    if (newStatus === 'approved') {
+      await logEcosystemEvent({ companyId, eventType: 'leave_approved', sourceTable: 'leave_requests', sourceId: id, payload: { employee_id: employeeId, days, status: newStatus } })
+      setEcosystemMsg(`Leave approved (${days} days). Ecosystem event logged for fund signal calculation.`)
+      setTimeout(() => setEcosystemMsg(null), 4000)
+    }
     await loadData()
   }
 
@@ -105,6 +121,15 @@ export default function LeavePage() {
         </div>
       </Card>
 
+      {ecosystemMsg && (
+        <Card className="p-3 border-blue-200 bg-blue-50/80">
+          <div className="flex items-center gap-2.5">
+            <div className="p-1.5 rounded-lg bg-blue-100"><Zap className="w-3.5 h-3.5 text-blue-600" /></div>
+            <p className="text-xs font-medium text-blue-700">{ecosystemMsg}</p>
+          </div>
+        </Card>
+      )}
+
       <Card className="p-3">
         <div className="flex flex-col sm:flex-row gap-3">
           <div className="relative flex-1">
@@ -130,6 +155,7 @@ export default function LeavePage() {
                 <th>Period</th>
                 <th className="text-right">Days</th>
                 <th>Status</th>
+                <th>Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -161,6 +187,15 @@ export default function LeavePage() {
                     }`}>
                       {r.status}
                     </span>
+                    {r.status === 'approved' && <span className="ml-1 inline-flex items-center gap-0.5 text-[9px] text-blue-600"><Zap className="w-2.5 h-2.5" />Eco</span>}
+                  </td>
+                  <td>
+                    {r.status === 'pending' && (
+                      <div className="flex gap-1">
+                        <button onClick={() => updateLeaveStatus(r.id, 'approved', r.employee_id, r.days_count)} className="text-[10px] font-medium px-2 py-1 rounded bg-emerald-50 text-emerald-700 hover:bg-emerald-100 transition-colors">Approve</button>
+                        <button onClick={() => updateLeaveStatus(r.id, 'rejected', r.employee_id, r.days_count)} className="text-[10px] font-medium px-2 py-1 rounded bg-red-50 text-red-600 hover:bg-red-100 transition-colors">Reject</button>
+                      </div>
+                    )}
                   </td>
                 </tr>
               ))}

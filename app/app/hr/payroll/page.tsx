@@ -7,9 +7,10 @@ import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import {
   Plus, Download, Search, Eye, DollarSign, Users, Calculator,
-  Banknote, TrendingDown, CheckCircle, Clock, ArrowRight,
+  Banknote, TrendingDown, CheckCircle, Clock, ArrowRight, Landmark, Zap,
 } from 'lucide-react'
 import Link from 'next/link'
+import { logEcosystemEvent, autoContributeFromPayroll } from '@/lib/ecosystem'
 
 const NSSF_RATE = 0.05
 const PAYE_BANDS = [
@@ -49,6 +50,9 @@ export default function PayrollPage() {
   const [companyId, setCompanyId] = useState<string | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
   const [departmentFilter, setDepartmentFilter] = useState('')
+  const [userId, setUserId] = useState<string | null>(null)
+  const [ecosystemMsg, setEcosystemMsg] = useState<string | null>(null)
+  const [processing, setProcessing] = useState(false)
 
   useEffect(() => {
     loadData()
@@ -59,6 +63,7 @@ export default function PayrollPage() {
       const context = await getSessionContext()
       if (!context?.companyId) return
       setCompanyId(context.companyId)
+      setUserId(context.userId)
 
       const { data: emps } = await supabase
           .from('company_employees')
@@ -91,6 +96,42 @@ export default function PayrollPage() {
   )
 
   const formatUGX = (n: number) => `UGX ${n.toLocaleString('en-US', { minimumFractionDigits: 0 })}`
+
+  const processPayroll = async () => {
+    if (!companyId || !userId || payrollData.length === 0) return
+    setProcessing(true)
+    let totalContributed = 0
+    let contributorCount = 0
+
+    for (const emp of payrollData) {
+      const result = await autoContributeFromPayroll({
+        companyId,
+        employeeId: emp.id,
+        netPay: emp.net,
+        userId,
+      })
+      if (result) {
+        totalContributed += result.grossContrib
+        contributorCount++
+      }
+    }
+
+    await logEcosystemEvent({
+      companyId,
+      eventType: 'payroll_processed',
+      sourceTable: 'company_employees',
+      sourceId: companyId,
+      payload: { employee_count: payrollData.length, total_gross: totals.gross, total_net: totals.net, fund_contributions: totalContributed },
+    })
+
+    if (contributorCount > 0) {
+      setEcosystemMsg(`Payroll processed. ${contributorCount} employee(s) auto-contributed UGX ${totalContributed.toLocaleString()} to the fund from their net pay.`)
+    } else {
+      setEcosystemMsg(`Payroll processed for ${payrollData.length} employees. No auto-contributions configured yet — employees can opt-in via their investment portfolio.`)
+    }
+    setTimeout(() => setEcosystemMsg(null), 8000)
+    setProcessing(false)
+  }
 
   const now = new Date()
   const monthName = now.toLocaleString('default', { month: 'long', year: 'numeric' })
@@ -142,8 +183,21 @@ export default function PayrollPage() {
             <Download className="w-4 h-4 mr-1.5" />
             Export
           </Button>
+          <Button size="sm" onClick={processPayroll} disabled={processing || payrollData.length === 0}>
+            <Landmark className="w-4 h-4 mr-1.5" />
+            {processing ? 'Processing...' : 'Process Payroll'}
+          </Button>
         </div>
       </div>
+
+      {ecosystemMsg && (
+        <Card className="mb-6 p-3 border-emerald-200 bg-emerald-50/80">
+          <div className="flex items-center gap-2.5">
+            <div className="p-1.5 rounded-lg bg-emerald-100"><Landmark className="w-3.5 h-3.5 text-emerald-600" /></div>
+            <p className="text-xs font-medium text-emerald-700">{ecosystemMsg}</p>
+          </div>
+        </Card>
+      )}
 
       {/* Stats */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">

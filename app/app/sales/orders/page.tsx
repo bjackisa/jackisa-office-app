@@ -6,7 +6,8 @@ import { supabase } from '@/lib/supabase'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Search } from 'lucide-react'
+import { Search, Landmark, TrendingUp } from 'lucide-react'
+import { logEcosystemEvent, allocateToFund } from '@/lib/ecosystem'
 
 export default function SalesOrdersPage() {
   const [companyId, setCompanyId] = useState<string | null>(null)
@@ -15,6 +16,7 @@ export default function SalesOrdersPage() {
   const [searchQuery, setSearchQuery] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
   const [form, setForm] = useState({ customer_name: '', customer_email: '', customer_phone: '', order_date: new Date().toISOString().split('T')[0], subtotal: '', tax_amount: '', notes: '' })
+  const [fundAllocMsg, setFundAllocMsg] = useState<string | null>(null)
 
   const loadData = async () => {
     const ctx = await getSessionContext()
@@ -26,6 +28,21 @@ export default function SalesOrdersPage() {
   useEffect(() => { loadData() }, [])
 
   const filtered = orders.filter((o)=>{const s=!searchQuery||o.order_number?.toLowerCase().includes(searchQuery.toLowerCase())||o.customer_name?.toLowerCase().includes(searchQuery.toLowerCase()); const st=!statusFilter||o.status===statusFilter; return s&&st})
+
+  const updateStatus = async (orderId: string, newStatus: string, totalAmount: number) => {
+    if (!companyId) return
+    await supabase.from('sales_orders').update({ status: newStatus }).eq('id', orderId)
+
+    if (newStatus === 'paid' && totalAmount > 0) {
+      await logEcosystemEvent({ companyId, eventType: 'sale_confirmed', sourceTable: 'sales_orders', sourceId: orderId, payload: { total_amount: totalAmount } })
+      const alloc = await allocateToFund({ companyId, grossAmount: totalAmount, profitEstimatePct: 0.25, sourceDescription: `Sale order paid`, sourceTable: 'sales_orders', sourceId: orderId })
+      if (alloc) {
+        setFundAllocMsg(`${alloc.currency} ${alloc.netToFund.toLocaleString()} allocated to fund from this sale`)
+        setTimeout(() => setFundAllocMsg(null), 5000)
+      }
+    }
+    await loadData()
+  }
 
   const createOrder = async () => {
     if (!companyId || !userId || !form.customer_name || !form.subtotal) return
@@ -79,6 +96,15 @@ export default function SalesOrdersPage() {
         </div>
       </Card>
 
+      {fundAllocMsg && (
+        <Card className="p-3 border-emerald-200 bg-emerald-50/80">
+          <div className="flex items-center gap-2.5">
+            <div className="p-1.5 rounded-lg bg-emerald-100"><Landmark className="w-3.5 h-3.5 text-emerald-600" /></div>
+            <p className="text-xs font-medium text-emerald-700">{fundAllocMsg}</p>
+          </div>
+        </Card>
+      )}
+
       <Card className="p-3">
         <div className="flex flex-col sm:flex-row gap-3">
           <div className="relative flex-1">
@@ -94,7 +120,7 @@ export default function SalesOrdersPage() {
       <Card className="overflow-hidden">
         <div className="overflow-x-auto">
           <table className="premium-table">
-            <thead><tr><th>Order</th><th>Customer</th><th>Date</th><th className="text-right">Total</th><th>Status</th></tr></thead>
+            <thead><tr><th>Order</th><th>Customer</th><th>Date</th><th className="text-right">Total</th><th>Status</th><th>Actions</th></tr></thead>
             <tbody>
               {filtered.length === 0 ? (
                 <tr><td colSpan={5} className="!py-16 text-center">
@@ -107,7 +133,20 @@ export default function SalesOrdersPage() {
                   <td className="font-medium text-foreground">{o.customer_name}</td>
                   <td className="text-xs text-muted-foreground whitespace-nowrap">{o.order_date}</td>
                   <td className="text-right font-mono font-bold tabular-nums text-foreground">{Number(o.total_amount || 0).toLocaleString()}</td>
-                  <td><span className={`badge ${o.status === 'paid' ? 'badge-success' : o.status === 'cancelled' ? 'badge-danger' : o.status === 'pending' ? 'badge-warning' : 'badge-neutral'}`}>{o.status}</span></td>
+                  <td>
+                    <span className={`badge ${o.status === 'paid' ? 'badge-success' : o.status === 'cancelled' ? 'badge-danger' : o.status === 'pending' ? 'badge-warning' : 'badge-neutral'}`}>{o.status}</span>
+                    {o.status === 'paid' && <span className="ml-1.5 inline-flex items-center gap-0.5 text-[9px] text-emerald-600"><Landmark className="w-2.5 h-2.5" />Fund</span>}
+                  </td>
+                  <td>
+                    {o.status !== 'paid' && o.status !== 'cancelled' && (
+                      <select className="form-select text-xs py-1 w-auto" defaultValue="" onChange={(e) => { if (e.target.value) updateStatus(o.id, e.target.value, Number(o.total_amount || 0)); e.target.value = '' }}>
+                        <option value="" disabled>Change...</option>
+                        {o.status === 'draft' && <option value="pending">→ Pending</option>}
+                        <option value="paid">→ Mark Paid</option>
+                        <option value="cancelled">→ Cancel</option>
+                      </select>
+                    )}
+                  </td>
                 </tr>
               ))}
             </tbody>

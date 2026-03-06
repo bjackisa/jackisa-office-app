@@ -6,6 +6,8 @@ import { supabase } from '@/lib/supabase'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Zap } from 'lucide-react'
+import { logEcosystemEvent } from '@/lib/ecosystem'
 
 export default function PerformancePage() {
   const [companyId, setCompanyId] = useState<string | null>(null)
@@ -13,6 +15,7 @@ export default function PerformancePage() {
   const [records, setRecords] = useState<any[]>([])
   const [employees, setEmployees] = useState<any[]>([])
   const [form, setForm] = useState({ employee_id: '', points: '', description: '' })
+  const [ecosystemMsg, setEcosystemMsg] = useState<string | null>(null)
 
   const loadData = async () => {
     const ctx = await getSessionContext()
@@ -33,14 +36,22 @@ export default function PerformancePage() {
 
   const addRecord = async () => {
     if (!companyId || !userId || !form.employee_id || !form.points) return
+    const pts = Number(form.points)
     await supabase.from('hr_points').insert({
       company_id: companyId,
       employee_id: form.employee_id,
       point_type: 'performance',
-      points: Number(form.points),
+      points: pts,
       description: form.description || null,
       recorded_by: userId,
     })
+
+    // Ecosystem: log performance review event
+    await logEcosystemEvent({ companyId, eventType: 'performance_reviewed', sourceTable: 'hr_points', sourceId: form.employee_id, payload: { points: pts, description: form.description } })
+    const empName = employees.find(e => e.id === form.employee_id)?.users?.full_name || 'Employee'
+    setEcosystemMsg(`${empName}: ${pts > 0 ? '+' : ''}${pts} performance points recorded. Fund signal updated.`)
+    setTimeout(() => setEcosystemMsg(null), 4000)
+
     setForm({ employee_id: '', points: '', description: '' })
     await loadData()
   }
@@ -75,6 +86,15 @@ export default function PerformancePage() {
           </Card>
         ))}
       </div>
+
+      {ecosystemMsg && (
+        <Card className="p-3 border-blue-200 bg-blue-50/80">
+          <div className="flex items-center gap-2.5">
+            <div className="p-1.5 rounded-lg bg-blue-100"><Zap className="w-3.5 h-3.5 text-blue-600" /></div>
+            <p className="text-xs font-medium text-blue-700">{ecosystemMsg}</p>
+          </div>
+        </Card>
+      )}
 
       <Card className="p-5 border border-primary/15 bg-primary/[0.02] space-y-3">
         <div className="flex items-center gap-2.5 mb-1">

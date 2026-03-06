@@ -6,7 +6,8 @@ import { getSessionContext } from '@/lib/company-context'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Plus, Search, Download, Trash2, FileText, DollarSign, Clock, CheckCircle, AlertTriangle } from 'lucide-react'
+import { Plus, Search, Download, Trash2, FileText, DollarSign, Clock, CheckCircle, AlertTriangle, Landmark } from 'lucide-react'
+import { logEcosystemEvent, allocateToFund } from '@/lib/ecosystem'
 
 const statusBadge: Record<string, { label: string; cls: string }> = {
   draft: { label: 'Draft', cls: 'badge-neutral' },
@@ -26,6 +27,7 @@ export default function InvoicesPage() {
   const [statusFilter, setStatusFilter] = useState('')
   const [showForm, setShowForm] = useState(false)
   const [form, setForm] = useState({ customer_name: '', customer_email: '', subtotal: '', tax_amount: '', due_date: '', status: 'draft', notes: '' })
+  const [fundAllocMsg, setFundAllocMsg] = useState<string | null>(null)
 
   const loadInvoices = async () => {
     try {
@@ -94,6 +96,23 @@ export default function InvoicesPage() {
     await loadInvoices()
   }
 
+  const updateInvoiceStatus = async (id: string, newStatus: string, totalAmount: number) => {
+    if (!companyId) return
+    const updates: any = { status: newStatus }
+    if (newStatus === 'paid') updates.paid_amount = totalAmount
+    await supabase.from('invoices').update(updates).eq('id', id)
+
+    if (newStatus === 'paid' && totalAmount > 0) {
+      await logEcosystemEvent({ companyId, eventType: 'invoice_paid', sourceTable: 'invoices', sourceId: id, payload: { total_amount: totalAmount } })
+      const alloc = await allocateToFund({ companyId, grossAmount: totalAmount, profitEstimatePct: 0.30, sourceDescription: 'Invoice payment', sourceTable: 'invoices', sourceId: id })
+      if (alloc) {
+        setFundAllocMsg(`${alloc.currency} ${alloc.netToFund.toLocaleString()} allocated to investment fund from this invoice`)
+        setTimeout(() => setFundAllocMsg(null), 5000)
+      }
+    }
+    await loadInvoices()
+  }
+
   const deleteInvoice = async (id: string) => {
     await supabase.from('invoices').delete().eq('id', id)
     await loadInvoices()
@@ -150,6 +169,15 @@ export default function InvoicesPage() {
           <div className="mt-4 flex items-center gap-2 pt-4 border-t border-border/30">
             <Button size="sm" onClick={createInvoice}>Save Invoice</Button>
             <Button size="sm" variant="outline" onClick={() => setShowForm(false)}>Cancel</Button>
+          </div>
+        </Card>
+      )}
+
+      {fundAllocMsg && (
+        <Card className="mb-6 p-3 border-emerald-200 bg-emerald-50/80">
+          <div className="flex items-center gap-2.5">
+            <div className="p-1.5 rounded-lg bg-emerald-100"><Landmark className="w-3.5 h-3.5 text-emerald-600" /></div>
+            <p className="text-xs font-medium text-emerald-700">{fundAllocMsg}</p>
           </div>
         </Card>
       )}
@@ -227,11 +255,24 @@ export default function InvoicesPage() {
                       </div>
                     </td>
                     <td className="text-right font-mono font-bold tabular-nums">{formatUGX(invoice.total_amount || 0)}</td>
-                    <td><span className={`badge ${sb.cls}`}>{sb.label}</span></td>
+                    <td>
+                      <span className={`badge ${sb.cls}`}>{sb.label}</span>
+                      {invoice.status === 'paid' && <span className="ml-1.5 inline-flex items-center gap-0.5 text-[9px] text-emerald-600"><Landmark className="w-2.5 h-2.5" />Fund</span>}
+                    </td>
                     <td className="text-right">
-                      <button onClick={() => deleteInvoice(invoice.id)} className="p-1.5 rounded-lg text-muted-foreground/40 hover:text-red-500 hover:bg-red-50 transition-all opacity-0 group-hover:opacity-100">
-                        <Trash2 className="w-4 h-4" />
-                      </button>
+                      <div className="flex items-center justify-end gap-1">
+                        {invoice.status !== 'paid' && invoice.status !== 'cancelled' && (
+                          <select className="form-select text-xs py-1 w-auto" defaultValue="" onChange={(e) => { if (e.target.value) updateInvoiceStatus(invoice.id, e.target.value, Number(invoice.total_amount || 0)); e.target.value = '' }}>
+                            <option value="" disabled>Change...</option>
+                            <option value="paid">→ Mark Paid</option>
+                            <option value="overdue">→ Overdue</option>
+                            <option value="cancelled">→ Cancel</option>
+                          </select>
+                        )}
+                        <button onClick={() => deleteInvoice(invoice.id)} className="p-1.5 rounded-lg text-muted-foreground/40 hover:text-red-500 hover:bg-red-50 transition-all opacity-0 group-hover:opacity-100">
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 )

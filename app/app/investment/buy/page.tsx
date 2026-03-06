@@ -15,12 +15,14 @@ import {
   PieChart,
   CheckCircle,
 } from 'lucide-react'
+import { CreateFundCard } from '@/components/create-fund-card'
 
 export default function BuyUnitsPage() {
   const [fund, setFund] = useState<any>(null)
   const [position, setPosition] = useState<any>(null)
   const [employeeId, setEmployeeId] = useState<string | null>(null)
   const [userId, setUserId] = useState<string | null>(null)
+  const [companyId, setCompanyId] = useState<string | null>(null)
   const [amount, setAmount] = useState('')
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
@@ -33,6 +35,7 @@ export default function BuyUnitsPage() {
     const ctx = await getSessionContext()
     if (!ctx?.companyId || !ctx.userId) { setLoading(false); return }
     setUserId(ctx.userId)
+    setCompanyId(ctx.companyId)
 
     const { data: fundData } = await supabase
       .from('workspace_funds').select('*').eq('company_id', ctx.companyId).maybeSingle()
@@ -113,10 +116,14 @@ export default function BuyUnitsPage() {
 
   if (!fund) {
     return (
-      <div className="p-6 lg:p-8 max-w-[900px] mx-auto animate-fade-in text-center py-20">
-        <Wallet className="w-12 h-12 mx-auto text-muted-foreground/30 mb-4" />
-        <h2 className="text-lg font-semibold">No Fund Available</h2>
-        <p className="text-sm text-muted-foreground">A workspace fund has not been set up yet.</p>
+      <div className="p-6 lg:p-8 max-w-[900px] mx-auto animate-fade-in space-y-6">
+        <div>
+          <h1 className="text-2xl font-bold text-foreground tracking-tight">Buy Units</h1>
+          <p className="text-sm text-muted-foreground mt-0.5">Create your workspace fund first to start investing</p>
+        </div>
+        {companyId && userId && (
+          <CreateFundCard companyId={companyId} userId={userId} onCreated={loadData} />
+        )}
       </div>
     )
   }

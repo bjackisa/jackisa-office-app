@@ -6,7 +6,8 @@ import { getSessionContext } from '@/lib/company-context'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Plus, Search, Download, Trash2, Receipt, CheckCircle, Clock, Tag, TrendingUp } from 'lucide-react'
+import { Plus, Search, Download, Trash2, Receipt, CheckCircle, Clock, Tag, TrendingUp, Landmark } from 'lucide-react'
+import { logEcosystemEvent } from '@/lib/ecosystem'
 
 const categories = ['utilities', 'salaries', 'rent', 'equipment', 'travel', 'supplies', 'marketing', 'maintenance', 'other']
 
@@ -19,6 +20,7 @@ export default function ExpensesPage() {
   const [categoryFilter, setCategoryFilter] = useState('')
   const [showForm, setShowForm] = useState(false)
   const [form, setForm] = useState({ expense_date: new Date().toISOString().split('T')[0], category: 'other', description: '', amount: '', status: 'pending' })
+  const [ecosystemMsg, setEcosystemMsg] = useState<string | null>(null)
 
   const loadExpenses = async () => {
     try {
@@ -76,6 +78,27 @@ export default function ExpensesPage() {
     await loadExpenses()
   }
 
+  const updateExpenseStatus = async (id: string, newStatus: string, amount: number) => {
+    if (!companyId) return
+    await supabase.from('expenses').update({ status: newStatus }).eq('id', id)
+
+    if (newStatus === 'approved' && amount > 0) {
+      await logEcosystemEvent({ companyId, eventType: 'expense_approved', sourceTable: 'expenses', sourceId: id, payload: { amount, status: newStatus } })
+
+      // Deduct from fund total_assets if fund exists
+      const { data: fund } = await supabase.from('workspace_funds').select('id, total_assets, currency').eq('company_id', companyId).maybeSingle()
+      if (fund) {
+        await supabase.from('workspace_funds').update({
+          total_assets: Math.max(0, (fund.total_assets || 0) - amount),
+          updated_at: new Date().toISOString(),
+        }).eq('id', fund.id)
+        setEcosystemMsg(`Expense approved. ${fund.currency} ${amount.toLocaleString()} deducted from fund total assets. NAV updated.`)
+        setTimeout(() => setEcosystemMsg(null), 5000)
+      }
+    }
+    await loadExpenses()
+  }
+
   const deleteExpense = async (id: string) => {
     await supabase.from('expenses').delete().eq('id', id)
     await loadExpenses()
@@ -106,6 +129,15 @@ export default function ExpensesPage() {
           <Button size="sm" onClick={() => setShowForm(!showForm)}><Plus className="w-4 h-4 mr-1.5" />New Expense</Button>
         </div>
       </div>
+
+      {ecosystemMsg && (
+        <Card className="mb-6 p-3 border-amber-200 bg-amber-50/80">
+          <div className="flex items-center gap-2.5">
+            <div className="p-1.5 rounded-lg bg-amber-100"><Landmark className="w-3.5 h-3.5 text-amber-600" /></div>
+            <p className="text-xs font-medium text-amber-700">{ecosystemMsg}</p>
+          </div>
+        </Card>
+      )}
 
       {showForm && (
         <Card className="mb-6 p-5 border border-primary/15 bg-primary/[0.02]">
@@ -206,11 +238,20 @@ export default function ExpensesPage() {
                         <span className={`badge ${exp.status === 'approved' ? 'badge-success' : exp.status === 'rejected' ? 'badge-danger' : 'badge-warning'}`}>
                           {exp.status}
                         </span>
+                        {exp.status === 'approved' && <span className="ml-1 inline-flex items-center gap-0.5 text-[9px] text-amber-600"><Landmark className="w-2.5 h-2.5" />Fund</span>}
                       </td>
                       <td className="text-right">
-                        <button className="p-1.5 rounded-lg text-muted-foreground/40 hover:text-red-500 hover:bg-red-50 transition-all opacity-0 group-hover:opacity-100" onClick={() => deleteExpense(exp.id)}>
-                          <Trash2 className="w-4 h-4" />
-                        </button>
+                        <div className="flex items-center justify-end gap-1">
+                          {exp.status === 'pending' && (
+                            <div className="flex gap-1">
+                              <button onClick={() => updateExpenseStatus(exp.id, 'approved', Number(exp.amount || 0))} className="text-[10px] font-medium px-2 py-1 rounded bg-emerald-50 text-emerald-700 hover:bg-emerald-100 transition-colors">Approve</button>
+                              <button onClick={() => updateExpenseStatus(exp.id, 'rejected', 0)} className="text-[10px] font-medium px-2 py-1 rounded bg-red-50 text-red-600 hover:bg-red-100 transition-colors">Reject</button>
+                            </div>
+                          )}
+                          <button className="p-1.5 rounded-lg text-muted-foreground/40 hover:text-red-500 hover:bg-red-50 transition-all opacity-0 group-hover:opacity-100" onClick={() => deleteExpense(exp.id)}>
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))}

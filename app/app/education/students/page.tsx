@@ -8,9 +8,10 @@ import { Badge } from '@/components/ui/badge'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Label } from '@/components/ui/label'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
-import { ChevronDown, Plus, Search } from 'lucide-react'
+import { ChevronDown, Plus, Search, Zap } from 'lucide-react'
 import { getSessionContext } from '@/lib/company-context'
 import { supabase } from '@/lib/supabase'
+import { logEcosystemEvent } from '@/lib/ecosystem'
 
 const STATUS_OPTIONS = ['Pending', 'Active', 'Failed', 'Suspended', 'Deceased', 'Graduated']
 
@@ -22,6 +23,7 @@ export default function StudentsPage() {
   const [statuses, setStatuses] = useState<Record<string, string>>({})
   const [moduleSearch, setModuleSearch] = useState('')
   const [form, setForm] = useState({ full_name: '', email: '', module_ids: [] as string[] })
+  const [ecosystemMsg, setEcosystemMsg] = useState<string | null>(null)
 
   const loadData = async () => {
     const ctx = await getSessionContext()
@@ -109,6 +111,13 @@ export default function StudentsPage() {
       }
     }
 
+    // Ecosystem: log student enrollment event
+    if (created?.id) {
+      await logEcosystemEvent({ companyId, eventType: 'student_enrolled', sourceTable: 'students', sourceId: created.id, payload: { full_name: form.full_name, modules: form.module_ids.length } })
+      setEcosystemMsg(`${form.full_name} enrolled successfully. Ecosystem event logged — tuition invoice can be auto-generated.`)
+      setTimeout(() => setEcosystemMsg(null), 5000)
+    }
+
     setForm({ full_name: '', email: '', module_ids: [] })
     await loadData()
   }
@@ -157,6 +166,15 @@ export default function StudentsPage() {
         <h1 className="text-2xl font-bold text-foreground tracking-tight">Student Management</h1>
         <p className="text-sm text-muted-foreground mt-0.5">Add non-user students and enroll them in one or many modules</p>
       </div>
+
+      {ecosystemMsg && (
+        <Card className="p-3 border-blue-200 bg-blue-50/80">
+          <div className="flex items-center gap-2.5">
+            <div className="p-1.5 rounded-lg bg-blue-100"><Zap className="w-3.5 h-3.5 text-blue-600" /></div>
+            <p className="text-xs font-medium text-blue-700">{ecosystemMsg}</p>
+          </div>
+        </Card>
+      )}
 
       <Card className="p-5 border border-primary/15 bg-primary/[0.02] space-y-4">
         <div className="grid md:grid-cols-2 gap-3">

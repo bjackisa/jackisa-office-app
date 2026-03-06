@@ -5,8 +5,9 @@ import { supabase } from '@/lib/supabase'
 import { getSessionContext } from '@/lib/company-context'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Plus, Search, Check, X } from 'lucide-react'
+import { Plus, Search, Check, X, Landmark, Zap } from 'lucide-react'
 import { Input } from '@/components/ui/input'
+import { logEcosystemEvent, awardAttendancePoints } from '@/lib/ecosystem'
 
 type AttendanceRow = any
 
@@ -20,12 +21,15 @@ export default function AttendancePage() {
   const [statusFilter, setStatusFilter] = useState('')
   const [showForm, setShowForm] = useState(false)
   const [form, setForm] = useState({ employee_id: '', status: 'present', clock_in: '09:00', clock_out: '17:00', notes: '' })
+  const [userId, setUserId] = useState<string | null>(null)
+  const [ecosystemMsg, setEcosystemMsg] = useState<string | null>(null)
 
   const loadData = async () => {
     try {
       const context = await getSessionContext()
       if (!context?.companyId) return
       setCompanyId(context.companyId)
+      setUserId(context.userId)
 
       const [recordsRes, employeesRes] = await Promise.all([
         supabase
@@ -85,6 +89,17 @@ export default function AttendancePage() {
         notes: form.notes || null,
       }, { onConflict: 'employee_id,attendance_date' })
 
+    // Ecosystem: award/deduct HR points based on attendance
+    if (userId) {
+      await logEcosystemEvent({ companyId, eventType: 'attendance_recorded', sourceTable: 'attendance_records', sourceId: form.employee_id, payload: { status: form.status, date: dateFilter } })
+      const pts = await awardAttendancePoints({ companyId, employeeId: form.employee_id, status: form.status, userId })
+      if (pts) {
+        const empName = employees.find(e => e.id === form.employee_id)?.users?.full_name || 'Employee'
+        setEcosystemMsg(`${empName}: ${pts.points > 0 ? '+' : ''}${pts.points} HR points (${pts.status})`)
+        setTimeout(() => setEcosystemMsg(null), 4000)
+      }
+    }
+
     setShowForm(false)
     setForm({ employee_id: '', status: 'present', clock_in: '09:00', clock_out: '17:00', notes: '' })
     await loadData()
@@ -106,6 +121,15 @@ export default function AttendancePage() {
           Record Attendance
         </Button>
       </div>
+
+      {ecosystemMsg && (
+        <Card className="mb-6 p-3 border-blue-200 bg-blue-50/80">
+          <div className="flex items-center gap-2.5">
+            <div className="p-1.5 rounded-lg bg-blue-100"><Zap className="w-3.5 h-3.5 text-blue-600" /></div>
+            <p className="text-xs font-medium text-blue-700">{ecosystemMsg}</p>
+          </div>
+        </Card>
+      )}
 
       {showForm && (
         <Card className="mb-6 p-5 border border-primary/15 bg-primary/[0.02]">

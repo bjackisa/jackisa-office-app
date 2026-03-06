@@ -24,6 +24,7 @@ import {
   ChevronRight,
   Activity,
   Zap,
+  Landmark,
 } from 'lucide-react'
 
 export default function DashboardPage() {
@@ -44,6 +45,8 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true)
   const [greeting, setGreeting] = useState('')
   const [userName, setUserName] = useState('')
+  const [fundData, setFundData] = useState<any>(null)
+  const [ecosystemCount, setEcosystemCount] = useState(0)
 
   useEffect(() => {
     const hour = new Date().getHours()
@@ -107,6 +110,23 @@ export default function DashboardPage() {
         })
 
         setRecentActivity(activityRes.data || [])
+
+        // Fetch fund data for Investment widget
+        const { data: fund } = await supabase
+          .from('workspace_funds')
+          .select('fund_name, currency, nav_per_unit, total_assets, total_liabilities, trailing_annual_return')
+          .eq('company_id', companyId)
+          .maybeSingle()
+        setFundData(fund)
+
+        // Count today's ecosystem events
+        const today = new Date().toISOString().split('T')[0]
+        const { count: ecoCount } = await supabase
+          .from('ecosystem_events')
+          .select('id', { count: 'exact', head: true })
+          .eq('company_id', companyId)
+          .gte('created_at', today)
+        setEcosystemCount(ecoCount || 0)
       } catch (error) {
         console.error('Failed to load dashboard:', error)
       } finally {
@@ -338,6 +358,54 @@ export default function DashboardPage() {
                 className="block w-full text-center px-4 py-2.5 rounded-xl bg-primary text-white text-xs font-semibold hover:bg-primary/90 transition-all duration-200 shadow-glow-primary"
               >
                 Manage Plan
+              </Link>
+            </div>
+          </Card>
+
+          {/* Investment Fund Health */}
+          <Card className="overflow-hidden">
+            <div className="p-5">
+              <div className="flex items-center justify-between mb-5">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-emerald-500 to-green-600 flex items-center justify-center shadow-sm">
+                    <Landmark className="w-4 h-4 text-white" />
+                  </div>
+                  <div>
+                    <h2 className="text-sm font-semibold text-foreground">Investment Fund</h2>
+                    <p className="text-[10px] text-muted-foreground/50">{fundData?.fund_name || 'Not created yet'}</p>
+                  </div>
+                </div>
+                {ecosystemCount > 0 && (
+                  <span className="badge badge-success">{ecosystemCount} events today</span>
+                )}
+              </div>
+              {fundData ? (
+                <div className="space-y-3 mb-5">
+                  <div className="flex items-center justify-between p-3 rounded-xl bg-muted/30">
+                    <span className="text-xs text-muted-foreground">NAV / Unit</span>
+                    <span className="text-xs font-bold text-foreground font-mono">{fundData.currency} {Number(fundData.nav_per_unit || 1).toFixed(4)}</span>
+                  </div>
+                  <div className="flex items-center justify-between p-3 rounded-xl bg-muted/30">
+                    <span className="text-xs text-muted-foreground">Fund Value</span>
+                    <span className="text-xs font-bold text-foreground font-mono">{fundData.currency} {((fundData.total_assets || 0) - (fundData.total_liabilities || 0)).toLocaleString()}</span>
+                  </div>
+                  <div className="flex items-center justify-between p-3 rounded-xl bg-muted/30">
+                    <span className="text-xs text-muted-foreground">Annual Return</span>
+                    <span className={`text-xs font-bold font-mono ${(fundData.trailing_annual_return || 0) >= 0 ? 'text-emerald-600' : 'text-red-500'}`}>{((fundData.trailing_annual_return || 0) * 100).toFixed(1)}%</span>
+                  </div>
+                </div>
+              ) : (
+                <div className="text-center py-4 mb-5">
+                  <p className="text-xs text-muted-foreground">No fund created yet</p>
+                  <p className="text-[10px] text-muted-foreground/50 mt-1">Create one from the Investment page</p>
+                </div>
+              )}
+              <Link
+                href="/app/investment"
+                className="flex items-center justify-center gap-1.5 w-full px-4 py-2.5 rounded-xl bg-emerald-600 text-white text-xs font-semibold hover:bg-emerald-700 transition-all duration-200"
+              >
+                <Landmark className="w-3.5 h-3.5" />
+                {fundData ? 'View Fund Dashboard' : 'Create Your Fund'}
               </Link>
             </div>
           </Card>

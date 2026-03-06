@@ -6,7 +6,8 @@ import { supabase } from '@/lib/supabase'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Search } from 'lucide-react'
+import { Search, Landmark, Zap } from 'lucide-react'
+import { logEcosystemEvent, allocateToFund } from '@/lib/ecosystem'
 
 export default function CommissionsPage() {
   const [companyId, setCompanyId] = useState<string | null>(null)
@@ -16,10 +17,12 @@ export default function CommissionsPage() {
   const [searchQuery, setSearchQuery] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
   const [form, setForm] = useState({ employee_id: '', sales_order_id: '', commission_rate: '' })
+  const [userId, setUserId] = useState<string | null>(null)
+  const [ecosystemMsg, setEcosystemMsg] = useState<string | null>(null)
 
   const loadData = async () => {
     const ctx = await getSessionContext(); if (!ctx?.companyId) return
-    setCompanyId(ctx.companyId)
+    setCompanyId(ctx.companyId); setUserId(ctx.userId)
     const [eRes, oRes, cRes] = await Promise.all([
       supabase.from('company_employees').select('id, users(full_name)').eq('company_id', ctx.companyId).eq('status', 'active'),
       supabase.from('sales_orders').select('id, order_number, total_amount').eq('company_id', ctx.companyId).order('created_at', { ascending: false }),
@@ -44,6 +47,21 @@ export default function CommissionsPage() {
       status: 'pending',
     })
     setForm({ employee_id: '', sales_order_id: '', commission_rate: '' })
+    await loadData()
+  }
+
+  const updateCommissionStatus = async (id: string, newStatus: string, amount: number) => {
+    if (!companyId) return
+    await supabase.from('sales_commissions').update({ status: newStatus }).eq('id', id)
+
+    if (newStatus === 'paid' && amount > 0) {
+      await logEcosystemEvent({ companyId, eventType: 'commission_paid', sourceTable: 'sales_commissions', sourceId: id, payload: { amount } })
+      const alloc = await allocateToFund({ companyId, grossAmount: amount, profitEstimatePct: 0.15, sourceDescription: 'Commission payout', sourceTable: 'sales_commissions', sourceId: id })
+      if (alloc) {
+        setEcosystemMsg(`Commission paid. ${alloc.currency} ${alloc.netToFund.toLocaleString()} allocated to fund.`)
+        setTimeout(() => setEcosystemMsg(null), 5000)
+      }
+    }
     await loadData()
   }
 
@@ -80,6 +98,15 @@ export default function CommissionsPage() {
         </div>
       </Card>
 
+      {ecosystemMsg && (
+        <Card className="p-3 border-emerald-200 bg-emerald-50/80">
+          <div className="flex items-center gap-2.5">
+            <div className="p-1.5 rounded-lg bg-emerald-100"><Landmark className="w-3.5 h-3.5 text-emerald-600" /></div>
+            <p className="text-xs font-medium text-emerald-700">{ecosystemMsg}</p>
+          </div>
+        </Card>
+      )}
+
       <Card className="p-3">
         <div className="flex flex-col sm:flex-row gap-3">
           <div className="relative flex-1">
@@ -95,7 +122,7 @@ export default function CommissionsPage() {
       <Card className="overflow-hidden">
         <div className="overflow-x-auto">
           <table className="premium-table">
-            <thead><tr><th>Employee</th><th>Order</th><th className="text-right">Rate</th><th className="text-right">Amount</th><th>Status</th></tr></thead>
+            <thead><tr><th>Employee</th><th>Order</th><th className="text-right">Rate</th><th className="text-right">Amount</th><th>Status</th><th>Actions</th></tr></thead>
             <tbody>
               {filtered.length === 0 ? (
                 <tr><td colSpan={5} className="!py-16 text-center">
@@ -108,7 +135,19 @@ export default function CommissionsPage() {
                   <td className="font-mono text-xs text-muted-foreground">{c.sales_orders?.order_number || '—'}</td>
                   <td className="text-right font-mono text-sm">{Number(c.commission_rate || 0).toFixed(2)}%</td>
                   <td className="text-right font-mono font-bold tabular-nums text-foreground">{Number(c.commission_amount || 0).toLocaleString()}</td>
-                  <td><span className={`badge ${c.status === 'paid' ? 'badge-success' : c.status === 'approved' ? 'badge-info' : 'badge-warning'}`}>{c.status}</span></td>
+                  <td>
+                    <span className={`badge ${c.status === 'paid' ? 'badge-success' : c.status === 'approved' ? 'badge-info' : 'badge-warning'}`}>{c.status}</span>
+                    {c.status === 'paid' && <span className="ml-1 inline-flex items-center gap-0.5 text-[9px] text-emerald-600"><Landmark className="w-2.5 h-2.5" />Fund</span>}
+                  </td>
+                  <td>
+                    {c.status !== 'paid' && (
+                      <select className="form-select text-xs py-1 w-auto" defaultValue="" onChange={(e) => { if (e.target.value) updateCommissionStatus(c.id, e.target.value, Number(c.commission_amount || 0)); e.target.value = '' }}>
+                        <option value="" disabled>Change...</option>
+                        {c.status === 'pending' && <option value="approved">→ Approve</option>}
+                        <option value="paid">→ Mark Paid</option>
+                      </select>
+                    )}
+                  </td>
                 </tr>
               ))}
             </tbody>

@@ -17,6 +17,7 @@ import {
   PieChart,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { CreateFundCard } from '@/components/create-fund-card'
 
 interface FundData {
   id: string
@@ -39,6 +40,8 @@ export default function FundDashboardPage() {
   const [assets, setAssets] = useState<any[]>([])
   const [memberCount, setMemberCount] = useState(0)
   const [loading, setLoading] = useState(true)
+  const [companyId, setCompanyId] = useState<string | null>(null)
+  const [userId, setUserId] = useState<string | null>(null)
 
   useEffect(() => {
     loadData()
@@ -47,6 +50,8 @@ export default function FundDashboardPage() {
   const loadData = async () => {
     const ctx = await getSessionContext()
     if (!ctx?.companyId) { setLoading(false); return }
+    setCompanyId(ctx.companyId)
+    setUserId(ctx.userId)
 
     const { data: fundData } = await supabase
       .from('workspace_funds')
@@ -113,12 +118,14 @@ export default function FundDashboardPage() {
 
   if (!fund) {
     return (
-      <div className="p-6 lg:p-8 max-w-[1400px] mx-auto animate-fade-in">
-        <div className="text-center py-20">
-          <Landmark className="w-12 h-12 mx-auto text-muted-foreground/30 mb-4" />
-          <h2 className="text-lg font-semibold text-foreground mb-1">No Fund Created</h2>
-          <p className="text-sm text-muted-foreground">A workspace fund will be auto-created when your company was set up. Contact support if this persists.</p>
+      <div className="p-6 lg:p-8 max-w-[1400px] mx-auto animate-fade-in space-y-6">
+        <div>
+          <h1 className="text-2xl font-bold text-foreground tracking-tight">Investment & Wealth</h1>
+          <p className="text-sm text-muted-foreground mt-0.5">Set up your workspace investment fund to get started</p>
         </div>
+        {companyId && userId && (
+          <CreateFundCard companyId={companyId} userId={userId} onCreated={loadData} />
+        )}
       </div>
     )
   }
