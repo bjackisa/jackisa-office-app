@@ -40,7 +40,15 @@ export default function CreditNotesPage() {
   const filtered = creditNotes.filter((row:any)=>{const q = searchQuery.toLowerCase(); const matchSearch = !searchQuery || JSON.stringify(row).toLowerCase().includes(q); const matchStatus = !statusFilter || row.status===statusFilter || row.day_name===statusFilter; return matchSearch && matchStatus})
 
   const selectedInvoice = useMemo(() => invoices.find((invoice) => invoice.id === form.invoice_id) || null, [form.invoice_id, invoices])
-  const selectedOutstanding = Number(selectedInvoice?.outstanding_amount ?? ((selectedInvoice?.total_amount || 0) - (selectedInvoice?.paid_amount || 0)))
+  const getInvoiceOutstanding = (invoice: any) => {
+    const total = Number(invoice?.total_amount || 0)
+    const paid = Number(invoice?.paid_amount || 0)
+    const explicit = invoice?.outstanding_amount
+    const computed = total - paid
+    return Number(explicit ?? computed)
+  }
+
+  const selectedOutstanding = getInvoiceOutstanding(selectedInvoice)
 
   const createCreditNote = async () => {
     if (!companyId || !userId || !form.reason || !form.amount) return
@@ -92,7 +100,14 @@ export default function CreditNotesPage() {
         <div className="grid md:grid-cols-4 gap-3">
           <select className="form-select" value={form.invoice_id} onChange={(e) => { setError(null); setForm({ ...form, invoice_id: e.target.value }) }}>
             <option value="">No linked invoice</option>
-            {invoices.filter((invoice) => Number(invoice.outstanding_amount ?? ((invoice.total_amount || 0) - (invoice.paid_amount || 0))) > 0).map((invoice) => <option key={invoice.id} value={invoice.id}>{invoice.invoice_number} — {invoice.customer_name} — Outstanding {Number(invoice.outstanding_amount ?? ((invoice.total_amount || 0) - (invoice.paid_amount || 0))).toLocaleString()}</option>)}
+            {invoices.filter((invoice) => getInvoiceOutstanding(invoice) > 0).map((invoice) => {
+              const outstanding = getInvoiceOutstanding(invoice)
+              return (
+                <option key={invoice.id} value={invoice.id}>
+                  {invoice.invoice_number} — {invoice.customer_name} — Outstanding {outstanding.toLocaleString()}
+                </option>
+              )
+            })}
           </select>
           <Input type="date" value={form.credit_date} onChange={(e) => setForm({ ...form, credit_date: e.target.value })} />
           <Input placeholder="Reason" value={form.reason} onChange={(e) => setForm({ ...form, reason: e.target.value })} />
