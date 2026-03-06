@@ -74,6 +74,10 @@ export default function CreditNotesPage() {
 
   const createCreditNote = async () => {
     if (!companyId || !userId || !form.reason || !form.amount) return
+    if (form.invoice_id && !selectedInvoice) {
+      setError('Select a valid invoice before applying a credit note.')
+      return
+    }
 
     const amount = Number(form.amount)
     if (Number.isNaN(amount) || amount <= 0) {
@@ -88,7 +92,7 @@ export default function CreditNotesPage() {
 
     setError(null)
 
-    await supabase.from('credit_notes').insert({
+    const { error: noteError } = await supabase.from('credit_notes').insert({
       company_id: companyId,
       credit_note_number: `CN-${Date.now()}`,
       invoice_id: form.invoice_id || null,
@@ -97,6 +101,38 @@ export default function CreditNotesPage() {
       amount,
       created_by: userId,
     })
+
+    if (noteError) {
+      setError(noteError.message || 'Failed to create credit note.')
+      return
+    }
+
+    if (form.invoice_id && selectedInvoice) {
+      const total = parseAmount(selectedInvoice.total_amount || 0)
+      const currentlyPaid = parseAmount(selectedInvoice.paid_amount || 0)
+      const nextPaidAmount = Math.min(Math.max(currentlyPaid + amount, 0), total)
+      const nextOutstandingAmount = Math.max(total - nextPaidAmount, 0)
+      const nextStatus =
+        nextOutstandingAmount <= 0
+          ? 'paid'
+          : nextPaidAmount > 0
+            ? 'partially_paid'
+            : selectedInvoice.status
+
+      const { error: invoiceError } = await supabase
+        .from('invoices')
+        .update({
+          paid_amount: nextPaidAmount,
+          outstanding_amount: nextOutstandingAmount,
+          status: nextStatus,
+        })
+        .eq('id', form.invoice_id)
+        .eq('company_id', companyId)
+
+      if (invoiceError) {
+        setError(`Credit note created, but invoice balance was not updated: ${invoiceError.message}`)
+      }
+    }
 
     setForm({ invoice_id: '', credit_date: new Date().toISOString().split('T')[0], reason: '', amount: '' })
     await loadData()
