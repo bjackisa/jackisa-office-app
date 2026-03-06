@@ -43,20 +43,33 @@ export default function CreditNotesPage() {
   const filtered = creditNotes.filter((row:any)=>{const q = searchQuery.toLowerCase(); const matchSearch = !searchQuery || JSON.stringify(row).toLowerCase().includes(q); const matchStatus = !statusFilter || row.status===statusFilter || row.day_name===statusFilter; return matchSearch && matchStatus})
 
   const selectedInvoice = useMemo(() => invoices.find((invoice) => invoice.id === form.invoice_id) || null, [form.invoice_id, invoices])
+
+  const parseAmount = (value: unknown) => {
+    if (typeof value === 'number') return Number.isFinite(value) ? value : NaN
+    if (typeof value === 'string') {
+      const normalized = value.replace(/[^\d.-]/g, '')
+      const parsed = Number(normalized)
+      return Number.isFinite(parsed) ? parsed : NaN
+    }
+    return NaN
+  }
+
   const getInvoiceOutstanding = (invoice: any) => {
-    const total = Number(invoice?.total_amount || 0)
-    const paid = Number(invoice?.paid_amount || 0)
-    const explicit = invoice?.outstanding_amount
+    const total = parseAmount(invoice?.total_amount || 0)
+    const paid = parseAmount(invoice?.paid_amount || 0)
+    const explicit = parseAmount(invoice?.outstanding_amount)
     const computed = total - paid
-    const val = Number(explicit ?? computed)
-    if (Number.isFinite(val)) return val
+    if (Number.isFinite(explicit)) return Math.max(explicit, 0)
     if (Number.isFinite(computed)) return computed
     return 0
   }
 
   const invoiceHasBalance = (invoice: any) => {
     const outstanding = getInvoiceOutstanding(invoice)
-    return !Number.isFinite(outstanding) || outstanding > 0
+    if (Number.isFinite(outstanding) && outstanding > 0) return true
+
+    const status = String(invoice?.status || '').toLowerCase()
+    return ['sent', 'overdue', 'partially_paid'].includes(status)
   }
 
   const selectedOutstanding = getInvoiceOutstanding(selectedInvoice)
