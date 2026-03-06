@@ -3,6 +3,8 @@
 import { useEffect, useState, useMemo } from 'react'
 import { supabase } from '@/lib/supabase'
 import { getSessionContext } from '@/lib/company-context'
+import { ensureFundMemberPosition } from '@/lib/investment-membership'
+import { getEffectiveFundNav } from '@/lib/investment-metrics'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -42,8 +44,7 @@ export default function InvestmentReportsPage() {
       .from('company_employees').select('id').eq('company_id', ctx.companyId).eq('user_id', ctx.userId).maybeSingle()
     if (!empData) { setLoading(false); return }
 
-    const { data: posData } = await supabase
-      .from('fund_member_positions').select('*').eq('fund_id', fundData.id).eq('employee_id', empData.id).maybeSingle()
+    const posData = await ensureFundMemberPosition(ctx.companyId, ctx.userId, fundData.id)
     setPosition(posData)
 
     if (posData) {
@@ -82,7 +83,8 @@ export default function InvestmentReportsPage() {
     return { totalContributed, totalRedeemed, totalFees, totalTax, unitsBought, unitsSold, txCount: transactions.length }
   }, [transactions])
 
-  const currentValue = position ? (position.total_units || 0) * (fund?.nav_per_unit || 1) : 0
+  const currentNav = fund ? getEffectiveFundNav(fund) : 1
+  const currentValue = position ? (position.total_units || 0) * currentNav : 0
   const currency = fund?.currency || 'UGX'
 
   const exportCSV = () => {
@@ -187,7 +189,7 @@ export default function InvestmentReportsPage() {
             </div>
             <div>
               <p className="text-[9px] text-muted-foreground/50 uppercase">Current NAV</p>
-              <p className="text-sm font-bold font-mono">{currency} {(fund?.nav_per_unit || 1).toFixed(4)}</p>
+              <p className="text-sm font-bold font-mono">{currency} {currentNav.toFixed(4)}</p>
             </div>
             <div>
               <p className="text-[9px] text-muted-foreground/50 uppercase">Portfolio Value</p>

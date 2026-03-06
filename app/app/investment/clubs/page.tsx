@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { getSessionContext } from '@/lib/company-context'
+import { ensureFundMemberPosition } from '@/lib/investment-membership'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -46,8 +47,7 @@ export default function InvestmentClubsPage() {
       .from('company_employees').select('id').eq('company_id', ctx.companyId).eq('user_id', ctx.userId).maybeSingle()
 
     if (empData) {
-      const { data: posData } = await supabase
-        .from('fund_member_positions').select('*').eq('fund_id', fundData.id).eq('employee_id', empData.id).maybeSingle()
+      const posData = await ensureFundMemberPosition(ctx.companyId, ctx.userId, fundData.id)
       setMyPosition(posData)
     }
 

@@ -3,18 +3,12 @@
 import { useEffect, useState, useMemo } from 'react'
 import { supabase } from '@/lib/supabase'
 import { getSessionContext } from '@/lib/company-context'
+import { ensureFundMemberPosition } from '@/lib/investment-membership'
+import { getEffectiveFundNav } from '@/lib/investment-metrics'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import {
-  ArrowUpCircle,
-  RefreshCw,
-  Wallet,
-  DollarSign,
-  Shield,
-  PieChart,
-  CheckCircle,
-} from 'lucide-react'
+import { RefreshCw, ArrowUpCircle, Wallet, DollarSign, Percent, TrendingUp, ShieldCheck, CheckCircle, PieChart, Shield } from 'lucide-react'
 import { CreateFundCard } from '@/components/create-fund-card'
 import PaymentModal from '@/components/payment-modal'
 
@@ -49,8 +43,7 @@ export default function BuyUnitsPage() {
     if (!empData) { setLoading(false); return }
     setEmployeeId(empData.id)
 
-    const { data: posData } = await supabase
-      .from('fund_member_positions').select('*').eq('fund_id', fundData.id).eq('employee_id', empData.id).maybeSingle()
+    const posData = await ensureFundMemberPosition(ctx.companyId, ctx.userId, fundData.id)
     setPosition(posData)
     setLoading(false)
   }
@@ -62,7 +55,7 @@ export default function BuyUnitsPage() {
     const afterJackisa = grossAmount - jackisaFee
     const mgmtFee = Math.round(afterJackisa * (fund.mgmt_contribution_fee_rate || 0.02) * 100) / 100
     const net = afterJackisa - mgmtFee
-    const nav = fund.nav_per_unit || 1
+    const nav = getEffectiveFundNav(fund)
     const units = net / nav
     const totalUnitsAfter = (position?.total_units || 0) + units
     const totalFundUnits = (fund.total_units_outstanding || 0) + units
@@ -77,17 +70,9 @@ export default function BuyUnitsPage() {
     setSuccess(null)
 
     try {
-      let posId = position?.id
-
-      if (!posId) {
-        const { data: newPos, error: posErr } = await supabase
-          .from('fund_member_positions')
-          .insert({ fund_id: fund.id, employee_id: employeeId, user_id: userId })
-          .select('id')
-          .single()
-        if (posErr) throw posErr
-        posId = newPos.id
-      }
+      const ensuredPosition = position || await ensureFundMemberPosition(companyId!, userId, fund.id)
+      const posId = ensuredPosition?.id
+      if (!posId) throw new Error('Could not initialize your fund membership position.')
 
       const { error: rpcErr } = await supabase.rpc('process_contribution', {
         p_fund_id: fund.id,
@@ -144,7 +129,7 @@ export default function BuyUnitsPage() {
             <div className="p-2 rounded-xl bg-primary/10"><DollarSign className="w-4 h-4 text-primary" /></div>
             <div>
               <p className="text-[10px] text-muted-foreground/60 uppercase tracking-wider">Current NAV</p>
-              <p className="text-lg font-bold font-mono">{fund.currency} {Number(fund.nav_per_unit || 1).toFixed(4)}</p>
+              <p className="text-lg font-bold font-mono">{fund.currency} {getEffectiveFundNav(fund).toFixed(4)}</p>
             </div>
           </div>
           {position && (

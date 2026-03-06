@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { getSessionContext } from '@/lib/company-context'
+import { getEffectiveFundNav } from '@/lib/investment-metrics'
 import { Card } from '@/components/ui/card'
 import {
   TrendingUp,
@@ -47,6 +48,54 @@ export default function FundDashboardPage() {
     loadData()
   }, [])
 
+  useEffect(() => {
+    if (!companyId || !fund?.id) return
+
+    const channel = supabase
+      .channel(`investment-dashboard-${companyId}-${fund.id}`)
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'workspace_funds',
+        filter: `company_id=eq.${companyId}`,
+      }, loadData)
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'nav_snapshots',
+        filter: `fund_id=eq.${fund.id}`,
+      }, loadData)
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'fund_transactions',
+        filter: `fund_id=eq.${fund.id}`,
+      }, loadData)
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'fund_assets',
+        filter: `fund_id=eq.${fund.id}`,
+      }, loadData)
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'fund_liabilities',
+        filter: `fund_id=eq.${fund.id}`,
+      }, loadData)
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'company_employees',
+        filter: `company_id=eq.${companyId}`,
+      }, loadData)
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(channel)
+    }
+  }, [companyId, fund?.id])
+
   const loadData = async () => {
     const ctx = await getSessionContext()
     if (!ctx?.companyId) { setLoading(false); return }
@@ -66,7 +115,7 @@ export default function FundDashboardPage() {
       supabase.from('nav_snapshots').select('*').eq('fund_id', fundData.id).order('snapshot_date', { ascending: true }).limit(365),
       supabase.from('fund_transactions').select('*, fund_member_positions(company_employees(users(full_name)))').eq('fund_id', fundData.id).order('created_at', { ascending: false }).limit(20),
       supabase.from('fund_assets').select('*').eq('fund_id', fundData.id).eq('is_active', true),
-      supabase.from('fund_member_positions').select('id', { count: 'exact', head: true }).eq('fund_id', fundData.id).eq('is_active', true),
+      supabase.from('company_employees').select('id', { count: 'exact', head: true }).eq('company_id', ctx.companyId).eq('status', 'active'),
     ])
 
     setSnapshots(snapRes.data || [])
@@ -76,7 +125,7 @@ export default function FundDashboardPage() {
     setLoading(false)
   }
 
-  const nav = fund?.nav_per_unit || 1
+  const nav = fund ? getEffectiveFundNav(fund) : 1
   const totalValue = (fund?.total_assets || 0) - (fund?.total_liabilities || 0)
   const leverageRatio = fund?.total_assets && fund.total_assets > 0
     ? (fund.total_liabilities || 0) / fund.total_assets

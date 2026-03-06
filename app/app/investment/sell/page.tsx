@@ -3,6 +3,8 @@
 import { useEffect, useState, useMemo } from 'react'
 import { supabase } from '@/lib/supabase'
 import { getSessionContext } from '@/lib/company-context'
+import { ensureFundMemberPosition } from '@/lib/investment-membership'
+import { getEffectiveFundNav } from '@/lib/investment-metrics'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -47,13 +49,12 @@ export default function SellUnitsPage() {
       .from('company_employees').select('id').eq('company_id', ctx.companyId).eq('user_id', ctx.userId).maybeSingle()
     if (!empData) { setLoading(false); return }
 
-    const { data: posData } = await supabase
-      .from('fund_member_positions').select('*').eq('fund_id', fundData.id).eq('employee_id', empData.id).maybeSingle()
+    const posData = await ensureFundMemberPosition(ctx.companyId, ctx.userId, fundData.id)
     setPosition(posData)
     setLoading(false)
   }
 
-  const nav = fund?.nav_per_unit || 1
+  const nav = fund ? getEffectiveFundNav(fund) : 1
   const maxUnits = position?.total_units || 0
 
   const effectiveUnits = useMemo(() => {

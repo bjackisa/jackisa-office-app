@@ -3,6 +3,8 @@
 import { useEffect, useState, useMemo } from 'react'
 import { supabase } from '@/lib/supabase'
 import { getSessionContext } from '@/lib/company-context'
+import { ensureFundMemberPosition } from '@/lib/investment-membership'
+import { getEffectiveFundNav } from '@/lib/investment-metrics'
 import { Card } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import {
@@ -40,14 +42,14 @@ export default function ProjectionsPage() {
     const { data: empData } = await supabase
       .from('company_employees').select('id').eq('company_id', ctx.companyId).eq('user_id', ctx.userId).maybeSingle()
     if (empData && fundData) {
-      const { data: posData } = await supabase
-        .from('fund_member_positions').select('*').eq('fund_id', fundData.id).eq('employee_id', empData.id).maybeSingle()
+      const posData = await ensureFundMemberPosition(ctx.companyId, ctx.userId, fundData.id)
       setPosition(posData)
     }
     setLoading(false)
   }
 
-  const currentValue = position ? (position.total_units || 0) * (fund?.nav_per_unit || 1) : 0
+  const currentNav = fund ? getEffectiveFundNav(fund) : 1
+  const currentValue = position ? (position.total_units || 0) * currentNav : 0
   const rate = (Number(annualReturn) || 0) / 100
   const monthly = Number(monthlyContrib) || 0
   const horizon = Number(years) || 10

@@ -3,6 +3,8 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { getSessionContext } from '@/lib/company-context'
+import { ensureFundMemberPosition } from '@/lib/investment-membership'
+import { getEffectiveFundNav } from '@/lib/investment-metrics'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -45,8 +47,7 @@ export default function BeneficiariesPage() {
       .from('company_employees').select('id').eq('company_id', ctx.companyId).eq('user_id', ctx.userId).maybeSingle()
     if (!empData) { setLoading(false); return }
 
-    const { data: posData } = await supabase
-      .from('fund_member_positions').select('*').eq('fund_id', fundData.id).eq('employee_id', empData.id).maybeSingle()
+    const posData = await ensureFundMemberPosition(ctx.companyId, ctx.userId, fundData.id)
     if (!posData) { setLoading(false); return }
     setPosition(posData)
 
@@ -93,7 +94,8 @@ export default function BeneficiariesPage() {
     await loadData()
   }
 
-  const portfolioValue = position ? (position.total_units || 0) * (fund?.nav_per_unit || 1) : 0
+  const currentNav = fund ? getEffectiveFundNav(fund) : 1
+  const portfolioValue = position ? (position.total_units || 0) * currentNav : 0
 
   if (loading) {
     return (
