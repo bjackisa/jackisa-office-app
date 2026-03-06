@@ -291,7 +291,7 @@ export default function HRPointsPage() {
 
   return (
     <div className="p-6 lg:p-8 max-w-[1400px] mx-auto animate-fade-in">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
         <div>
           <h1 className="text-2xl font-bold text-foreground tracking-tight mb-1">HR Points System</h1>
           <p className="text-sm text-muted-foreground">Rule-driven points, monthly balances, monetization, and automated termination workflow</p>
@@ -352,7 +352,7 @@ export default function HRPointsPage() {
             <div>
               <label className="block text-xs font-medium text-muted-foreground mb-1.5">Employee *</label>
               <select
-                className="w-full px-3 py-2 border border-border rounded-lg text-sm bg-card"
+                className="form-select bg-card"
                 value={awardForm.employeeId}
                 onChange={(e) => setAwardForm({ ...awardForm, employeeId: e.target.value })}
               >
@@ -368,7 +368,7 @@ export default function HRPointsPage() {
             <div className="md:col-span-2">
               <label className="block text-xs font-medium text-muted-foreground mb-1.5">Rule *</label>
               <select
-                className="w-full px-3 py-2 border border-border rounded-lg text-sm bg-card"
+                className="form-select bg-card"
                 value={awardForm.ruleId}
                 onChange={(e) => setAwardForm({ ...awardForm, ruleId: e.target.value })}
               >
@@ -424,7 +424,7 @@ export default function HRPointsPage() {
               className="bg-card"
             />
             <select
-              className="w-full px-3 py-2 border border-border rounded-lg text-sm bg-card"
+              className="form-select bg-card"
               value={ruleForm.actionType}
               onChange={(e) => setRuleForm({ ...ruleForm, actionType: e.target.value as 'gain' | 'loss' })}
             >
@@ -475,7 +475,7 @@ export default function HRPointsPage() {
       {activeTab === 'balances' && (
         <Card className="border border-border/50 bg-card overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="w-full">
+            <table className="premium-table">
               <thead>
                 <tr className="border-b border-border/30 bg-muted/30">
                   <th className="px-5 py-3 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider">Employee</th>
@@ -487,7 +487,7 @@ export default function HRPointsPage() {
                   <th className="px-5 py-3 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider">Actions</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-border/20">
+              <tbody>
                 {loading ? (
                   <tr>
                     <td colSpan={7} className="px-5 py-12 text-center text-sm text-muted-foreground/60">
@@ -505,8 +505,8 @@ export default function HRPointsPage() {
                     const isTerminated = b.is_termination_flagged || Number(b.closing_balance) <= 0
                     return (
                       <tr key={b.id} className={isTerminated ? 'bg-rose-50/40' : 'hover:bg-muted/30'}>
-                        <td className="px-5 py-3 text-sm font-medium text-foreground">{b.company_employees?.users?.full_name || '—'}</td>
-                        <td className="px-5 py-3 text-sm text-muted-foreground">
+                        <td className="font-medium text-foreground">{b.company_employees?.users?.full_name || '—'}</td>
+                        <td className="text-muted-foreground">
                           {b.period_month}/{b.period_year}
                         </td>
                         <td className={`px-5 py-3 text-sm font-bold text-right font-mono ${isTerminated ? 'text-rose-700' : 'text-foreground'}`}>
@@ -547,7 +547,7 @@ export default function HRPointsPage() {
       {activeTab === 'transactions' && (
         <Card className="border border-border/50 bg-card overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="w-full">
+            <table className="premium-table">
               <thead>
                 <tr className="border-b border-border/30 bg-muted/30">
                   <th className="px-5 py-3 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider">Employee</th>
@@ -557,7 +557,7 @@ export default function HRPointsPage() {
                   <th className="px-5 py-3 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider">Date</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-border/20">
+              <tbody>
                 {loading ? (
                   <tr>
                     <td colSpan={5} className="px-5 py-12 text-center text-sm text-muted-foreground/60">
@@ -572,14 +572,14 @@ export default function HRPointsPage() {
                   </tr>
                 ) : (
                   transactions.map((t: any) => (
-                    <tr key={t.id} className="hover:bg-muted/30">
-                      <td className="px-5 py-3 text-sm font-medium text-foreground">{t.company_employees?.users?.full_name || '—'}</td>
+                    <tr key={t.id} className="group">
+                      <td className="font-medium text-foreground">{t.company_employees?.users?.full_name || '—'}</td>
                       <td className="px-5 py-3 text-sm">{t.action_type === 'gain' ? 'Gain' : 'Loss'}</td>
                       <td className={`px-5 py-3 text-sm font-bold text-right font-mono ${t.action_type === 'gain' ? 'text-emerald-600' : 'text-red-500'}`}>
                         {t.action_type === 'gain' ? '+' : '-'}
                         {t.points}
                       </td>
-                      <td className="px-5 py-3 text-sm text-muted-foreground">{t.point_rules?.indicator || t.reason || '—'}</td>
+                      <td className="text-muted-foreground">{t.point_rules?.indicator || t.reason || '—'}</td>
                       <td className="px-5 py-3 text-xs text-muted-foreground/60">{new Date(t.recorded_date).toLocaleDateString()}</td>
                     </tr>
                   ))
@@ -600,7 +600,7 @@ export default function HRPointsPage() {
             </Button>
           </div>
           <div className="overflow-x-auto">
-            <table className="w-full">
+            <table className="premium-table">
               <thead>
                 <tr className="border-b border-border/30 bg-muted/30">
                   <th className="px-5 py-3 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider">Category</th>
@@ -609,7 +609,7 @@ export default function HRPointsPage() {
                   <th className="px-5 py-3 text-right text-xs font-semibold text-muted-foreground uppercase tracking-wider">Points</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-border/20">
+              <tbody>
                 {loading ? (
                   <tr>
                     <td colSpan={4} className="px-5 py-12 text-center text-sm text-muted-foreground/60">
@@ -624,9 +624,9 @@ export default function HRPointsPage() {
                   </tr>
                 ) : (
                   rules.map((r: any) => (
-                    <tr key={r.id} className="hover:bg-muted/30">
+                    <tr key={r.id} className="group">
                       <td className="px-5 py-3 text-xs font-medium px-2">{r.category}</td>
-                      <td className="px-5 py-3 text-sm font-medium text-foreground">{r.indicator}</td>
+                      <td className="font-medium text-foreground">{r.indicator}</td>
                       <td className="px-5 py-3 text-sm">{r.action_type === 'gain' ? 'Gain' : 'Loss'}</td>
                       <td className={`px-5 py-3 text-sm font-bold text-right font-mono ${r.action_type === 'gain' ? 'text-emerald-600' : 'text-red-500'}`}>
                         {r.action_type === 'gain' ? '+' : '-'}

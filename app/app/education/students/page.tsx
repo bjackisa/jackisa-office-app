@@ -152,13 +152,13 @@ export default function StudentsPage() {
   }
 
   return (
-    <div className="p-6 max-w-7xl mx-auto space-y-6">
+    <div className="p-6 lg:p-8 max-w-[1400px] mx-auto animate-fade-in space-y-6">
       <div>
-        <h1 className="text-3xl font-bold text-foreground tracking-tight mb-2">Student Management</h1>
-        <p className="text-muted-foreground">Add non-user students and enroll them in one or many modules</p>
+        <h1 className="text-2xl font-bold text-foreground tracking-tight">Student Management</h1>
+        <p className="text-sm text-muted-foreground mt-0.5">Add non-user students and enroll them in one or many modules</p>
       </div>
 
-      <Card className="p-4 border border-border space-y-4">
+      <Card className="p-5 border border-primary/15 bg-primary/[0.02] space-y-4">
         <div className="grid md:grid-cols-2 gap-3">
           <Input placeholder="Student full name" value={form.full_name} onChange={(e) => setForm({ ...form, full_name: e.target.value })} />
           <Input placeholder="Student email (optional)" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
@@ -225,33 +225,41 @@ export default function StudentsPage() {
         <Button onClick={addStudent}><Plus className="w-4 h-4 mr-2" />Enroll Student</Button>
       </Card>
 
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card className="p-4"><p>Total Students</p><p className="text-2xl font-bold">{stats.total}</p></Card>
-        <Card className="p-4"><p>Active</p><p className="text-2xl font-bold">{stats.active}</p></Card>
-        <Card className="p-4"><p>Suspended</p><p className="text-2xl font-bold">{stats.suspended}</p></Card>
-        <Card className="p-4"><p>Graduated</p><p className="text-2xl font-bold">{stats.graduated}</p></Card>
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 stagger-children">
+        {[
+          { label: 'Total', value: stats.total },
+          { label: 'Active', value: stats.active },
+          { label: 'Suspended', value: stats.suspended },
+          { label: 'Graduated', value: stats.graduated },
+        ].map(stat => (
+          <Card key={stat.label} className="stat-card p-4">
+            <p className="text-[11px] text-muted-foreground font-medium mb-1">{stat.label}</p>
+            <p className="text-2xl font-bold text-foreground tracking-tight">{stat.value}</p>
+          </Card>
+        ))}
       </div>
 
-      <Card className="border border-border overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead className="bg-muted/50 border-b border-border">
+      <Card className="overflow-hidden">
+        <div className="overflow-x-auto">
+        <table className="premium-table">
+          <thead>
             <tr>
-              <th className="px-4 py-3 text-left">Name</th>
-              <th className="px-4 py-3 text-left">Student Number</th>
-              <th className="px-4 py-3 text-left">Modules</th>
-              <th className="px-4 py-3 text-left">Enrollment Date</th>
-              <th className="px-4 py-3 text-left">Status</th>
+              <th>Name</th>
+              <th>Student Number</th>
+              <th>Modules</th>
+              <th>Enrollment Date</th>
+              <th>Status</th>
             </tr>
           </thead>
           <tbody>
             {students.map((student) => (
-              <tr key={student.id} className="border-b">
-                <td className="px-4 py-3">{student.full_name}</td>
-                <td className="px-4 py-3 font-mono">{student.student_id || 'Auto'}</td>
-                <td className="px-4 py-3">{moduleLabel(student.id)}</td>
-                <td className="px-4 py-3">{new Date(student.created_at).toLocaleString()}</td>
-                <td className="px-4 py-3">
-                  <select className="px-2 py-1 border rounded" value={statuses[student.id] || 'Active'} onChange={(e) => updateStatus(student.id, e.target.value)}>
+              <tr key={student.id} >
+                <td>{student.full_name}</td>
+                <td className="font-mono text-xs text-muted-foreground">{student.student_id || 'Auto'}</td>
+                <td>{moduleLabel(student.id)}</td>
+                <td>{new Date(student.created_at).toLocaleString()}</td>
+                <td>
+                  <select className="form-select !py-1 !px-2 !text-xs" value={statuses[student.id] || 'Active'} onChange={(e) => updateStatus(student.id, e.target.value)}>
                     {STATUS_OPTIONS.map((status) => <option key={status} value={status}>{status}</option>)}
                   </select>
                 </td>
@@ -259,6 +267,7 @@ export default function StudentsPage() {
             ))}
           </tbody>
         </table>
+        </div>
       </Card>
     </div>
   )

@@ -96,77 +96,159 @@ export default function ExpensesPage() {
 
   return (
     <div className="p-6 lg:p-8 max-w-[1400px] mx-auto animate-fade-in">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-foreground tracking-tight mb-1">Expenses</h1>
-          <p className="text-sm text-muted-foreground">Track and manage company expenses.</p>
+          <h1 className="text-2xl font-bold text-foreground tracking-tight">Expenses</h1>
+          <p className="text-sm text-muted-foreground mt-0.5">Track and manage company expenses.</p>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" className="text-muted-foreground" onClick={exportCsv}><Download className="w-4 h-4 mr-1.5" />Export</Button>
-          <Button size="sm" className="bg-primary hover:bg-primary/90" onClick={() => setShowForm(!showForm)}><Plus className="w-4 h-4 mr-1.5" />New Expense</Button>
+          <Button variant="outline" size="sm" onClick={exportCsv}><Download className="w-4 h-4 mr-1.5" />Export CSV</Button>
+          <Button size="sm" onClick={() => setShowForm(!showForm)}><Plus className="w-4 h-4 mr-1.5" />New Expense</Button>
         </div>
       </div>
 
       {showForm && (
-        <Card className="mb-5 p-4 border border-primary/20 bg-primary/[0.04]">
+        <Card className="mb-6 p-5 border border-primary/15 bg-primary/[0.02]">
+          <div className="flex items-center gap-2.5 mb-4">
+            <div className="w-8 h-8 rounded-xl bg-primary/10 flex items-center justify-center">
+              <Receipt className="w-4 h-4 text-primary" />
+            </div>
+            <div>
+              <h3 className="text-sm font-semibold text-foreground">Record Expense</h3>
+              <p className="text-[11px] text-muted-foreground/60">Add a new expense entry</p>
+            </div>
+          </div>
           <div className="grid md:grid-cols-5 gap-3">
             <Input type="date" value={form.expense_date} onChange={(e) => setForm({ ...form, expense_date: e.target.value })} />
-            <select className="px-3 py-2 border border-input rounded-xl" value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })}>{categories.map((category) => <option key={category} value={category}>{category}</option>)}</select>
-            <Input className="md:col-span-2" placeholder="Description" value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} />
-            <Input type="number" placeholder="Amount" value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} />
+            <select className="form-select" value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })}>{categories.map((category) => <option key={category} value={category}>{category}</option>)}</select>
+            <Input className="md:col-span-2" placeholder="Description *" value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} />
+            <Input type="number" placeholder="Amount *" value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} />
           </div>
-          <div className="mt-3 flex gap-2"><Button onClick={createExpense}>Save Expense</Button><Button variant="outline" onClick={() => setShowForm(false)}>Cancel</Button></div>
+          <div className="mt-4 flex items-center gap-2 pt-4 border-t border-border/30">
+            <Button size="sm" onClick={createExpense}>Save Expense</Button>
+            <Button size="sm" variant="outline" onClick={() => setShowForm(false)}>Cancel</Button>
+          </div>
         </Card>
       )}
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-        {[{ label: 'Total Expenses', value: formatUGX(totals.total), icon: Receipt, color: 'text-foreground', bg: 'bg-muted/50' }, { label: 'Approved', value: formatUGX(totals.approved), icon: CheckCircle, color: 'text-emerald-600', bg: 'bg-emerald-50' }, { label: 'Pending', value: formatUGX(totals.pending), icon: Clock, color: 'text-amber-600', bg: 'bg-amber-50' }, { label: 'Categories', value: String(new Set(expenses.map((e) => e.category)).size), icon: Tag, color: 'text-blue-600', bg: 'bg-blue-50' }].map((stat) => (
-          <Card key={stat.label} className="p-4 border border-border/50 bg-card"><div className="flex items-center gap-3"><div className={`p-2 rounded-lg ${stat.bg}`}><stat.icon className={`w-4 h-4 ${stat.color}`} /></div><div><p className="text-lg font-bold text-foreground">{stat.value}</p><p className="text-xs text-muted-foreground">{stat.label}</p></div></div></Card>
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6 stagger-children">
+        {[
+          { label: 'Total Expenses', value: formatUGX(totals.total), icon: Receipt, gradient: 'from-slate-500 to-slate-600' },
+          { label: 'Approved', value: formatUGX(totals.approved), icon: CheckCircle, gradient: 'from-emerald-500 to-green-600' },
+          { label: 'Pending', value: formatUGX(totals.pending), icon: Clock, gradient: 'from-amber-500 to-orange-500' },
+          { label: 'Categories', value: String(new Set(expenses.map((e) => e.category)).size), icon: Tag, gradient: 'from-blue-500 to-blue-600' },
+        ].map((stat) => (
+          <Card key={stat.label} className="stat-card p-4">
+            <div className="flex items-center gap-3">
+              <div className={`w-10 h-10 rounded-xl bg-gradient-to-br ${stat.gradient} flex items-center justify-center shadow-sm flex-shrink-0`}>
+                <stat.icon className="w-4.5 h-4.5 text-white" />
+              </div>
+              <div className="min-w-0">
+                <p className="text-lg font-bold text-foreground truncate tracking-tight">{stat.value}</p>
+                <p className="text-[11px] text-muted-foreground font-medium">{stat.label}</p>
+              </div>
+            </div>
+          </Card>
         ))}
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-4 gap-5">
         <div className="lg:col-span-3">
-          <div className="flex flex-col sm:flex-row gap-3 mb-4">
-            <div className="relative flex-1"><Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground/60" /><Input className="pl-10" placeholder="Search expenses..." value={search} onChange={(e) => setSearch(e.target.value)} /></div>
-            <select className="px-3 py-2 border border-input rounded-xl" value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value)}><option value="">All categories</option>{categories.map((category) => <option key={category} value={category}>{category}</option>)}</select>
-          </div>
+          <Card className="p-3 mb-4">
+            <div className="flex flex-col sm:flex-row gap-3">
+              <div className="relative flex-1">
+                <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground/40" />
+                <Input className="pl-10" placeholder="Search expenses..." value={search} onChange={(e) => setSearch(e.target.value)} />
+              </div>
+              <select className="form-select" value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value)}>
+                <option value="">All categories</option>
+                {categories.map((category) => <option key={category} value={category}>{category}</option>)}
+              </select>
+            </div>
+          </Card>
 
-          <Card className="border border-border/50 bg-card overflow-hidden">
+          <Card className="overflow-hidden">
             <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead><tr className="border-b border-border/30 bg-muted/30 text-xs uppercase text-muted-foreground"><th className="px-5 py-3 text-left">Description</th><th className="px-5 py-3 text-left">Category</th><th className="px-5 py-3 text-left">Date</th><th className="px-5 py-3 text-right">Amount</th><th className="px-5 py-3 text-left">Status</th><th className="px-5 py-3 text-right">Actions</th></tr></thead>
-                <tbody className="divide-y divide-border/20">
-                  {loading ? <tr><td colSpan={6} className="px-5 py-10 text-center text-sm text-muted-foreground/60">Loading expenses...</td></tr> : filtered.length === 0 ? <tr><td colSpan={6} className="px-5 py-10 text-center text-sm text-muted-foreground/60">No expenses found.</td></tr> : filtered.map((exp) => (
-                    <tr key={exp.id} className="hover:bg-muted/30">
-                      <td className="px-5 py-3 text-sm text-foreground">{exp.description}</td>
-                      <td className="px-5 py-3 text-xs text-muted-foreground capitalize">{exp.category}</td>
-                      <td className="px-5 py-3 text-xs text-muted-foreground">{exp.expense_date}</td>
-                      <td className="px-5 py-3 text-sm font-mono text-right font-semibold">{formatUGX(exp.amount || 0)}</td>
-                      <td className="px-5 py-3"><span className="text-xs px-2 py-0.5 rounded bg-muted text-foreground">{exp.status}</span></td>
-                      <td className="px-5 py-3 text-right"><button className="p-1.5 hover:bg-red-50 rounded-md" onClick={() => deleteExpense(exp.id)}><Trash2 className="w-4 h-4 text-muted-foreground hover:text-red-500" /></button></td>
+              <table className="premium-table">
+                <thead>
+                  <tr>
+                    <th>Description</th>
+                    <th>Category</th>
+                    <th>Date</th>
+                    <th className="text-right">Amount</th>
+                    <th>Status</th>
+                    <th className="text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {loading ? (
+                    <tr><td colSpan={6} className="!py-16 text-center">
+                      <div className="flex flex-col items-center gap-3">
+                        <div className="w-8 h-8 border-2 border-primary/30 border-t-primary rounded-full animate-spin" />
+                        <p className="text-sm text-muted-foreground">Loading expenses...</p>
+                      </div>
+                    </td></tr>
+                  ) : filtered.length === 0 ? (
+                    <tr><td colSpan={6} className="!py-16 text-center">
+                      <div className="w-14 h-14 rounded-2xl bg-muted/40 flex items-center justify-center mx-auto mb-4">
+                        <Receipt className="w-6 h-6 text-muted-foreground/25" />
+                      </div>
+                      <p className="text-sm text-muted-foreground font-medium">No expenses found</p>
+                      <p className="text-xs text-muted-foreground/40 mt-1">Record your first expense to get started</p>
+                    </td></tr>
+                  ) : filtered.map((exp) => (
+                    <tr key={exp.id} className="group">
+                      <td className="font-medium text-foreground">{exp.description}</td>
+                      <td><span className="badge badge-neutral capitalize">{exp.category}</span></td>
+                      <td className="text-muted-foreground text-xs">{exp.expense_date}</td>
+                      <td className="text-right font-mono font-bold tabular-nums">{formatUGX(exp.amount || 0)}</td>
+                      <td>
+                        <span className={`badge ${exp.status === 'approved' ? 'badge-success' : exp.status === 'rejected' ? 'badge-danger' : 'badge-warning'}`}>
+                          {exp.status}
+                        </span>
+                      </td>
+                      <td className="text-right">
+                        <button className="p-1.5 rounded-lg text-muted-foreground/40 hover:text-red-500 hover:bg-red-50 transition-all opacity-0 group-hover:opacity-100" onClick={() => deleteExpense(exp.id)}>
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
+            {filtered.length > 0 && (
+              <div className="px-5 py-3 border-t border-border/20 bg-muted/10">
+                <p className="text-xs text-muted-foreground/50">Showing <span className="font-semibold text-foreground">{filtered.length}</span> of {expenses.length} expenses</p>
+              </div>
+            )}
           </Card>
         </div>
 
         <div className="lg:col-span-1">
-          <Card className="border border-border/50 bg-card p-5">
-            <h3 className="text-sm font-semibold text-foreground mb-4 flex items-center gap-2"><TrendingUp className="w-4 h-4 text-blue-500" />By Category</h3>
-            {expenses.length === 0 ? <p className="text-xs text-muted-foreground/60">No expense data yet</p> : (
-              <div className="space-y-3">
+          <Card className="p-5">
+            <div className="flex items-center gap-2.5 mb-5">
+              <div className="w-8 h-8 rounded-xl bg-blue-500/10 flex items-center justify-center">
+                <TrendingUp className="w-4 h-4 text-blue-500" />
+              </div>
+              <h3 className="text-sm font-semibold text-foreground">By Category</h3>
+            </div>
+            {expenses.length === 0 ? <p className="text-xs text-muted-foreground/50">No expense data yet</p> : (
+              <div className="space-y-4">
                 {categories.map((category) => {
                   const total = expenses.filter((e) => e.category === category).reduce((s, e) => s + Number(e.amount || 0), 0)
                   if (!total) return null
                   const pct = totals.total > 0 ? (total / totals.total) * 100 : 0
                   return (
                     <div key={category}>
-                      <div className="flex items-center justify-between mb-1"><span className="text-xs text-muted-foreground capitalize">{category}</span><span className="text-xs font-semibold text-foreground">{formatUGX(total)}</span></div>
-                      <div className="w-full h-1.5 bg-muted rounded-full overflow-hidden"><div className="h-full rounded-full bg-blue-500" style={{ width: `${pct}%` }} /></div>
-                      <p className="text-[10px] text-muted-foreground/60 mt-0.5">{pct.toFixed(1)}%</p>
+                      <div className="flex items-center justify-between mb-1.5">
+                        <span className="text-xs text-muted-foreground capitalize font-medium">{category}</span>
+                        <span className="text-xs font-bold text-foreground tabular-nums">{formatUGX(total)}</span>
+                      </div>
+                      <div className="w-full h-2 bg-muted/60 rounded-full overflow-hidden">
+                        <div className="h-full rounded-full bg-gradient-to-r from-blue-500 to-blue-400 transition-all duration-700" style={{ width: `${pct}%` }} />
+                      </div>
+                      <p className="text-[10px] text-muted-foreground/40 mt-0.5 tabular-nums">{pct.toFixed(1)}%</p>
                     </div>
                   )
                 })}

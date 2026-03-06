@@ -79,38 +79,55 @@ export default function ModulesPage() {
   const totalStudents = useMemo(() => modules.reduce((sum, module) => sum + studentCount(module.id), 0), [modules, enrollments])
 
   return (
-    <div className="p-6 max-w-7xl mx-auto space-y-6">
+    <div className="p-6 lg:p-8 max-w-[1400px] mx-auto animate-fade-in space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-foreground tracking-tight mb-2">Module Management</h1>
-          <p className="text-muted-foreground">Add modules, auto-generate codes, assign instructors, and track student load</p>
+          <h1 className="text-2xl font-bold text-foreground tracking-tight">Module Management</h1>
+          <p className="text-sm text-muted-foreground mt-0.5">Add modules, auto-generate codes, assign instructors, and track student load</p>
         </div>
       </div>
 
-      <Card className="p-4 border border-border space-y-3">
-        <h2 className="font-semibold">Create module</h2>
+      <Card className="p-5 border border-primary/15 bg-primary/[0.02] space-y-3">
+        <div className="flex items-center gap-2.5 mb-1">
+          <div className="w-8 h-8 rounded-xl bg-primary/10 flex items-center justify-center">
+            <Plus className="w-4 h-4 text-primary" />
+          </div>
+          <div>
+            <h3 className="text-sm font-semibold text-foreground">Create Module</h3>
+            <p className="text-[11px] text-muted-foreground/60">Add a new education module</p>
+          </div>
+        </div>
         <div className="grid md:grid-cols-3 gap-3">
           <Input placeholder="Module name" value={form.module_name} onChange={(e) => setForm({ ...form, module_name: e.target.value })} />
-          <select className="px-3 py-2 border border-border border-input rounded-xl text-sm" value={form.instructor_id} onChange={(e) => setForm({ ...form, instructor_id: e.target.value })}>
+          <select className="form-select" value={form.instructor_id} onChange={(e) => setForm({ ...form, instructor_id: e.target.value })}>
             <option value="">Instructor (optional)</option>
             {employees.map((employee: any) => <option key={employee.id} value={employee.id}>{employee.users?.full_name}</option>)}
           </select>
           <Input type="date" value={form.opening_date} onChange={(e) => setForm({ ...form, opening_date: e.target.value })} />
         </div>
-        <Button onClick={createModule}><Plus className="w-4 h-4 mr-2" />New Module</Button>
+        <div className="pt-3 border-t border-border/30">
+          <Button size="sm" onClick={createModule}><Plus className="w-4 h-4 mr-2" />New Module</Button>
+        </div>
       </Card>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <Card className="p-4 border border-border"><p className="text-sm text-muted-foreground">Total Modules</p><p className="text-2xl font-bold">{modules.length}</p></Card>
-        <Card className="p-4 border border-border"><p className="text-sm text-muted-foreground">Total Students in Modules</p><p className="text-2xl font-bold">{totalStudents}</p></Card>
-        <Card className="p-4 border border-border"><p className="text-sm text-muted-foreground">Credit Units</p><p className="text-2xl font-bold">N/A</p></Card>
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 stagger-children">
+        {[
+          { label: 'Total Modules', value: modules.length },
+          { label: 'Students Enrolled', value: totalStudents },
+          { label: 'Credit Units', value: 'N/A' },
+        ].map(stat => (
+          <Card key={stat.label} className="stat-card p-4">
+            <p className="text-[11px] text-muted-foreground font-medium mb-1">{stat.label}</p>
+            <p className="text-2xl font-bold text-foreground tracking-tight">{stat.value}</p>
+          </Card>
+        ))}
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {modules.map((module) => {
           const run = module.description?.match(/Runs\s(\d{4}-\d{2}-\d{2})\sto\s(\d{4}-\d{2}-\d{2})/)
           return (
-            <Card key={module.id} className="p-6 border border-border">
+            <Card key={module.id} className="p-5">
               <p className="text-sm font-mono text-muted-foreground mb-1">{module.module_code}</p>
               <h3 className="text-lg font-semibold text-foreground">{module.module_name}</h3>
               <div className="space-y-2 mt-4 text-sm text-muted-foreground">

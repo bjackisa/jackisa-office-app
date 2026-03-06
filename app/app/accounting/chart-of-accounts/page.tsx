@@ -55,40 +55,50 @@ export default function ChartOfAccountsPage() {
   })), [accounts])
 
   return (
-    <div className="p-6 lg:p-8 max-w-[1200px] mx-auto space-y-6">
+    <div className="p-6 lg:p-8 max-w-[1200px] mx-auto animate-fade-in space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-foreground tracking-tight mb-1">Chart of Accounts</h1>
-        <p className="text-sm text-muted-foreground">Create and analyze your company ledger accounts.</p>
+        <h1 className="text-2xl font-bold text-foreground tracking-tight">Chart of Accounts</h1>
+        <p className="text-sm text-muted-foreground mt-0.5">Create and analyze your company ledger accounts</p>
       </div>
 
       <div className="grid md:grid-cols-5 gap-3">
         {grouped.map((group) => (
-          <Card key={group.type} className="p-4 border border-border/50">
-            <p className="text-xs uppercase text-muted-foreground">{group.type}</p>
-            <p className="text-xl font-bold text-foreground">{group.count}</p>
-            <p className="text-xs text-muted-foreground">Bal: {group.balance.toLocaleString()}</p>
+          <Card key={group.type} className="stat-card p-4">
+            <p className="text-[11px] uppercase text-muted-foreground font-medium">{group.type}</p>
+            <p className="text-xl font-bold text-foreground tracking-tight">{group.count}</p>
+            <p className="text-[10px] text-muted-foreground/60 font-mono">Bal: {group.balance.toLocaleString()}</p>
           </Card>
         ))}
       </div>
 
-      <Card className="p-5 border border-border/50 space-y-3">
-        <h2 className="text-sm font-semibold">Add Account</h2>
+      <Card className="p-5 border border-primary/15 bg-primary/[0.02] space-y-3">
+        <div className="flex items-center gap-2.5 mb-1">
+          <div className="w-8 h-8 rounded-xl bg-primary/10 flex items-center justify-center">
+            <svg className="w-4 h-4 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6m0 0v6m0-6h6m-6 0H6" /></svg>
+          </div>
+          <div>
+            <h3 className="text-sm font-semibold text-foreground">Add Account</h3>
+            <p className="text-[11px] text-muted-foreground/60">Create a new ledger account</p>
+          </div>
+        </div>
         <div className="grid md:grid-cols-4 gap-3">
           <Input placeholder="Account code (e.g. 1001)" value={form.account_code} onChange={(e) => setForm({ ...form, account_code: e.target.value })} />
           <Input placeholder="Account name" value={form.account_name} onChange={(e) => setForm({ ...form, account_name: e.target.value })} />
-          <select className="px-3 py-2 border border-input rounded-xl" value={form.account_type} onChange={(e) => setForm({ ...form, account_type: e.target.value })}>{accountTypes.map((type) => <option key={type} value={type}>{type}</option>)}</select>
+          <select className="form-select" value={form.account_type} onChange={(e) => setForm({ ...form, account_type: e.target.value })}>{accountTypes.map((type) => <option key={type} value={type}>{type}</option>)}</select>
           <Input placeholder="Currency" value={form.currency} onChange={(e) => setForm({ ...form, currency: e.target.value.toUpperCase() })} />
         </div>
-        <Button onClick={createAccount}>Create Account</Button>
+        <div className="pt-3 border-t border-border/30">
+          <Button size="sm" onClick={createAccount}>Create Account</Button>
+        </div>
       </Card>
 
-      <Card className="border border-border/50 overflow-hidden">
+      <Card className="overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead><tr className="bg-muted/50 border-b text-xs uppercase text-muted-foreground"><th className="px-4 py-3 text-left">Code</th><th className="px-4 py-3 text-left">Name</th><th className="px-4 py-3 text-left">Type</th><th className="px-4 py-3 text-left">Currency</th><th className="px-4 py-3 text-right">Balance</th></tr></thead>
+          <table className="premium-table">
+            <thead><tr><th>Code</th><th>Name</th><th>Type</th><th>Currency</th><th className="text-right">Balance</th></tr></thead>
             <tbody>
-              {accounts.length === 0 ? <tr><td colSpan={5} className="px-4 py-8 text-center text-muted-foreground/60">No accounts yet.</td></tr> : accounts.map((account) => (
-                <tr key={account.id} className="border-b last:border-0"><td className="px-4 py-3 font-mono">{account.account_code}</td><td className="px-4 py-3">{account.account_name}</td><td className="px-4 py-3 capitalize">{account.account_type}</td><td className="px-4 py-3">{account.currency}</td><td className="px-4 py-3 text-right font-mono">{Number(account.balance || 0).toLocaleString()}</td></tr>
+              {accounts.length === 0 ? <tr><td colSpan={5} className="!py-12 text-center text-muted-foreground/60">No accounts yet.</td></tr> : accounts.map((account) => (
+                <tr key={account.id} className="group"><td className="font-mono text-xs text-muted-foreground">{account.account_code}</td><td className="font-medium text-foreground">{account.account_name}</td><td><span className="badge badge-neutral capitalize">{account.account_type}</span></td><td className="text-muted-foreground">{account.currency}</td><td className="text-right font-mono font-bold tabular-nums">{Number(account.balance || 0).toLocaleString()}</td></tr>
               ))}
             </tbody>
           </table>

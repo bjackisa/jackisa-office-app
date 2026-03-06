@@ -17,5 +17,68 @@ export default function DividendsPage() {
   useEffect(()=>{loadData()},[])
   const filtered = dividends.filter((d)=>{const s=!searchQuery||d.dividend_date?.includes(searchQuery); const st=!statusFilter||d.status===statusFilter; return s&&st})
   const addDividend = async () => { if (!companyId || !form.total_amount) return; await supabase.from('dividends').insert({ company_id: companyId, dividend_date: form.dividend_date, total_amount: Number(form.total_amount), status: form.status }); setForm({ dividend_date: new Date().toISOString().split('T')[0], total_amount: '', status: 'pending' }); await loadData() }
-  return <div className="p-6 lg:p-8 max-w-[1100px] mx-auto space-y-6"><h1 className="text-2xl font-bold">Dividends</h1><Card className="p-4 space-y-3"><div className="grid md:grid-cols-3 gap-3"><Input type="date" value={form.dividend_date} onChange={e=>setForm({ ...form, dividend_date: e.target.value })}/><Input type="number" placeholder="Total amount" value={form.total_amount} onChange={e=>setForm({ ...form, total_amount: e.target.value })}/><select className="px-3 py-2 border rounded" value={form.status} onChange={e=>setForm({ ...form, status: e.target.value })}><option value="pending">pending</option><option value="approved">approved</option><option value="paid">paid</option></select></div><Button onClick={addDividend}>Create Dividend</Button></Card><Card className="p-3 border border-border/50"><div className="flex flex-col sm:flex-row gap-3"><div className="relative flex-1"><Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground/60"/><Input className="pl-10" placeholder="Search by date..." value={searchQuery} onChange={e=>setSearchQuery(e.target.value)}/></div><select className="px-3 py-2 border rounded-lg text-sm" value={statusFilter} onChange={e=>setStatusFilter(e.target.value)}><option value="">All Status</option><option value="pending">pending</option><option value="approved">approved</option><option value="paid">paid</option></select></div></Card><Card className="overflow-x-auto"><table className="w-full text-sm"><thead><tr className="bg-muted/50 border-b text-xs uppercase text-muted-foreground"><th className="px-4 py-2 text-left">Date</th><th className="px-4 py-2 text-right">Amount</th><th className="px-4 py-2 text-left">Status</th></tr></thead><tbody>{filtered.length===0?<tr><td colSpan={3} className="px-4 py-8 text-center text-muted-foreground/60">No dividends</td></tr>:filtered.map((d:any)=><tr key={d.id} className="border-b"><td className="px-4 py-2">{d.dividend_date}</td><td className="px-4 py-2 text-right font-mono">{Number(d.total_amount||0).toLocaleString()}</td><td className="px-4 py-2 capitalize">{d.status}</td></tr>)}</tbody></table></Card></div>
+  return (
+    <div className="p-6 lg:p-8 max-w-[1100px] mx-auto animate-fade-in space-y-6">
+      <div>
+        <h1 className="text-2xl font-bold text-foreground tracking-tight">Dividends</h1>
+        <p className="text-sm text-muted-foreground mt-0.5">Manage dividend distributions</p>
+      </div>
+
+      <Card className="p-5 border border-primary/15 bg-primary/[0.02]">
+        <div className="flex items-center gap-2.5 mb-4">
+          <div className="w-8 h-8 rounded-xl bg-primary/10 flex items-center justify-center">
+            <Search className="w-4 h-4 text-primary" />
+          </div>
+          <div>
+            <h3 className="text-sm font-semibold text-foreground">Create Dividend</h3>
+            <p className="text-[11px] text-muted-foreground/60">Record a new dividend distribution</p>
+          </div>
+        </div>
+        <div className="grid md:grid-cols-3 gap-3">
+          <Input type="date" value={form.dividend_date} onChange={e => setForm({ ...form, dividend_date: e.target.value })} />
+          <Input type="number" placeholder="Total amount *" value={form.total_amount} onChange={e => setForm({ ...form, total_amount: e.target.value })} />
+          <select className="form-select" value={form.status} onChange={e => setForm({ ...form, status: e.target.value })}>
+            <option value="pending">Pending</option><option value="approved">Approved</option><option value="paid">Paid</option>
+          </select>
+        </div>
+        <div className="mt-4 pt-4 border-t border-border/30">
+          <Button size="sm" onClick={addDividend}>Create Dividend</Button>
+        </div>
+      </Card>
+
+      <Card className="p-3">
+        <div className="flex flex-col sm:flex-row gap-3">
+          <div className="relative flex-1">
+            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground/40" />
+            <Input className="pl-10" placeholder="Search by date..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)} />
+          </div>
+          <select className="form-select w-auto" value={statusFilter} onChange={e => setStatusFilter(e.target.value)}>
+            <option value="">All Status</option><option value="pending">Pending</option><option value="approved">Approved</option><option value="paid">Paid</option>
+          </select>
+        </div>
+      </Card>
+
+      <Card className="overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="premium-table">
+            <thead><tr><th>Date</th><th className="text-right">Amount</th><th>Status</th></tr></thead>
+            <tbody>
+              {filtered.length === 0 ? (
+                <tr><td colSpan={3} className="!py-16 text-center">
+                  <div className="w-14 h-14 rounded-2xl bg-muted/40 flex items-center justify-center mx-auto mb-4"><Search className="w-6 h-6 text-muted-foreground/25" /></div>
+                  <p className="text-sm text-muted-foreground font-medium">No dividends found</p>
+                </td></tr>
+              ) : filtered.map((d: any) => (
+                <tr key={d.id} className="group">
+                  <td className="text-xs text-muted-foreground whitespace-nowrap">{d.dividend_date}</td>
+                  <td className="text-right font-mono font-bold tabular-nums text-foreground">{Number(d.total_amount || 0).toLocaleString()}</td>
+                  <td><span className={`badge ${d.status === 'paid' ? 'badge-success' : d.status === 'approved' ? 'badge-info' : 'badge-warning'}`}>{d.status}</span></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </Card>
+    </div>
+  )
 }

@@ -95,60 +95,126 @@ export default function AttendancePage() {
   }[status] || 'bg-muted text-foreground')
 
   return (
-    <div className="p-6 max-w-7xl mx-auto">
-      <div className="flex items-center justify-between mb-8">
+    <div className="p-6 lg:p-8 max-w-[1400px] mx-auto animate-fade-in">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
         <div>
-          <h1 className="text-3xl font-bold text-foreground tracking-tight mb-2">Attendance Management</h1>
-          <p className="text-muted-foreground">Track employee attendance and working hours</p>
+          <h1 className="text-2xl font-bold text-foreground tracking-tight">Attendance Management</h1>
+          <p className="text-sm text-muted-foreground mt-0.5">Track employee attendance and working hours</p>
         </div>
-        <Button onClick={() => setShowForm(!showForm)}>
-          <Plus className="w-4 h-4 mr-2" />
+        <Button size="sm" onClick={() => setShowForm(!showForm)}>
+          <Plus className="w-4 h-4 mr-1.5" />
           Record Attendance
         </Button>
       </div>
 
       {showForm && (
-        <Card className="p-4 border border-border mb-6 grid md:grid-cols-5 gap-3">
-          <select className="px-3 py-2 border border-input rounded-xl" value={form.employee_id} onChange={(e) => setForm({ ...form, employee_id: e.target.value })}>
-            <option value="">Select employee</option>
-            {employees.map((e: any) => <option key={e.id} value={e.id}>{e.users?.full_name || 'Unnamed'}</option>)}
-          </select>
-          <select className="px-3 py-2 border border-input rounded-xl" value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })}>
-            <option value="present">Present</option><option value="absent">Absent</option><option value="late">Late</option><option value="leave">Leave</option>
-          </select>
-          <Input type="time" value={form.clock_in} onChange={(e) => setForm({ ...form, clock_in: e.target.value })} />
-          <Input type="time" value={form.clock_out} onChange={(e) => setForm({ ...form, clock_out: e.target.value })} />
-          <Button onClick={handleRecordAttendance}>Save</Button>
+        <Card className="mb-6 p-5 border border-primary/15 bg-primary/[0.02]">
+          <div className="flex items-center gap-2.5 mb-4">
+            <div className="w-8 h-8 rounded-xl bg-primary/10 flex items-center justify-center">
+              <Check className="w-4 h-4 text-primary" />
+            </div>
+            <div>
+              <h3 className="text-sm font-semibold text-foreground">Record Attendance</h3>
+              <p className="text-[11px] text-muted-foreground/60">Log attendance for an employee</p>
+            </div>
+          </div>
+          <div className="grid md:grid-cols-5 gap-3">
+            <select className="form-select" value={form.employee_id} onChange={(e) => setForm({ ...form, employee_id: e.target.value })}>
+              <option value="">Select employee</option>
+              {employees.map((e: any) => <option key={e.id} value={e.id}>{e.users?.full_name || 'Unnamed'}</option>)}
+            </select>
+            <select className="form-select" value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })}>
+              <option value="present">Present</option><option value="absent">Absent</option><option value="late">Late</option><option value="leave">Leave</option>
+            </select>
+            <Input type="time" value={form.clock_in} onChange={(e) => setForm({ ...form, clock_in: e.target.value })} />
+            <Input type="time" value={form.clock_out} onChange={(e) => setForm({ ...form, clock_out: e.target.value })} />
+            <Button size="sm" onClick={handleRecordAttendance}>Save</Button>
+          </div>
         </Card>
       )}
 
-      <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-8">
-        <Card className="p-4 border border-border"><p className="text-sm text-muted-foreground mb-1">Total Employees</p><p className="text-2xl font-bold">{attendanceSummary.total}</p></Card>
-        <Card className="p-4 border border-border bg-green-50"><p className="text-sm mb-1">Present</p><p className="text-2xl font-bold text-green-600">{attendanceSummary.present}</p></Card>
-        <Card className="p-4 border border-border bg-red-50"><p className="text-sm mb-1">Absent</p><p className="text-2xl font-bold text-red-600">{attendanceSummary.absent}</p></Card>
-        <Card className="p-4 border border-border bg-yellow-50"><p className="text-sm mb-1">Late</p><p className="text-2xl font-bold text-yellow-600">{attendanceSummary.late}</p></Card>
-        <Card className="p-4 border border-border"><p className="text-sm mb-1">On Leave</p><p className="text-2xl font-bold text-blue-600">{attendanceSummary.leave}</p></Card>
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6 stagger-children">
+        {[
+          { label: 'Total', value: attendanceSummary.total, gradient: 'from-slate-500 to-slate-600' },
+          { label: 'Present', value: attendanceSummary.present, gradient: 'from-emerald-500 to-green-600' },
+          { label: 'Absent', value: attendanceSummary.absent, gradient: 'from-red-500 to-rose-600' },
+          { label: 'Late', value: attendanceSummary.late, gradient: 'from-amber-500 to-orange-500' },
+          { label: 'On Leave', value: attendanceSummary.leave, gradient: 'from-blue-500 to-blue-600' },
+        ].map(stat => (
+          <Card key={stat.label} className="stat-card p-4">
+            <p className="text-[11px] text-muted-foreground font-medium mb-1">{stat.label}</p>
+            <p className="text-2xl font-bold text-foreground tracking-tight">{stat.value}</p>
+          </Card>
+        ))}
       </div>
 
-      <Card className="p-4 border border-border mb-6 flex flex-wrap items-center gap-4">
-        <div className="flex-1 min-w-48 relative"><Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" /><Input placeholder="Search employee..." className="pl-10" value={search} onChange={(e) => setSearch(e.target.value)} /></div>
-        <input type="date" value={dateFilter} onChange={(e) => setDateFilter(e.target.value)} className="px-3 py-2 border border-border border-input rounded-xl text-sm" />
-        <select className="px-3 py-2 border border-border border-input rounded-xl text-sm" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
-          <option value="">All Status</option><option value="present">Present</option><option value="absent">Absent</option><option value="late">Late</option><option value="leave">On Leave</option>
-        </select>
+      <Card className="p-3 mb-4">
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="flex-1 min-w-48 relative">
+            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground/40" />
+            <Input placeholder="Search employee..." className="pl-10" value={search} onChange={(e) => setSearch(e.target.value)} />
+          </div>
+          <Input type="date" value={dateFilter} onChange={(e) => setDateFilter(e.target.value)} className="w-auto" />
+          <select className="form-select" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
+            <option value="">All Status</option><option value="present">Present</option><option value="absent">Absent</option><option value="late">Late</option><option value="leave">On Leave</option>
+          </select>
+        </div>
       </Card>
 
-      <Card className="border border-border overflow-hidden">
+      <Card className="overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead className="bg-muted/50 border-b border-border"><tr><th className="px-6 py-3 text-left text-sm font-medium">Date</th><th className="px-6 py-3 text-left text-sm font-medium">Employee</th><th className="px-6 py-3 text-left text-sm font-medium">Check In</th><th className="px-6 py-3 text-left text-sm font-medium">Check Out</th><th className="px-6 py-3 text-left text-sm font-medium">Status</th></tr></thead>
+          <table className="premium-table">
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th>Employee</th>
+                <th>Check In</th>
+                <th>Check Out</th>
+                <th>Status</th>
+              </tr>
+            </thead>
             <tbody>
-              {loading ? <tr><td colSpan={5} className="px-6 py-8 text-center text-sm text-muted-foreground/60">Loading attendance...</td></tr> : filtered.length === 0 ? <tr><td colSpan={5} className="px-6 py-8 text-center text-sm text-muted-foreground/60">No attendance records found</td></tr> : filtered.map((record) => (
-                <tr key={record.id} className="border-b border-border"><td className="px-6 py-3">{record.attendance_date}</td><td className="px-6 py-3">{getEmployeeName(record) || 'Unknown'}</td><td className="px-6 py-3">{record.clock_in || '—'}</td><td className="px-6 py-3">{record.clock_out || '—'}</td><td className="px-6 py-3"><span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs ${getStatusColor(record.status)}`}>{record.status === 'present' ? <Check className="w-3 h-3" /> : <X className="w-3 h-3" />} {record.status}</span></td></tr>
+              {loading ? (
+                <tr><td colSpan={5} className="!py-16 text-center">
+                  <div className="flex flex-col items-center gap-3">
+                    <div className="w-8 h-8 border-2 border-primary/30 border-t-primary rounded-full animate-spin" />
+                    <p className="text-sm text-muted-foreground">Loading attendance...</p>
+                  </div>
+                </td></tr>
+              ) : filtered.length === 0 ? (
+                <tr><td colSpan={5} className="!py-16 text-center">
+                  <div className="w-14 h-14 rounded-2xl bg-muted/40 flex items-center justify-center mx-auto mb-4">
+                    <Check className="w-6 h-6 text-muted-foreground/25" />
+                  </div>
+                  <p className="text-sm text-muted-foreground font-medium">No attendance records found</p>
+                  <p className="text-xs text-muted-foreground/40 mt-1">Record attendance above to get started</p>
+                </td></tr>
+              ) : filtered.map((record) => (
+                <tr key={record.id} className="group">
+                  <td className="text-xs text-muted-foreground whitespace-nowrap">{record.attendance_date}</td>
+                  <td className="font-medium text-foreground">{getEmployeeName(record) || 'Unknown'}</td>
+                  <td className="text-muted-foreground font-mono text-xs">{record.clock_in || '—'}</td>
+                  <td className="text-muted-foreground font-mono text-xs">{record.clock_out || '—'}</td>
+                  <td>
+                    <span className={`badge ${
+                      record.status === 'present' ? 'badge-success' :
+                      record.status === 'absent' ? 'badge-danger' :
+                      record.status === 'late' ? 'badge-warning' :
+                      'badge-info'
+                    }`}>
+                      {record.status}
+                    </span>
+                  </td>
+                </tr>
               ))}
             </tbody>
           </table>
         </div>
+        {filtered.length > 0 && (
+          <div className="px-5 py-3 border-t border-border/20 bg-muted/10">
+            <p className="text-xs text-muted-foreground/50">Showing <span className="font-semibold text-foreground">{filtered.length}</span> records</p>
+          </div>
+        )}
       </Card>
     </div>
   )

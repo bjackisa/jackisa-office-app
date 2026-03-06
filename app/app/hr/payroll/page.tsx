@@ -126,7 +126,7 @@ export default function PayrollPage() {
   return (
     <div className="p-6 lg:p-8 max-w-[1400px] mx-auto animate-fade-in">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
         <div>
           <h1 className="text-2xl font-bold text-foreground tracking-tight mb-1">Payroll Management</h1>
           <p className="text-sm text-muted-foreground">Process salaries with automatic PAYE & NSSF calculations</p>
@@ -192,7 +192,7 @@ export default function PayrollPage() {
           <span className="text-xs text-muted-foreground/60">{employees.length} employees</span>
         </div>
         <div className="overflow-x-auto">
-          <table className="w-full">
+          <table className="premium-table">
             <thead>
               <tr className="border-b border-border/30 bg-muted/30">
                 <th className="px-5 py-3 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider">Employee</th>
@@ -203,7 +203,7 @@ export default function PayrollPage() {
                 <th className="px-5 py-3 text-right text-xs font-semibold text-muted-foreground uppercase tracking-wider">Net Pay</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-border/20">
+            <tbody>
               {loading ? (
                 <tr><td colSpan={6} className="px-5 py-12 text-center text-sm text-muted-foreground/60">Loading payroll data...</td></tr>
               ) : filteredPayrollData.length === 0 ? (
@@ -216,8 +216,8 @@ export default function PayrollPage() {
                 </tr>
               ) : (
                 filteredPayrollData.map((emp) => (
-                  <tr key={emp.id} className="hover:bg-muted/30">
-                    <td className="px-5 py-3">
+                  <tr key={emp.id} className="group">
+                    <td>
                       <div className="flex items-center gap-2.5">
                         <div className="w-7 h-7 rounded-full bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center text-[10px] font-bold text-white">
                           {(emp.users?.full_name || '?')[0].toUpperCase()}
@@ -225,7 +225,7 @@ export default function PayrollPage() {
                         <span className="text-sm font-medium text-foreground">{emp.users?.full_name || '—'}</span>
                       </div>
                     </td>
-                    <td className="px-5 py-3 text-sm text-muted-foreground">{emp.company_roles?.name || '—'}</td>
+                    <td className="text-muted-foreground">{emp.company_roles?.name || '—'}</td>
                     <td className="px-5 py-3 text-sm text-foreground text-right font-mono font-medium">{formatUGX(emp.gross)}</td>
                     <td className="px-5 py-3 text-sm text-amber-600 text-right font-mono">-{formatUGX(emp.nssf)}</td>
                     <td className="px-5 py-3 text-sm text-red-500 text-right font-mono">-{formatUGX(emp.paye)}</td>

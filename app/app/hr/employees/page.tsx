@@ -170,17 +170,17 @@ export default function EmployeesPage() {
   return (
     <div className="p-6 lg:p-8 max-w-[1400px] mx-auto animate-fade-in">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-foreground tracking-tight mb-1">Employee Management</h1>
-          <p className="text-sm text-muted-foreground">Manage your team members and their information</p>
+          <h1 className="text-2xl font-bold text-foreground tracking-tight">Employees</h1>
+          <p className="text-sm text-muted-foreground mt-0.5">Manage your team members and their information</p>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" className="text-muted-foreground" onClick={exportEmployees}>
+          <Button variant="outline" size="sm" onClick={exportEmployees}>
             <Download className="w-4 h-4 mr-1.5" />
-            Export
+            Export CSV
           </Button>
-          <Button size="sm" className="bg-primary hover:bg-primary/90" onClick={() => setShowAddForm(!showAddForm)}>
+          <Button size="sm" onClick={() => setShowAddForm(!showAddForm)}>
             <Plus className="w-4 h-4 mr-1.5" />
             Add Employee
           </Button>
@@ -188,20 +188,28 @@ export default function EmployeesPage() {
       </div>
 
       {message && (
-        <div className={`mb-4 px-4 py-3 rounded-lg text-sm font-medium ${
-          message.type === 'success' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-red-50 text-red-600 border border-red-200'
+        <div className={`mb-5 flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium ${
+          message.type === 'success' ? 'bg-emerald-500/10 text-emerald-700 border border-emerald-500/20' : 'bg-red-500/10 text-red-600 border border-red-500/20'
         }`}>
           {message.text}
         </div>
       )}
 
       {showAddForm && (
-        <Card className="mb-6 p-4 border border-primary/20 bg-primary/[0.04]">
-          <h3 className="text-sm font-semibold text-foreground mb-3">Add Employee</h3>
+        <Card className="mb-6 p-5 border border-primary/15 bg-primary/[0.02]">
+          <div className="flex items-center gap-2.5 mb-4">
+            <div className="w-8 h-8 rounded-xl bg-primary/10 flex items-center justify-center">
+              <UserPlus className="w-4 h-4 text-primary" />
+            </div>
+            <div>
+              <h3 className="text-sm font-semibold text-foreground">Add New Employee</h3>
+              <p className="text-[11px] text-muted-foreground/60">Enter details to invite a team member</p>
+            </div>
+          </div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-            <Input placeholder="Employee email *" value={employeeForm.email} onChange={(e) => setEmployeeForm({ ...employeeForm, email: e.target.value })} className="bg-card" />
+            <Input placeholder="Employee email *" value={employeeForm.email} onChange={(e) => setEmployeeForm({ ...employeeForm, email: e.target.value })} />
             <select
-              className="px-3 py-2 border border-border rounded-lg text-sm bg-card"
+              className="form-select"
               value={employeeForm.roleId}
               onChange={(e) => setEmployeeForm({ ...employeeForm, roleId: e.target.value })}
             >
@@ -210,13 +218,13 @@ export default function EmployeesPage() {
                 <option key={role.id} value={role.id}>{role.name}</option>
               ))}
             </select>
-            <Input placeholder="Employee ID" value={employeeForm.employeeIdNumber} onChange={(e) => setEmployeeForm({ ...employeeForm, employeeIdNumber: e.target.value })} className="bg-card" />
-            <Input placeholder="Department" value={employeeForm.department} onChange={(e) => setEmployeeForm({ ...employeeForm, department: e.target.value })} className="bg-card" />
-            <Input placeholder="Position" value={employeeForm.position} onChange={(e) => setEmployeeForm({ ...employeeForm, position: e.target.value })} className="bg-card" />
-            <Input type="number" placeholder="Salary (UGX)" value={employeeForm.salary} onChange={(e) => setEmployeeForm({ ...employeeForm, salary: e.target.value })} className="bg-card" />
-            <Input placeholder="Phone" value={employeeForm.phoneNumber} onChange={(e) => setEmployeeForm({ ...employeeForm, phoneNumber: e.target.value })} className="bg-card md:col-span-2" />
+            <Input placeholder="Employee ID" value={employeeForm.employeeIdNumber} onChange={(e) => setEmployeeForm({ ...employeeForm, employeeIdNumber: e.target.value })} />
+            <Input placeholder="Department" value={employeeForm.department} onChange={(e) => setEmployeeForm({ ...employeeForm, department: e.target.value })} />
+            <Input placeholder="Position" value={employeeForm.position} onChange={(e) => setEmployeeForm({ ...employeeForm, position: e.target.value })} />
+            <Input type="number" placeholder="Salary (UGX)" value={employeeForm.salary} onChange={(e) => setEmployeeForm({ ...employeeForm, salary: e.target.value })} />
+            <Input placeholder="Phone number" value={employeeForm.phoneNumber} onChange={(e) => setEmployeeForm({ ...employeeForm, phoneNumber: e.target.value })} className="md:col-span-2" />
           </div>
-          <div className="mt-3 flex gap-2">
+          <div className="mt-4 flex items-center gap-2 pt-4 border-t border-border/30">
             <Button size="sm" onClick={handleAddEmployee}>Save Employee</Button>
             <Button size="sm" variant="outline" onClick={() => setShowAddForm(false)}>Cancel</Button>
           </div>
@@ -224,21 +232,21 @@ export default function EmployeesPage() {
       )}
 
       {/* Stats */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6 stagger-children">
         {[
-          { label: 'Total', value: employees.length, icon: Users, color: 'text-blue-600', bg: 'bg-blue-50' },
-          { label: 'Active', value: activeCount, icon: UserCheck, color: 'text-emerald-600', bg: 'bg-emerald-50' },
-          { label: 'Pending', value: pendingCount, icon: Mail, color: 'text-amber-600', bg: 'bg-amber-50' },
-          { label: 'Departments', value: departments.length, icon: Building2, color: 'text-violet-600', bg: 'bg-violet-50' },
+          { label: 'Total Employees', value: employees.length, icon: Users, gradient: 'from-blue-500 to-blue-600' },
+          { label: 'Active', value: activeCount, icon: UserCheck, gradient: 'from-emerald-500 to-green-600' },
+          { label: 'Pending Invite', value: pendingCount, icon: Mail, gradient: 'from-amber-500 to-orange-500' },
+          { label: 'Departments', value: departments.length, icon: Building2, gradient: 'from-violet-500 to-purple-600' },
         ].map(stat => (
-          <Card key={stat.label} className="p-4 border border-border/50 bg-card">
+          <Card key={stat.label} className="stat-card p-4">
             <div className="flex items-center gap-3">
-              <div className={`p-2 rounded-lg ${stat.bg}`}>
-                <stat.icon className={`w-4 h-4 ${stat.color}`} />
+              <div className={`w-10 h-10 rounded-xl bg-gradient-to-br ${stat.gradient} flex items-center justify-center shadow-sm flex-shrink-0`}>
+                <stat.icon className="w-4.5 h-4.5 text-white" />
               </div>
               <div>
-                <p className="text-2xl font-bold text-foreground">{stat.value}</p>
-                <p className="text-xs text-muted-foreground">{stat.label}</p>
+                <p className="text-2xl font-bold text-foreground tracking-tight">{stat.value}</p>
+                <p className="text-[11px] text-muted-foreground font-medium">{stat.label}</p>
               </div>
             </div>
           </Card>
@@ -246,33 +254,25 @@ export default function EmployeesPage() {
       </div>
 
       {/* Filters */}
-      <Card className="p-3 border border-border/50 bg-card mb-4">
+      <Card className="p-3 mb-4">
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
           <div className="flex-1 relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground/60" />
+            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground/40" />
             <Input
               placeholder="Search by name or email..."
-              className="pl-10 bg-muted/50 border-border"
+              className="pl-10"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
             />
           </div>
-          <select
-            className="px-3 py-2 border border-border rounded-xl text-sm text-muted-foreground bg-muted/50"
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-          >
+          <select className="form-select" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
             <option value="">All Status</option>
             <option value="active">Active</option>
             <option value="pending_invitation">Pending</option>
             <option value="suspended">Suspended</option>
             <option value="terminated">Terminated</option>
           </select>
-          <select
-            className="px-3 py-2 border border-border rounded-xl text-sm text-muted-foreground bg-muted/50"
-            value={deptFilter}
-            onChange={(e) => setDeptFilter(e.target.value)}
-          >
+          <select className="form-select" value={deptFilter} onChange={(e) => setDeptFilter(e.target.value)}>
             <option value="">All Departments</option>
             {departments.map(d => (
               <option key={d} value={d}>{d}</option>
@@ -282,77 +282,88 @@ export default function EmployeesPage() {
       </Card>
 
       {/* Table */}
-      <Card className="border border-border/50 bg-card overflow-hidden">
+      <Card className="overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full">
+          <table className="premium-table">
             <thead>
-              <tr className="border-b border-border/30 bg-muted/30">
-                <th className="px-5 py-3 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider">Employee</th>
-                <th className="px-5 py-3 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider">Role</th>
-                <th className="px-5 py-3 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider">Department</th>
-                <th className="px-5 py-3 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider">Contact</th>
-                <th className="px-5 py-3 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider">Status</th>
-                <th className="px-5 py-3 text-right text-xs font-semibold text-muted-foreground uppercase tracking-wider">Actions</th>
+              <tr>
+                <th>Employee</th>
+                <th>Role</th>
+                <th>Department</th>
+                <th>Contact</th>
+                <th>Status</th>
+                <th className="text-right">Actions</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-border/20">
+            <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan={6} className="px-5 py-12 text-center text-sm text-muted-foreground/60">Loading employees...</td>
+                  <td colSpan={6} className="!py-16 text-center">
+                    <div className="flex flex-col items-center gap-3">
+                      <div className="w-8 h-8 border-2 border-primary/30 border-t-primary rounded-full animate-spin" />
+                      <p className="text-sm text-muted-foreground">Loading employees...</p>
+                    </div>
+                  </td>
                 </tr>
               ) : filtered.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="px-5 py-12 text-center">
-                    <Users className="w-8 h-8 text-muted-foreground/30 mx-auto mb-3" />
-                    <p className="text-sm text-muted-foreground/60 font-medium">No employees found</p>
+                  <td colSpan={6} className="!py-16 text-center">
+                    <div className="w-14 h-14 rounded-2xl bg-muted/40 flex items-center justify-center mx-auto mb-4">
+                      <Users className="w-6 h-6 text-muted-foreground/25" />
+                    </div>
+                    <p className="text-sm text-muted-foreground font-medium">No employees found</p>
                     <p className="text-xs text-muted-foreground/40 mt-1">Add team members to get started</p>
                   </td>
                 </tr>
               ) : (
                 filtered.map((emp) => (
-                  <tr key={emp.id} className="hover:bg-muted/30 transition-colors group">
-                    <td className="px-5 py-3.5">
+                  <tr key={emp.id} className="group">
+                    <td>
                       <div className="flex items-center gap-3">
                         {emp.users?.avatar_url ? (
-                          <img src={emp.users.avatar_url} alt="" className="w-9 h-9 rounded-full object-cover" />
+                          <img src={emp.users.avatar_url} alt="" className="w-9 h-9 rounded-xl object-cover ring-1 ring-border/30" />
                         ) : (
-                          <div className="w-9 h-9 rounded-full bg-blue-50 flex items-center justify-center text-blue-600 text-xs font-semibold">
+                          <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-primary/10 to-blue-500/10 flex items-center justify-center text-primary text-xs font-bold ring-1 ring-primary/10">
                             {getInitials(emp.users?.full_name || '')}
                           </div>
                         )}
                         <div>
-                          <p className="text-sm font-medium text-foreground">{emp.users?.full_name || 'Unnamed'}</p>
-                          <p className="text-[11px] text-muted-foreground/60">{emp.employee_id_number || 'No ID'}</p>
+                          <p className="text-sm font-semibold text-foreground">{emp.users?.full_name || 'Unnamed'}</p>
+                          <p className="text-[11px] text-muted-foreground/50">{emp.employee_id_number || 'No ID assigned'}</p>
                         </div>
                       </div>
                     </td>
-                    <td className="px-5 py-3.5">
+                    <td>
                       <p className="text-sm text-foreground">{emp.position || emp.company_roles?.name || '—'}</p>
                     </td>
-                    <td className="px-5 py-3.5">
+                    <td>
                       <p className="text-sm text-muted-foreground">{emp.department || '—'}</p>
                     </td>
-                    <td className="px-5 py-3.5">
-                      <div className="space-y-0.5">
+                    <td>
+                      <div className="space-y-1">
                         <p className="text-xs text-muted-foreground flex items-center gap-1.5">
-                          <Mail className="w-3 h-3" />
+                          <Mail className="w-3 h-3 text-muted-foreground/40" />
                           {emp.users?.email || '—'}
                         </p>
                         {emp.phone_number && (
-                          <p className="text-xs text-muted-foreground/60 flex items-center gap-1.5">
-                            <Phone className="w-3 h-3" />
+                          <p className="text-xs text-muted-foreground/50 flex items-center gap-1.5">
+                            <Phone className="w-3 h-3 text-muted-foreground/30" />
                             {emp.phone_number}
                           </p>
                         )}
                       </div>
                     </td>
-                    <td className="px-5 py-3.5">
-                      <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-medium border ${getStatusBadge(emp.status)}`}>
+                    <td>
+                      <span className={`badge ${
+                        emp.status === 'active' ? 'badge-success' :
+                        emp.status === 'pending_invitation' ? 'badge-warning' :
+                        emp.status === 'suspended' ? 'badge-danger' : 'badge-neutral'
+                      }`}>
                         {getStatusLabel(emp.status)}
                       </span>
                     </td>
-                    <td className="px-5 py-3.5 text-right">
-                      <button className="p-1.5 rounded-md text-muted-foreground/60 hover:text-muted-foreground hover:bg-muted transition-colors opacity-0 group-hover:opacity-100">
+                    <td className="text-right">
+                      <button className="p-1.5 rounded-lg text-muted-foreground/40 hover:text-foreground hover:bg-muted/50 transition-all opacity-0 group-hover:opacity-100">
                         <MoreHorizontal className="w-4 h-4" />
                       </button>
                     </td>
@@ -363,8 +374,8 @@ export default function EmployeesPage() {
           </table>
         </div>
         {filtered.length > 0 && (
-          <div className="px-5 py-3 border-t border-border/30 flex items-center justify-between">
-            <p className="text-xs text-muted-foreground/60">Showing {filtered.length} of {employees.length} employees</p>
+          <div className="px-5 py-3 border-t border-border/20 flex items-center justify-between bg-muted/10">
+            <p className="text-xs text-muted-foreground/50">Showing <span className="font-semibold text-foreground">{filtered.length}</span> of {employees.length} employees</p>
           </div>
         )}
       </Card>

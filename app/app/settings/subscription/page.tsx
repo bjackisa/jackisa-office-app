@@ -97,41 +97,38 @@ export default function SubscriptionPage() {
   }
 
   return (
-    <div className="p-6 max-w-6xl mx-auto">
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-foreground tracking-tight mb-2">Subscription & Billing</h1>
-        <p className="text-muted-foreground">Manage your Jackisa Office subscription</p>
+    <div className="p-6 lg:p-8 max-w-6xl mx-auto animate-fade-in">
+      <div className="mb-6">
+        <h1 className="text-2xl font-bold text-foreground tracking-tight">Subscription & Billing</h1>
+        <p className="text-muted-foreground text-sm mt-0.5">Manage your Jackisa Office subscription</p>
       </div>
 
       {/* Current Subscription */}
       {subscription && (
-        <Card className="p-6 border border-border mb-8">
+        <Card className="p-5 border border-primary/15 bg-primary/[0.02] mb-6">
           <div className="flex items-start justify-between">
             <div>
-              <h2 className="text-lg font-semibold text-foreground mb-2">Current Plan</h2>
+              <h2 className="text-sm font-semibold text-foreground mb-3">Current Plan</h2>
               <div className="space-y-2">
-                <p className="text-foreground">
+                <p className="text-sm text-foreground">
                   <span className="font-medium capitalize">{subscription.billing_cycle}</span> billing cycle
                 </p>
-                <p className="text-sm text-muted-foreground">
-                  Renewal date: {new Date(subscription.end_date).toLocaleDateString()}
+                <p className="text-xs text-muted-foreground">
+                  Renewal: {new Date(subscription.end_date).toLocaleDateString()}
                 </p>
-                <div className="flex items-center gap-2 pt-2">
-                  <div className={`w-2 h-2 rounded-full ${subscription.status === 'active' ? 'bg-green-500' : 'bg-red-500'}`} />
-                  <span className="text-sm font-medium text-foreground capitalize">
-                    {subscription.status}
-                  </span>
-                </div>
+                <span className={`badge ${subscription.status === 'active' ? 'badge-success' : 'badge-danger'}`}>
+                  {subscription.status}
+                </span>
               </div>
             </div>
-            <Button variant="outline">Change Plan</Button>
+            <Button variant="outline" size="sm">Change Plan</Button>
           </div>
         </Card>
       )}
 
       {/* Plans Comparison */}
-      <div className="mb-8">
-        <h2 className="text-2xl font-bold text-foreground tracking-tight mb-6">Choose Your Plan</h2>
+      <div className="mb-6">
+        <h2 className="text-lg font-bold text-foreground tracking-tight mb-4">Choose Your Plan</h2>
         <div className="grid md:grid-cols-3 gap-6">
           {plans.map((plan) => {
             const isCurrentPlan = subscription?.plan_id === plan.id
@@ -186,7 +183,7 @@ export default function SubscriptionPage() {
       </div>
 
       {/* Billing Information */}
-      <Card className="p-6 border border-border">
+      <Card className="p-5">
         <h2 className="text-lg font-semibold text-foreground mb-4">Billing Information</h2>
         <div className="space-y-4">
           <div>

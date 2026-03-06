@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -80,20 +80,29 @@ export default function VATPage() {
   const qPurchases = parseFloat(calcPurchases) || 0
   const qCalc = calcVAT(qSales, qPurchases)
 
+  const filtered = useMemo(() => {
+    const q = searchQuery.toLowerCase()
+    return records.filter(r => {
+      if (!q) return true
+      const period = r.period_start ? new Date(r.period_start).toLocaleDateString('en-US', { month: 'short', year: 'numeric' }).toLowerCase() : ''
+      return period.includes(q) || (r.status || '').toLowerCase().includes(q)
+    })
+  }, [records, searchQuery])
+
   return (
     <div className="p-6 lg:p-8 max-w-[1400px] mx-auto animate-fade-in">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-foreground tracking-tight mb-1">VAT Management</h1>
-          <p className="text-sm text-muted-foreground">Calculate and track VAT for Uganda (18% standard rate)</p>
+          <h1 className="text-2xl font-bold text-foreground tracking-tight">VAT Management</h1>
+          <p className="text-sm text-muted-foreground mt-0.5">Calculate and track VAT for Uganda (18% standard rate)</p>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" className="text-muted-foreground">
+          <Button variant="outline" size="sm">
             <Download className="w-4 h-4 mr-1.5" />
             Export
           </Button>
-          <Button size="sm" className="bg-primary hover:bg-primary/90">
+          <Button size="sm">
             <Plus className="w-4 h-4 mr-1.5" />
             New VAT Period
           </Button>
@@ -101,57 +110,66 @@ export default function VATPage() {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6 stagger-children">
         {[
-          { label: 'Total Output VAT', value: formatUGX(totalOutput), icon: TrendingUp, color: 'text-blue-600', bg: 'bg-blue-50' },
-          { label: 'Total Input VAT', value: formatUGX(totalInput), icon: TrendingDown, color: 'text-emerald-600', bg: 'bg-emerald-50' },
-          { label: 'Net VAT Payable', value: formatUGX(totalNet), icon: DollarSign, color: totalNet >= 0 ? 'text-red-600' : 'text-emerald-600', bg: totalNet >= 0 ? 'bg-red-50' : 'bg-emerald-50' },
-          { label: 'VAT Rate', value: '18%', icon: Percent, color: 'text-foreground', bg: 'bg-muted/50' },
+          { label: 'Output VAT', value: formatUGX(totalOutput), icon: TrendingUp, gradient: 'from-blue-500 to-blue-600' },
+          { label: 'Input VAT', value: formatUGX(totalInput), icon: TrendingDown, gradient: 'from-emerald-500 to-green-600' },
+          { label: 'Net Payable', value: formatUGX(totalNet), icon: DollarSign, gradient: totalNet >= 0 ? 'from-red-500 to-rose-600' : 'from-emerald-500 to-green-600' },
+          { label: 'VAT Rate', value: '18%', icon: Percent, gradient: 'from-slate-500 to-slate-600' },
         ].map(stat => (
-          <Card key={stat.label} className="p-4 border border-border/50 bg-card">
+          <Card key={stat.label} className="stat-card p-4">
             <div className="flex items-center gap-3">
-              <div className={`p-2 rounded-lg ${stat.bg}`}>
-                <stat.icon className={`w-4 h-4 ${stat.color}`} />
+              <div className={`w-10 h-10 rounded-xl bg-gradient-to-br ${stat.gradient} flex items-center justify-center shadow-sm flex-shrink-0`}>
+                <stat.icon className="w-4.5 h-4.5 text-white" />
               </div>
               <div className="min-w-0">
-                <p className="text-lg font-bold text-foreground truncate">{stat.value}</p>
-                <p className="text-xs text-muted-foreground">{stat.label}</p>
+                <p className="text-lg font-bold text-foreground truncate tracking-tight">{stat.value}</p>
+                <p className="text-[11px] text-muted-foreground font-medium">{stat.label}</p>
               </div>
             </div>
           </Card>
         ))}
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
         {/* VAT Records Table */}
-      <Card className="p-3 border border-border/50"><Input placeholder="Search period or status..." value={searchQuery} onChange={(e)=>setSearchQuery(e.target.value)} /></Card>
-        <div className="lg:col-span-2">
-          <Card className="border border-border/50 bg-card overflow-hidden">
+        <div className="lg:col-span-2 space-y-4">
+          <Card className="p-3">
+            <Input placeholder="Search period or status..." value={searchQuery} onChange={(e)=>setSearchQuery(e.target.value)} />
+          </Card>
+          <Card className="overflow-hidden">
             <div className="px-5 py-4 border-b border-border/30 flex items-center justify-between">
               <h3 className="text-sm font-semibold text-foreground">VAT Period Records</h3>
-              <span className="text-xs text-muted-foreground/60">{records.length} records</span>
+              <span className="badge badge-neutral">{records.length} records</span>
             </div>
             <div className="overflow-x-auto">
-              <table className="w-full">
+              <table className="premium-table">
                 <thead>
-                  <tr className="border-b border-border/30 bg-muted/30">
-                    <th className="px-5 py-3 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider">Period</th>
-                    <th className="px-5 py-3 text-right text-xs font-semibold text-muted-foreground uppercase tracking-wider">Sales</th>
-                    <th className="px-5 py-3 text-right text-xs font-semibold text-muted-foreground uppercase tracking-wider">Output VAT</th>
-                    <th className="px-5 py-3 text-right text-xs font-semibold text-muted-foreground uppercase tracking-wider">Purchases</th>
-                    <th className="px-5 py-3 text-right text-xs font-semibold text-muted-foreground uppercase tracking-wider">Input VAT</th>
-                    <th className="px-5 py-3 text-right text-xs font-semibold text-muted-foreground uppercase tracking-wider">Net VAT</th>
-                    <th className="px-5 py-3 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider">Status</th>
+                  <tr>
+                    <th>Period</th>
+                    <th className="text-right">Sales</th>
+                    <th className="text-right">Output VAT</th>
+                    <th className="text-right">Purchases</th>
+                    <th className="text-right">Input VAT</th>
+                    <th className="text-right">Net VAT</th>
+                    <th>Status</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-border/20">
+                <tbody>
                   {loading ? (
-                    <tr><td colSpan={7} className="px-5 py-12 text-center text-sm text-muted-foreground/60">Loading VAT records...</td></tr>
+                    <tr><td colSpan={7} className="!py-16 text-center">
+                      <div className="flex flex-col items-center gap-3">
+                        <div className="w-8 h-8 border-2 border-primary/30 border-t-primary rounded-full animate-spin" />
+                        <p className="text-sm text-muted-foreground">Loading VAT records...</p>
+                      </div>
+                    </td></tr>
                   ) : filtered.length === 0 ? (
                     <tr>
-                      <td colSpan={7} className="px-5 py-12 text-center">
-                        <Percent className="w-8 h-8 text-muted-foreground/30 mx-auto mb-3" />
-                        <p className="text-sm text-muted-foreground/60 font-medium">No VAT records yet</p>
+                      <td colSpan={7} className="!py-16 text-center">
+                        <div className="w-14 h-14 rounded-2xl bg-muted/40 flex items-center justify-center mx-auto mb-4">
+                          <Percent className="w-6 h-6 text-muted-foreground/25" />
+                        </div>
+                        <p className="text-sm text-muted-foreground font-medium">No VAT records yet</p>
                         <p className="text-xs text-muted-foreground/40 mt-1">Create a VAT period to start tracking</p>
                       </td>
                     </tr>
@@ -160,19 +178,23 @@ export default function VATPage() {
                       const vat = calcVAT(r.total_sales || 0, r.total_purchases || 0)
                       const cfg = statusCfg[r.status] || statusCfg.draft
                       return (
-                        <tr key={r.id} className="hover:bg-muted/30">
-                          <td className="px-5 py-3 text-sm font-medium text-foreground">
+                        <tr key={r.id} className="group">
+                          <td className="font-medium text-foreground whitespace-nowrap">
                             {r.period_start ? new Date(r.period_start).toLocaleDateString('en-US', { month: 'short', year: 'numeric' }) : '—'}
                           </td>
-                          <td className="px-5 py-3 text-sm text-muted-foreground text-right font-mono">{formatUGX(r.total_sales || 0)}</td>
-                          <td className="px-5 py-3 text-sm text-blue-600 text-right font-mono font-medium">{formatUGX(vat.outputVAT)}</td>
-                          <td className="px-5 py-3 text-sm text-muted-foreground text-right font-mono">{formatUGX(r.total_purchases || 0)}</td>
-                          <td className="px-5 py-3 text-sm text-emerald-600 text-right font-mono font-medium">{formatUGX(vat.inputVAT)}</td>
-                          <td className={`px-5 py-3 text-sm text-right font-mono font-bold ${vat.netVAT >= 0 ? 'text-red-600' : 'text-emerald-600'}`}>
+                          <td className="text-right font-mono text-muted-foreground tabular-nums">{formatUGX(r.total_sales || 0)}</td>
+                          <td className="text-right font-mono text-blue-600 font-medium tabular-nums">{formatUGX(vat.outputVAT)}</td>
+                          <td className="text-right font-mono text-muted-foreground tabular-nums">{formatUGX(r.total_purchases || 0)}</td>
+                          <td className="text-right font-mono text-emerald-600 font-medium tabular-nums">{formatUGX(vat.inputVAT)}</td>
+                          <td className={`text-right font-mono font-bold tabular-nums ${vat.netVAT >= 0 ? 'text-red-600' : 'text-emerald-600'}`}>
                             {formatUGX(vat.netVAT)}
                           </td>
-                          <td className="px-5 py-3">
-                            <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-medium border ${cfg.bg} ${cfg.text} ${cfg.border}`}>
+                          <td>
+                            <span className={`badge ${
+                              r.status === 'filed' ? 'badge-success' :
+                              r.status === 'pending' ? 'badge-warning' :
+                              r.status === 'overdue' ? 'badge-danger' : 'badge-neutral'
+                            }`}>
                               {cfg.label}
                             </span>
                           </td>
@@ -183,6 +205,11 @@ export default function VATPage() {
                 </tbody>
               </table>
             </div>
+            {filtered.length > 0 && (
+              <div className="px-5 py-3 border-t border-border/20 bg-muted/10">
+                <p className="text-xs text-muted-foreground/50">Showing <span className="font-semibold text-foreground">{filtered.length}</span> records</p>
+              </div>
+            )}
           </Card>
         </div>
 

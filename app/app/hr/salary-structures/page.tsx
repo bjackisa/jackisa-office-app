@@ -71,14 +71,22 @@ export default function SalaryStructuresPage() {
   return (
     <div className="p-6 lg:p-8 max-w-[1200px] mx-auto space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-foreground tracking-tight mb-1">Salary Structures</h1>
-        <p className="text-sm text-muted-foreground">Create and maintain employee salary structures from the database.</p>
+        <h1 className="text-2xl font-bold text-foreground tracking-tight">Salary Structures</h1>
+        <p className="text-sm text-muted-foreground mt-0.5">Create and maintain employee salary structures</p>
       </div>
 
-      <Card className="p-5 border border-border/50 space-y-4">
-        <h2 className="text-sm font-semibold flex items-center gap-2"><Plus className="w-4 h-4" /> Add Salary Structure</h2>
+      <Card className="p-5 border border-primary/15 bg-primary/[0.02] space-y-4">
+        <div className="flex items-center gap-2.5 mb-1">
+          <div className="w-8 h-8 rounded-xl bg-primary/10 flex items-center justify-center">
+            <Plus className="w-4 h-4 text-primary" />
+          </div>
+          <div>
+            <h3 className="text-sm font-semibold text-foreground">Add Salary Structure</h3>
+            <p className="text-[11px] text-muted-foreground/60">Define salary components for an employee</p>
+          </div>
+        </div>
         <div className="grid md:grid-cols-3 gap-3">
-          <select className="px-3 py-2 border rounded-lg text-sm" value={form.employee_id} onChange={(e) => setForm({ ...form, employee_id: e.target.value })}>
+          <select className="form-select" value={form.employee_id} onChange={(e) => setForm({ ...form, employee_id: e.target.value })}>
             <option value="">Select employee</option>
             {employees.map((employee: any) => <option key={employee.id} value={employee.id}>{employee.users?.full_name || 'Unnamed'}</option>)}
           </select>
@@ -88,22 +96,30 @@ export default function SalaryStructuresPage() {
           <Input type="number" placeholder="Transport allowance" value={form.transport_allowance} onChange={(e) => setForm({ ...form, transport_allowance: e.target.value })} />
           <Input type="number" placeholder="Medical allowance" value={form.medical_allowance} onChange={(e) => setForm({ ...form, medical_allowance: e.target.value })} />
         </div>
-        <Button onClick={saveStructure} className="bg-primary hover:bg-primary/90">Save Structure</Button>
+        <div className="pt-3 border-t border-border/30">
+          <Button size="sm" onClick={saveStructure}>Save Structure</Button>
+        </div>
       </Card>
 
-      <Card className="p-3 border border-border/50"><div className="relative"><Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground/60"/><Input className="pl-10" placeholder="Search employee..." value={searchQuery} onChange={(e)=>setSearchQuery(e.target.value)} /></div></Card><Card className="border border-border/50 overflow-hidden">
-        <div className="px-5 py-4 border-b bg-muted/50/60"><h2 className="text-sm font-semibold text-foreground flex items-center gap-2"><Wallet className="w-4 h-4" /> Current Salary Structures</h2></div>
+      <Card className="p-3">
+        <div className="relative">
+          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground/40" />
+          <Input className="pl-10" placeholder="Search employee..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
+        </div>
+      </Card>
+
+      <Card className="overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead><tr className="border-b text-xs text-muted-foreground uppercase"><th className="px-5 py-3 text-left">Employee</th><th className="px-5 py-3 text-right">Basic</th><th className="px-5 py-3 text-right">Allowances</th><th className="px-5 py-3 text-right">Total</th><th className="px-5 py-3 text-left">Effective</th></tr></thead>
+          <table className="premium-table">
+            <thead><tr><th>Employee</th><th className="text-right">Basic</th><th className="text-right">Allowances</th><th className="text-right">Total</th><th>Effective</th></tr></thead>
             <tbody>
-              {loading ? <tr><td colSpan={5} className="px-5 py-10 text-center text-sm text-muted-foreground/60">Loading salary structures...</td></tr> : filtered.length === 0 ? <tr><td colSpan={5} className="px-5 py-10 text-center text-sm text-muted-foreground/60">No salary structures found.</td></tr> : filtered.map((row: any) => (
-                <tr key={row.id} className="border-b last:border-0 text-sm">
-                  <td className="px-5 py-3">{row.company_employees?.users?.full_name || 'Unknown'}</td>
-                  <td className="px-5 py-3 text-right">{Number(row.basic_salary || 0).toLocaleString()}</td>
-                  <td className="px-5 py-3 text-right">{(Number(row.housing_allowance || 0) + Number(row.transport_allowance || 0) + Number(row.medical_allowance || 0)).toLocaleString()}</td>
-                  <td className="px-5 py-3 text-right font-semibold">{total(row).toLocaleString()}</td>
-                  <td className="px-5 py-3">{row.effective_from}</td>
+              {loading ? <tr><td colSpan={5} className="!py-12 text-center text-muted-foreground/60">Loading...</td></tr> : filtered.length === 0 ? <tr><td colSpan={5} className="!py-12 text-center text-muted-foreground/60">No salary structures found.</td></tr> : filtered.map((row: any) => (
+                <tr key={row.id} className="group">
+                  <td className="font-medium text-foreground">{row.company_employees?.users?.full_name || 'Unknown'}</td>
+                  <td className="text-right font-mono tabular-nums">{Number(row.basic_salary || 0).toLocaleString()}</td>
+                  <td className="text-right font-mono tabular-nums text-muted-foreground">{(Number(row.housing_allowance || 0) + Number(row.transport_allowance || 0) + Number(row.medical_allowance || 0)).toLocaleString()}</td>
+                  <td className="text-right font-mono font-bold tabular-nums text-foreground">{total(row).toLocaleString()}</td>
+                  <td className="text-xs text-muted-foreground">{row.effective_from}</td>
                 </tr>
               ))}
             </tbody>

@@ -184,21 +184,27 @@ export default function DashboardPage() {
 
   return (
     <div className="p-6 lg:p-8 max-w-[1400px] mx-auto animate-fade-in">
-      {/* Welcome Header */}
-      <div className="mb-8">
-        <div className="flex items-start justify-between">
-          <div>
-            <h1 className="text-2xl font-bold text-foreground mb-1 tracking-tight">
-              {greeting}, {userName || 'there'}
-            </h1>
-            <p className="text-muted-foreground text-sm">
-              Here&apos;s what&apos;s happening with your business today.
-            </p>
-          </div>
-          <div className="hidden md:flex items-center gap-2 px-3 py-1.5 rounded-xl bg-muted/50 border border-border/50">
-            <span className="text-xs text-muted-foreground font-medium">
-              {new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
-            </span>
+      {/* Welcome Banner */}
+      <div className="relative mb-8 rounded-2xl bg-gradient-to-br from-primary/[0.07] via-blue-500/[0.04] to-violet-500/[0.06] border border-primary/[0.08] p-6 lg:p-8 overflow-hidden">
+        <div className="absolute top-0 right-0 w-64 h-64 bg-gradient-to-bl from-primary/[0.06] to-transparent rounded-full blur-3xl -mr-20 -mt-20" />
+        <div className="relative">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div>
+              <p className="text-xs font-semibold text-primary/70 uppercase tracking-wider mb-1.5">{new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}</p>
+              <h1 className="text-2xl lg:text-2xl font-bold text-foreground tracking-tight">
+                {greeting}, {userName || 'there'}
+              </h1>
+              <p className="text-muted-foreground text-sm mt-1.5">
+                Here&apos;s an overview of your business today.
+              </p>
+            </div>
+            <Link
+              href="/app/hr/employees"
+              className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-primary text-white text-sm font-semibold hover:bg-primary/90 transition-all duration-200 shadow-glow-primary whitespace-nowrap self-start"
+            >
+              <UserPlus className="w-4 h-4" />
+              Add Team Member
+            </Link>
           </div>
         </div>
       </div>
@@ -208,18 +214,18 @@ export default function DashboardPage() {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8 stagger-children">
           {statCards.map((stat) => (
             <Link key={stat.title} href={stat.href}>
-              <Card className="p-5 hover:shadow-elevated hover:border-border transition-all duration-300 cursor-pointer group hover-lift">
-                <div className="flex items-start justify-between mb-4">
-                  <div className={`p-2.5 rounded-2xl ${stat.bgLight}`}>
-                    <stat.icon className={`w-5 h-5 ${stat.textColor}`} />
+              <Card className="stat-card p-5 hover:shadow-float transition-all duration-300 cursor-pointer group" style={{ '--tw-shadow-color': 'transparent' } as React.CSSProperties}>
+                <div className="flex items-start justify-between mb-3">
+                  <div className={`w-11 h-11 rounded-xl bg-gradient-to-br ${stat.color} flex items-center justify-center shadow-sm`}>
+                    <stat.icon className="w-5 h-5 text-white" />
                   </div>
-                  <ChevronRight className="w-4 h-4 text-muted-foreground/30 group-hover:text-muted-foreground/60 group-hover:translate-x-0.5 transition-all duration-200" />
+                  <ArrowUpRight className="w-4 h-4 text-muted-foreground/20 group-hover:text-primary/50 group-hover:-translate-y-0.5 group-hover:translate-x-0.5 transition-all duration-300" />
                 </div>
-                <p className="text-2xl font-bold text-foreground mb-0.5 tracking-tight">{stat.value}</p>
-                <div className="flex items-center justify-between">
+                <p className="text-2xl font-bold text-foreground tracking-tight">{stat.value}</p>
+                <div className="flex items-center justify-between mt-1">
                   <p className="text-xs text-muted-foreground font-medium">{stat.title}</p>
                   {stat.change && (
-                    <span className="text-[11px] text-muted-foreground/60">{stat.change}</span>
+                    <span className="text-[10px] text-muted-foreground/50 bg-muted/50 px-1.5 py-0.5 rounded-md">{stat.change}</span>
                   )}
                 </div>
               </Card>
@@ -228,146 +234,146 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {/* Main Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
-        {/* Quick Actions */}
-        <div className="lg:col-span-2">
-          <Card className="overflow-hidden">
-            <div className="px-6 py-4 border-b border-border/50 flex items-center justify-between">
-              <div className="flex items-center gap-2.5">
-                <div className="p-1.5 rounded-lg bg-amber-500/10">
-                  <Zap className="w-4 h-4 text-amber-500" />
+      {/* Quick Actions Strip */}
+      <div className="mb-6">
+        <div className="flex items-center gap-2.5 mb-4">
+          <Zap className="w-4 h-4 text-amber-500" />
+          <h2 className="text-sm font-semibold text-foreground">Quick Actions</h2>
+        </div>
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 stagger-children">
+          {quickActions.map((action) => (
+            <Link key={action.label} href={action.href}>
+              <div className="relative p-4 rounded-2xl border border-border/40 hover:border-primary/20 hover:shadow-soft bg-card transition-all duration-300 cursor-pointer group text-center">
+                <div className={`w-10 h-10 rounded-xl ${action.color} flex items-center justify-center mx-auto mb-2.5 shadow-sm group-hover:scale-105 transition-transform duration-300`}>
+                  <action.icon className="w-4.5 h-4.5 text-white" />
                 </div>
-                <h2 className="text-sm font-semibold text-foreground">Quick Actions</h2>
+                <p className="text-[13px] font-semibold text-foreground leading-tight">{action.label}</p>
+                <p className="text-[10px] text-muted-foreground/50 mt-0.5 leading-tight">{action.desc}</p>
               </div>
+            </Link>
+          ))}
+        </div>
+      </div>
+
+      {/* Main Grid: Activity + Side Cards */}
+      <div className="grid grid-cols-1 lg:grid-cols-5 gap-5">
+        {/* Recent Activity */}
+        <div className="lg:col-span-3">
+          <Card className="overflow-hidden">
+            <div className="px-5 py-4 border-b border-border/40 flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-xl bg-primary/[0.08] flex items-center justify-center">
+                  <Activity className="w-4 h-4 text-primary" />
+                </div>
+                <div>
+                  <h2 className="text-sm font-semibold text-foreground">Recent Activity</h2>
+                  <p className="text-[10px] text-muted-foreground/50">Latest events from your workspace</p>
+                </div>
+              </div>
+              <span className="badge badge-neutral">{recentActivity.length} events</span>
             </div>
-            <div className="p-4">
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-3 stagger-children">
-                {quickActions.map((action) => (
-                  <Link key={action.label} href={action.href}>
-                    <div className="p-4 rounded-2xl border border-border/40 hover:border-border hover:shadow-soft bg-muted/30 hover:bg-card transition-all duration-300 cursor-pointer group">
-                      <div className={`w-10 h-10 rounded-xl ${action.color} flex items-center justify-center mb-3 shadow-sm`}>
-                        <action.icon className="w-4.5 h-4.5 text-white" />
+            <div className="divide-y divide-border/20">
+              {recentActivity.length > 0 ? (
+                recentActivity.map((log, idx) => {
+                  const colors = ['bg-blue-500/10 text-blue-500', 'bg-emerald-500/10 text-emerald-500', 'bg-amber-500/10 text-amber-500', 'bg-violet-500/10 text-violet-500']
+                  const colorClass = colors[idx % colors.length]
+                  return (
+                    <div key={log.id} className="px-5 py-3.5 flex items-center gap-3.5 hover:bg-muted/20 transition-colors duration-150">
+                      <div className={`w-9 h-9 rounded-xl ${colorClass.split(' ')[0]} flex items-center justify-center flex-shrink-0`}>
+                        <Activity className={`w-4 h-4 ${colorClass.split(' ')[1]}`} />
                       </div>
-                      <p className="text-sm font-semibold text-foreground group-hover:text-foreground">{action.label}</p>
-                      <p className="text-[11px] text-muted-foreground/60 mt-0.5">{action.desc}</p>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm text-foreground font-medium truncate">{log.action}</p>
+                        <p className="text-[11px] text-muted-foreground/50">{log.resource_type || 'System'}</p>
+                      </div>
+                      <span className="text-[11px] text-muted-foreground/40 flex-shrink-0 tabular-nums">{formatTimeAgo(log.created_at)}</span>
                     </div>
-                  </Link>
-                ))}
-              </div>
+                  )
+                })
+              ) : (
+                <div className="px-6 py-16 text-center">
+                  <div className="w-14 h-14 rounded-2xl bg-muted/40 flex items-center justify-center mx-auto mb-4">
+                    <Activity className="w-6 h-6 text-muted-foreground/25" />
+                  </div>
+                  <p className="text-sm text-muted-foreground font-medium">No recent activity</p>
+                  <p className="text-xs text-muted-foreground/40 mt-1">Activity from your team will appear here</p>
+                </div>
+              )}
             </div>
           </Card>
         </div>
 
-        {/* Subscription & Storage */}
-        <div className="space-y-4">
-          {/* Subscription Card */}
+        {/* Side Cards */}
+        <div className="lg:col-span-2 space-y-5">
+          {/* Subscription */}
           <Card className="overflow-hidden">
             <div className="p-5">
-              <div className="flex items-center gap-2.5 mb-4">
-                <div className="p-1.5 rounded-lg bg-primary/10">
-                  <CreditCard className="w-4 h-4 text-primary" />
+              <div className="flex items-center justify-between mb-5">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-primary to-blue-600 flex items-center justify-center shadow-sm">
+                    <CreditCard className="w-4 h-4 text-white" />
+                  </div>
+                  <h2 className="text-sm font-semibold text-foreground">Subscription</h2>
                 </div>
-                <h2 className="text-sm font-semibold text-foreground">Subscription</h2>
+                <span className={`badge ${stats.activeSubscription ? 'badge-success' : 'badge-danger'}`}>
+                  {stats.activeSubscription ? 'Active' : 'Inactive'}
+                </span>
               </div>
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs text-muted-foreground">Plan</span>
-                  <span className={`text-xs font-semibold px-2.5 py-1 rounded-lg ${
-                    stats.activeSubscription
-                      ? 'bg-emerald-500/10 text-emerald-600'
-                      : 'bg-red-500/10 text-red-500'
-                  }`}>
+              <div className="space-y-3 mb-5">
+                <div className="flex items-center justify-between p-3 rounded-xl bg-muted/30">
+                  <span className="text-xs text-muted-foreground">Current Plan</span>
+                  <span className="text-xs font-bold text-foreground">
                     {stats.subscriptionTier
                       ? stats.subscriptionTier.charAt(0).toUpperCase() + stats.subscriptionTier.slice(1)
                       : 'None'}
                   </span>
                 </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-xs text-muted-foreground">Status</span>
-                  <span className="flex items-center gap-1.5">
-                    <span className={`w-2 h-2 rounded-full ${stats.activeSubscription ? 'bg-emerald-500' : 'bg-red-500'}`} />
-                    <span className="text-xs font-medium text-foreground">{stats.activeSubscription ? 'Active' : 'Inactive'}</span>
-                  </span>
+                <div className="flex items-center justify-between p-3 rounded-xl bg-muted/30">
+                  <span className="text-xs text-muted-foreground">Team Size</span>
+                  <span className="text-xs font-bold text-foreground">{stats.totalEmployees} members</span>
                 </div>
               </div>
               <Link
                 href="/app/settings/subscription"
-                className="mt-4 block w-full text-center px-4 py-2.5 rounded-xl bg-primary text-white text-xs font-semibold hover:bg-primary/90 transition-all duration-200 shadow-sm"
+                className="block w-full text-center px-4 py-2.5 rounded-xl bg-primary text-white text-xs font-semibold hover:bg-primary/90 transition-all duration-200 shadow-glow-primary"
               >
-                Manage Subscription
+                Manage Plan
               </Link>
             </div>
           </Card>
 
-          {/* Storage Card */}
+          {/* Storage */}
           <Card className="overflow-hidden">
             <div className="p-5">
-              <div className="flex items-center gap-2.5 mb-4">
-                <div className="p-1.5 rounded-lg bg-violet-500/10">
-                  <HardDrive className="w-4 h-4 text-violet-500" />
+              <div className="flex items-center gap-2.5 mb-5">
+                <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center shadow-sm">
+                  <HardDrive className="w-4 h-4 text-white" />
                 </div>
-                <h2 className="text-sm font-semibold text-foreground">Storage</h2>
+                <div className="flex-1 min-w-0">
+                  <h2 className="text-sm font-semibold text-foreground">Storage</h2>
+                  <p className="text-[10px] text-muted-foreground/50">Cloud storage usage</p>
+                </div>
               </div>
-              <div className="mb-3">
-                <div className="flex items-end justify-between mb-2.5">
-                  <span className="text-xl font-bold text-foreground tracking-tight">{stats.storageUsed.toFixed(1)} GB</span>
-                  <span className="text-xs text-muted-foreground/60">of {stats.storageLimit.toFixed(0)} GB</span>
+              <div className="mb-4">
+                <div className="flex items-baseline justify-between mb-3">
+                  <span className="text-2xl font-bold text-foreground tracking-tight">{stats.storageUsed.toFixed(1)}<span className="text-sm font-medium text-muted-foreground ml-1">GB</span></span>
+                  <span className="text-xs text-muted-foreground/50">/ {stats.storageLimit.toFixed(0)} GB</span>
                 </div>
-                <div className="w-full h-2 bg-muted rounded-full overflow-hidden">
+                <div className="w-full h-2.5 bg-muted/60 rounded-full overflow-hidden">
                   <div
-                    className="h-full bg-gradient-to-r from-violet-500 to-purple-500 rounded-full transition-all duration-700 ease-out"
+                    className="h-full bg-gradient-to-r from-violet-500 via-purple-500 to-fuchsia-500 rounded-full transition-all duration-1000 ease-out"
                     style={{ width: `${stats.storageLimit > 0 ? Math.min((stats.storageUsed / stats.storageLimit) * 100, 100) : 0}%` }}
                   />
                 </div>
               </div>
-              <p className="text-[11px] text-muted-foreground/60">
+              <p className="text-[11px] text-muted-foreground/50">
                 {stats.storageLimit > 0
-                  ? `${((stats.storageUsed / stats.storageLimit) * 100).toFixed(0)}% of storage used`
+                  ? `${((stats.storageUsed / stats.storageLimit) * 100).toFixed(0)}% used — ${(stats.storageLimit - stats.storageUsed).toFixed(1)} GB remaining`
                   : 'No storage allocated'}
               </p>
             </div>
           </Card>
         </div>
-      </div>
-
-      {/* Recent Activity */}
-      <div className="mt-5">
-        <Card className="overflow-hidden">
-          <div className="px-6 py-4 border-b border-border/50 flex items-center justify-between">
-            <div className="flex items-center gap-2.5">
-              <div className="p-1.5 rounded-lg bg-primary/10">
-                <Activity className="w-4 h-4 text-primary" />
-              </div>
-              <h2 className="text-sm font-semibold text-foreground">Recent Activity</h2>
-            </div>
-            <span className="text-xs text-muted-foreground/60 px-2 py-1 rounded-lg bg-muted/50">{recentActivity.length} events</span>
-          </div>
-          <div className="divide-y divide-border/30">
-            {recentActivity.length > 0 ? (
-              recentActivity.map((log) => (
-                <div key={log.id} className="px-6 py-3.5 flex items-center gap-3 hover:bg-muted/30 transition-colors duration-200">
-                  <div className="w-9 h-9 rounded-xl bg-primary/[0.06] flex items-center justify-center flex-shrink-0">
-                    <Activity className="w-4 h-4 text-primary/70" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm text-foreground truncate">{log.action}</p>
-                    <p className="text-[11px] text-muted-foreground/60">{log.resource_type || 'System'}</p>
-                  </div>
-                  <span className="text-[11px] text-muted-foreground/50 flex-shrink-0 font-medium">{formatTimeAgo(log.created_at)}</span>
-                </div>
-              ))
-            ) : (
-              <div className="px-6 py-16 text-center">
-                <div className="w-12 h-12 rounded-2xl bg-muted/50 flex items-center justify-center mx-auto mb-4">
-                  <Activity className="w-6 h-6 text-muted-foreground/30" />
-                </div>
-                <p className="text-sm text-muted-foreground font-medium">No recent activity</p>
-                <p className="text-xs text-muted-foreground/50 mt-1">Activity from your team will appear here</p>
-              </div>
-            )}
-          </div>
-        </Card>
       </div>
     </div>
   )

@@ -8,13 +8,13 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Plus, Search, Download, Trash2, FileText, DollarSign, Clock, CheckCircle, AlertTriangle } from 'lucide-react'
 
-const statusConfig: Record<string, { label: string; bg: string; text: string; border: string }> = {
-  draft: { label: 'Draft', bg: 'bg-muted/50', text: 'text-muted-foreground', border: 'border-border' },
-  sent: { label: 'Sent', bg: 'bg-blue-50', text: 'text-blue-600', border: 'border-blue-200' },
-  paid: { label: 'Paid', bg: 'bg-emerald-50', text: 'text-emerald-600', border: 'border-emerald-200' },
-  overdue: { label: 'Overdue', bg: 'bg-red-50', text: 'text-red-600', border: 'border-red-200' },
-  cancelled: { label: 'Cancelled', bg: 'bg-amber-50', text: 'text-amber-600', border: 'border-amber-200' },
-  partially_paid: { label: 'Partially Paid', bg: 'bg-violet-50', text: 'text-violet-600', border: 'border-violet-200' },
+const statusBadge: Record<string, { label: string; cls: string }> = {
+  draft: { label: 'Draft', cls: 'badge-neutral' },
+  sent: { label: 'Sent', cls: 'badge-info' },
+  paid: { label: 'Paid', cls: 'badge-success' },
+  overdue: { label: 'Overdue', cls: 'badge-danger' },
+  cancelled: { label: 'Cancelled', cls: 'badge-warning' },
+  partially_paid: { label: 'Partially Paid', cls: 'badge-info' },
 }
 
 export default function InvoicesPage() {
@@ -114,65 +114,136 @@ export default function InvoicesPage() {
 
   return (
     <div className="p-6 lg:p-8 max-w-[1400px] mx-auto animate-fade-in">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-foreground tracking-tight mb-1">Invoices</h1>
-          <p className="text-sm text-muted-foreground">Create, manage, and track customer invoices.</p>
+          <h1 className="text-2xl font-bold text-foreground tracking-tight">Invoices</h1>
+          <p className="text-sm text-muted-foreground mt-0.5">Create, manage, and track customer invoices.</p>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" className="text-muted-foreground" onClick={exportCsv}><Download className="w-4 h-4 mr-1.5" />Export</Button>
-          <Button size="sm" className="bg-primary hover:bg-primary/90" onClick={() => setShowForm(!showForm)}><Plus className="w-4 h-4 mr-1.5" />New Invoice</Button>
+          <Button variant="outline" size="sm" onClick={exportCsv}><Download className="w-4 h-4 mr-1.5" />Export CSV</Button>
+          <Button size="sm" onClick={() => setShowForm(!showForm)}><Plus className="w-4 h-4 mr-1.5" />New Invoice</Button>
         </div>
       </div>
 
       {showForm && (
-        <Card className="mb-5 p-4 border border-primary/20 bg-primary/[0.04]">
+        <Card className="mb-6 p-5 border border-primary/15 bg-primary/[0.02]">
+          <div className="flex items-center gap-2.5 mb-4">
+            <div className="w-8 h-8 rounded-xl bg-primary/10 flex items-center justify-center">
+              <FileText className="w-4 h-4 text-primary" />
+            </div>
+            <div>
+              <h3 className="text-sm font-semibold text-foreground">Create Invoice</h3>
+              <p className="text-[11px] text-muted-foreground/60">Fill in the details below</p>
+            </div>
+          </div>
           <div className="grid md:grid-cols-3 gap-3">
-            <Input placeholder="Customer name" value={form.customer_name} onChange={(e) => setForm({ ...form, customer_name: e.target.value })} />
+            <Input placeholder="Customer name *" value={form.customer_name} onChange={(e) => setForm({ ...form, customer_name: e.target.value })} />
             <Input placeholder="Customer email" value={form.customer_email} onChange={(e) => setForm({ ...form, customer_email: e.target.value })} />
             <Input type="date" value={form.due_date} onChange={(e) => setForm({ ...form, due_date: e.target.value })} />
-            <Input type="number" placeholder="Subtotal" value={form.subtotal} onChange={(e) => setForm({ ...form, subtotal: e.target.value })} />
+            <Input type="number" placeholder="Subtotal *" value={form.subtotal} onChange={(e) => setForm({ ...form, subtotal: e.target.value })} />
             <Input type="number" placeholder="Tax amount" value={form.tax_amount} onChange={(e) => setForm({ ...form, tax_amount: e.target.value })} />
-            <select className="px-3 py-2 border border-input rounded-xl" value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })}>
+            <select className="form-select" value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })}>
               <option value="draft">Draft</option><option value="sent">Sent</option><option value="paid">Paid</option><option value="overdue">Overdue</option>
             </select>
           </div>
-          <Input className="mt-3" placeholder="Notes" value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} />
-          <div className="mt-3 flex gap-2"><Button onClick={createInvoice}>Save Invoice</Button><Button variant="outline" onClick={() => setShowForm(false)}>Cancel</Button></div>
+          <Input className="mt-3" placeholder="Notes (optional)" value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} />
+          <div className="mt-4 flex items-center gap-2 pt-4 border-t border-border/30">
+            <Button size="sm" onClick={createInvoice}>Save Invoice</Button>
+            <Button size="sm" variant="outline" onClick={() => setShowForm(false)}>Cancel</Button>
+          </div>
         </Card>
       )}
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-        {[{ label: 'Total Invoiced', value: formatUGX(totals.total), icon: FileText, color: 'text-foreground', bg: 'bg-muted/50' }, { label: 'Paid', value: formatUGX(totals.paid), icon: CheckCircle, color: 'text-emerald-600', bg: 'bg-emerald-50' }, { label: 'Pending', value: formatUGX(totals.pending), icon: Clock, color: 'text-blue-600', bg: 'bg-blue-50' }, { label: 'Overdue', value: formatUGX(totals.overdue), icon: AlertTriangle, color: 'text-red-600', bg: 'bg-red-50' }].map((stat) => (
-          <Card key={stat.label} className="p-4 border border-border/50 bg-card"><div className="flex items-center gap-3"><div className={`p-2 rounded-lg ${stat.bg}`}><stat.icon className={`w-4 h-4 ${stat.color}`} /></div><div className="min-w-0"><p className="text-lg font-bold text-foreground truncate">{stat.value}</p><p className="text-xs text-muted-foreground">{stat.label}</p></div></div></Card>
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6 stagger-children">
+        {[
+          { label: 'Total Invoiced', value: formatUGX(totals.total), icon: FileText, gradient: 'from-slate-500 to-slate-600' },
+          { label: 'Paid', value: formatUGX(totals.paid), icon: CheckCircle, gradient: 'from-emerald-500 to-green-600' },
+          { label: 'Pending', value: formatUGX(totals.pending), icon: Clock, gradient: 'from-blue-500 to-blue-600' },
+          { label: 'Overdue', value: formatUGX(totals.overdue), icon: AlertTriangle, gradient: 'from-red-500 to-rose-600' },
+        ].map((stat) => (
+          <Card key={stat.label} className="stat-card p-4">
+            <div className="flex items-center gap-3">
+              <div className={`w-10 h-10 rounded-xl bg-gradient-to-br ${stat.gradient} flex items-center justify-center shadow-sm flex-shrink-0`}>
+                <stat.icon className="w-4.5 h-4.5 text-white" />
+              </div>
+              <div className="min-w-0">
+                <p className="text-lg font-bold text-foreground truncate tracking-tight">{stat.value}</p>
+                <p className="text-[11px] text-muted-foreground font-medium">{stat.label}</p>
+              </div>
+            </div>
+          </Card>
         ))}
       </div>
 
-      <Card className="border border-border/50 bg-card overflow-hidden">
-        <div className="p-4 border-b flex gap-3">
-          <div className="relative flex-1"><Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground/60" /><Input className="pl-10" placeholder="Search invoice number or customer..." value={search} onChange={(e) => setSearch(e.target.value)} /></div>
-          <select className="px-3 py-2 border border-input rounded-xl" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}><option value="">All statuses</option>{Object.keys(statusConfig).map((s) => <option key={s} value={s}>{statusConfig[s].label}</option>)}</select>
+      <Card className="overflow-hidden">
+        <div className="p-4 border-b border-border/30 flex gap-3">
+          <div className="relative flex-1">
+            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground/40" />
+            <Input className="pl-10" placeholder="Search invoice number or customer..." value={search} onChange={(e) => setSearch(e.target.value)} />
+          </div>
+          <select className="form-select" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
+            <option value="">All statuses</option>
+            {Object.keys(statusBadge).map((s) => <option key={s} value={s}>{statusBadge[s].label}</option>)}
+          </select>
         </div>
         <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead><tr className="border-b bg-muted/30 text-xs uppercase text-muted-foreground"><th className="px-5 py-3 text-left">Invoice</th><th className="px-5 py-3 text-left">Customer</th><th className="px-5 py-3 text-left">Dates</th><th className="px-5 py-3 text-right">Amount</th><th className="px-5 py-3 text-left">Status</th><th className="px-5 py-3 text-right">Actions</th></tr></thead>
-            <tbody className="divide-y">
-              {loading ? <tr><td colSpan={6} className="px-5 py-10 text-center text-sm text-muted-foreground/60">Loading invoices...</td></tr> : filtered.length === 0 ? <tr><td colSpan={6} className="px-5 py-10 text-center text-sm text-muted-foreground/60">No invoices found.</td></tr> : filtered.map((invoice) => {
-                const cfg = statusConfig[invoice.status] || statusConfig.draft
+          <table className="premium-table">
+            <thead>
+              <tr>
+                <th>Invoice</th>
+                <th>Customer</th>
+                <th>Dates</th>
+                <th className="text-right">Amount</th>
+                <th>Status</th>
+                <th className="text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {loading ? (
+                <tr><td colSpan={6} className="!py-16 text-center">
+                  <div className="flex flex-col items-center gap-3">
+                    <div className="w-8 h-8 border-2 border-primary/30 border-t-primary rounded-full animate-spin" />
+                    <p className="text-sm text-muted-foreground">Loading invoices...</p>
+                  </div>
+                </td></tr>
+              ) : filtered.length === 0 ? (
+                <tr><td colSpan={6} className="!py-16 text-center">
+                  <div className="w-14 h-14 rounded-2xl bg-muted/40 flex items-center justify-center mx-auto mb-4">
+                    <FileText className="w-6 h-6 text-muted-foreground/25" />
+                  </div>
+                  <p className="text-sm text-muted-foreground font-medium">No invoices found</p>
+                  <p className="text-xs text-muted-foreground/40 mt-1">Create your first invoice to get started</p>
+                </td></tr>
+              ) : filtered.map((invoice) => {
+                const sb = statusBadge[invoice.status] || statusBadge.draft
                 return (
-                  <tr key={invoice.id} className="hover:bg-muted/30">
-                    <td className="px-5 py-3 text-sm font-medium text-foreground">{invoice.invoice_number}</td>
-                    <td className="px-5 py-3 text-sm text-muted-foreground">{invoice.customer_name}</td>
-                    <td className="px-5 py-3 text-xs text-muted-foreground">Issued: {invoice.invoice_date}<br />Due: {invoice.due_date}</td>
-                    <td className="px-5 py-3 text-sm text-right font-mono font-semibold">{formatUGX(invoice.total_amount || 0)}</td>
-                    <td className="px-5 py-3"><span className={`inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-medium border ${cfg.bg} ${cfg.text} ${cfg.border}`}>{cfg.label}</span></td>
-                    <td className="px-5 py-3 text-right"><button onClick={() => deleteInvoice(invoice.id)} className="p-1.5 hover:bg-red-50 rounded-md"><Trash2 className="w-4 h-4 text-muted-foreground hover:text-red-500" /></button></td>
+                  <tr key={invoice.id} className="group">
+                    <td className="font-semibold text-foreground">{invoice.invoice_number}</td>
+                    <td className="text-muted-foreground">{invoice.customer_name}</td>
+                    <td>
+                      <div className="space-y-0.5">
+                        <p className="text-xs text-muted-foreground">Issued: {invoice.invoice_date}</p>
+                        <p className="text-xs text-muted-foreground/50">Due: {invoice.due_date}</p>
+                      </div>
+                    </td>
+                    <td className="text-right font-mono font-bold tabular-nums">{formatUGX(invoice.total_amount || 0)}</td>
+                    <td><span className={`badge ${sb.cls}`}>{sb.label}</span></td>
+                    <td className="text-right">
+                      <button onClick={() => deleteInvoice(invoice.id)} className="p-1.5 rounded-lg text-muted-foreground/40 hover:text-red-500 hover:bg-red-50 transition-all opacity-0 group-hover:opacity-100">
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </td>
                   </tr>
                 )
               })}
             </tbody>
           </table>
         </div>
+        {filtered.length > 0 && (
+          <div className="px-5 py-3 border-t border-border/20 bg-muted/10">
+            <p className="text-xs text-muted-foreground/50">Showing <span className="font-semibold text-foreground">{filtered.length}</span> of {invoices.length} invoices</p>
+          </div>
+        )}
       </Card>
     </div>
   )

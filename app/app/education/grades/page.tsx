@@ -116,49 +116,51 @@ export default function GradesPage() {
   }, [rows])
 
   return (
-    <div className="p-6 max-w-7xl mx-auto space-y-6">
+    <div className="p-6 lg:p-8 max-w-[1400px] mx-auto animate-fade-in space-y-6">
       <div>
-        <h1 className="text-3xl font-bold">Grades</h1>
-        <p className="text-muted-foreground">50% coursework + 50% exam</p>
+        <h1 className="text-2xl font-bold text-foreground tracking-tight">Grades</h1>
+        <p className="text-sm text-muted-foreground mt-0.5">50% coursework + 50% exam</p>
       </div>
 
-      <Card className="overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead className="bg-muted/50 border-b">
+      <Card className="overflow-hidden">
+        <div className="overflow-x-auto">
+        <table className="premium-table">
+          <thead>
             <tr>
-              <th className="px-4 py-3 text-left">Module</th>
-              <th className="px-4 py-3 text-left">Student</th>
-              <th className="px-4 py-3 text-left">Student Number</th>
-              <th className="px-4 py-3 text-center">Coursework Raw</th>
-              <th className="px-4 py-3 text-center">Coursework (50%)</th>
-              <th className="px-4 py-3 text-center">Exam (50%)</th>
-              <th className="px-4 py-3 text-center">Overall Grade</th>
-              <th className="px-4 py-3 text-left">Status</th>
+              <th>Module</th>
+              <th>Student</th>
+              <th>Student Number</th>
+              <th className="text-center">Coursework Raw</th>
+              <th className="text-center">Coursework (50%)</th>
+              <th className="text-center">Exam (50%)</th>
+              <th className="text-center">Overall Grade</th>
+              <th>Status</th>
             </tr>
           </thead>
           <tbody>
             {sortedRows.map((row) => (
-              <tr key={`${row.studentPk}-${row.moduleId}`} className="border-b">
-                <td className="px-4 py-3">
+              <tr key={`${row.studentPk}-${row.moduleId}`} >
+                <td>
                   <div className="font-medium">{row.moduleCode}</div>
                   <div className="text-xs text-muted-foreground">{row.moduleTitle}</div>
                 </td>
-                <td className="px-4 py-3">{row.studentName}</td>
-                <td className="px-4 py-3 font-mono">{row.studentID}</td>
-                <td className="px-4 py-3 text-center">{row.courseworkTotalRaw} / {row.courseworkMax}</td>
-                <td className="px-4 py-3 text-center">{row.coursework50.toFixed(1)}</td>
-                <td className="px-4 py-3 text-center">{row.exam50 === null ? '--' : row.exam50.toFixed(1)}</td>
-                <td className="px-4 py-3 text-center font-semibold">{row.total.toFixed(1)} / 100</td>
-                <td className="px-4 py-3">
-                  <select className="px-2 py-1 border rounded" value={row.status} onChange={(e) => updateStatus(row.studentPk, e.target.value)}>
+                <td>{row.studentName}</td>
+                <td className="font-mono text-xs text-muted-foreground">{row.studentID}</td>
+                <td className="text-center tabular-nums">{row.courseworkTotalRaw} / {row.courseworkMax}</td>
+                <td className="text-center tabular-nums">{row.coursework50.toFixed(1)}</td>
+                <td className="text-center tabular-nums">{row.exam50 === null ? '--' : row.exam50.toFixed(1)}</td>
+                <td className="text-center font-bold tabular-nums">{row.total.toFixed(1)} / 100</td>
+                <td>
+                  <select className="form-select !py-1 !px-2 !text-xs" value={row.status} onChange={(e) => updateStatus(row.studentPk, e.target.value)}>
                     {STATUS_OPTIONS.map((status) => <option key={status} value={status}>{status}</option>)}
                   </select>
                 </td>
               </tr>
             ))}
-            {sortedRows.length === 0 && <tr><td className="px-4 py-3 text-muted-foreground" colSpan={8}>No enrolled students found.</td></tr>}
+            {sortedRows.length === 0 && <tr><td className="!py-12 text-center text-muted-foreground/60" colSpan={8}>No enrolled students found.</td></tr>}
           </tbody>
         </table>
+        </div>
       </Card>
     </div>
   )

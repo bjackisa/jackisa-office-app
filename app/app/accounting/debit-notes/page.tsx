@@ -58,14 +58,22 @@ export default function DebitNotesPage() {
   return (
     <div className="p-6 lg:p-8 max-w-[1200px] mx-auto space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-foreground tracking-tight mb-1">Debit Notes</h1>
-        <p className="text-sm text-muted-foreground">Create and track debit notes for invoice increases/adjustments.</p>
+        <h1 className="text-2xl font-bold text-foreground tracking-tight">Debit Notes</h1>
+        <p className="text-sm text-muted-foreground mt-0.5">Create and track debit notes for invoice adjustments</p>
       </div>
 
-      <Card className="p-5 border border-border/50 space-y-3">
-        <h2 className="text-sm font-semibold">Create Debit Note</h2>
+      <Card className="p-5 border border-primary/15 bg-primary/[0.02] space-y-3">
+        <div className="flex items-center gap-2.5 mb-1">
+          <div className="w-8 h-8 rounded-xl bg-primary/10 flex items-center justify-center">
+            <Search className="w-4 h-4 text-primary" />
+          </div>
+          <div>
+            <h3 className="text-sm font-semibold text-foreground">Create Debit Note</h3>
+            <p className="text-[11px] text-muted-foreground/60">Issue a debit against an invoice</p>
+          </div>
+        </div>
         <div className="grid md:grid-cols-4 gap-3">
-          <select className="px-3 py-2 border border-input rounded-xl" value={form.invoice_id} onChange={(e) => setForm({ ...form, invoice_id: e.target.value })}>
+          <select className="form-select" value={form.invoice_id} onChange={(e) => setForm({ ...form, invoice_id: e.target.value })}>
             <option value="">No linked invoice</option>
             {invoices.map((invoice) => <option key={invoice.id} value={invoice.id}>{invoice.invoice_number} — {invoice.customer_name}</option>)}
           </select>
@@ -73,16 +81,18 @@ export default function DebitNotesPage() {
           <Input placeholder="Reason" value={form.reason} onChange={(e) => setForm({ ...form, reason: e.target.value })} />
           <Input type="number" placeholder="Amount" value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} />
         </div>
-        <Button onClick={createDebitNote}>Save Debit Note</Button>
+        <div className="pt-3 border-t border-border/30">
+          <Button size="sm" onClick={createDebitNote}>Save Debit Note</Button>
+        </div>
       </Card>
 
-      <Card className="border border-border/50 overflow-hidden">
+      <Card className="overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead><tr className="bg-muted/50 border-b text-xs text-muted-foreground uppercase"><th className="px-4 py-3 text-left">Number</th><th className="px-4 py-3 text-left">Invoice</th><th className="px-4 py-3 text-left">Date</th><th className="px-4 py-3 text-left">Reason</th><th className="px-4 py-3 text-right">Amount</th></tr></thead>
+          <table className="premium-table">
+            <thead><tr><th>Number</th><th>Invoice</th><th>Date</th><th>Reason</th><th className="text-right">Amount</th></tr></thead>
             <tbody>
-              {filtered.length === 0 ? <tr><td colSpan={5} className="px-4 py-8 text-center text-muted-foreground/60">No debit notes found.</td></tr> : filtered.map((note) => (
-                <tr key={note.id} className="border-b last:border-0"><td className="px-4 py-3 font-medium">{note.debit_note_number}</td><td className="px-4 py-3">{note.invoices?.invoice_number || '—'}</td><td className="px-4 py-3">{note.debit_date}</td><td className="px-4 py-3">{note.reason}</td><td className="px-4 py-3 text-right font-mono">{Number(note.amount || 0).toLocaleString()}</td></tr>
+              {filtered.length === 0 ? <tr><td colSpan={5} className="!py-12 text-center text-muted-foreground/60">No debit notes found.</td></tr> : filtered.map((note) => (
+                <tr key={note.id} className="group"><td className="font-mono text-xs text-muted-foreground">{note.debit_note_number}</td><td className="text-muted-foreground">{note.invoices?.invoice_number || '—'}</td><td className="text-xs text-muted-foreground">{note.debit_date}</td><td className="font-medium text-foreground">{note.reason}</td><td className="text-right font-mono font-bold tabular-nums">{Number(note.amount || 0).toLocaleString()}</td></tr>
               ))}
             </tbody>
           </table>

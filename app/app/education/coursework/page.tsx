@@ -103,24 +103,37 @@ export default function CourseworkPage() {
   }), [grades, students, days, modules])
 
   return (
-    <div className="p-6 lg:p-8 max-w-[1200px] mx-auto space-y-6">
-      <h1 className="text-2xl font-bold">Coursework</h1>
+    <div className="p-6 lg:p-8 max-w-[1200px] mx-auto animate-fade-in space-y-6">
+      <div>
+        <h1 className="text-2xl font-bold text-foreground tracking-tight">Coursework</h1>
+        <p className="text-sm text-muted-foreground mt-0.5">Record and manage coursework marks</p>
+      </div>
 
-      <Card className="p-4 space-y-3">
-        <h2 className="font-semibold">Add coursework mark</h2>
+      <Card className="p-5 border border-primary/15 bg-primary/[0.02] space-y-3">
+        <div className="flex items-center gap-2.5 mb-1">
+          <div className="w-8 h-8 rounded-xl bg-primary/10 flex items-center justify-center">
+            <User className="w-4 h-4 text-primary" />
+          </div>
+          <div>
+            <h3 className="text-sm font-semibold text-foreground">Add Coursework Mark</h3>
+            <p className="text-[11px] text-muted-foreground/60">Record marks for a student</p>
+          </div>
+        </div>
         <div className="grid md:grid-cols-4 gap-3">
-          <select className="px-3 py-2 border rounded" value={form.module_id} onChange={e => setForm({ ...form, module_id: e.target.value })}>
+          <select className="form-select" value={form.module_id} onChange={e => setForm({ ...form, module_id: e.target.value })}>
             <option value="">Module</option>
             {modules.map((module: any) => <option key={module.id} value={module.id}>{module.module_code} - {module.module_name}</option>)}
           </select>
-          <select className="px-3 py-2 border rounded" value={form.student_id} onChange={e => setForm({ ...form, student_id: e.target.value })}>
+          <select className="form-select" value={form.student_id} onChange={e => setForm({ ...form, student_id: e.target.value })}>
             <option value="">Student</option>
             {students.map((student: any) => <option key={student.id} value={student.id}>{student.student_id} - {student.full_name}</option>)}
           </select>
           <Input type="number" min={1} placeholder="Coursework day number" value={form.day_number} onChange={e => setForm({ ...form, day_number: e.target.value })} />
           <Input type="number" min={0} max={20} placeholder="Marks (out of 20)" value={form.marks_obtained} onChange={e => setForm({ ...form, marks_obtained: e.target.value })} />
         </div>
-        <Button onClick={saveCoursework}>Save Coursework</Button>
+        <div className="pt-3 border-t border-border/30">
+          <Button size="sm" onClick={saveCoursework}>Save Coursework</Button>
+        </div>
       </Card>
 
       <Tabs defaultValue="coursework" className="space-y-4">
@@ -130,30 +143,32 @@ export default function CourseworkPage() {
         </TabsList>
 
         <TabsContent value="coursework">
-          <Card className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="bg-muted/50 border-b">
+          <Card className="overflow-hidden">
+            <div className="overflow-x-auto">
+            <table className="premium-table">
+              <thead>
                 <tr>
-                  <th className="px-4 py-3 text-left">Student</th>
-                  <th className="px-4 py-3 text-left">Student Number</th>
-                  <th className="px-4 py-3 text-left">Coursework</th>
-                  <th className="px-4 py-3 text-left">Module</th>
-                  <th className="px-4 py-3 text-center">Marks (20)</th>
+                  <th>Student</th>
+                  <th>Student Number</th>
+                  <th>Coursework</th>
+                  <th>Module</th>
+                  <th className="text-center">Marks (20)</th>
                 </tr>
               </thead>
               <tbody>
                 {courseworkRows.map((row) => (
-                  <tr key={row.id} className="border-b">
-                    <td className="px-4 py-3">{row.studentName}</td>
-                    <td className="px-4 py-3 font-mono">{row.studentId}</td>
-                    <td className="px-4 py-3">{row.courseworkName}</td>
-                    <td className="px-4 py-3">{row.moduleName}</td>
-                    <td className="px-4 py-3 text-center">{row.marks}</td>
+                  <tr key={row.id} >
+                    <td>{row.studentName}</td>
+                    <td className="font-mono text-xs text-muted-foreground">{row.studentId}</td>
+                    <td>{row.courseworkName}</td>
+                    <td>{row.moduleName}</td>
+                    <td className="text-center font-bold tabular-nums">{row.marks}</td>
                   </tr>
                 ))}
-                {courseworkRows.length === 0 && <tr><td className="px-4 py-3 text-muted-foreground" colSpan={5}>No coursework recorded yet.</td></tr>}
+                {courseworkRows.length === 0 && <tr><td className="!py-12 text-center text-muted-foreground/60" colSpan={5}>No coursework recorded yet.</td></tr>}
               </tbody>
             </table>
+            </div>
           </Card>
         </TabsContent>
 

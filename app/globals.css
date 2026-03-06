@@ -145,6 +145,12 @@ body {
       0 4px 14px rgba(59, 91, 219, 0.15),
       0 1px 3px rgba(59, 91, 219, 0.08);
   }
+  .shadow-float {
+    box-shadow:
+      0 0 0 1px rgba(0,0,0,0.02),
+      0 2px 6px rgba(0,0,0,0.03),
+      0 12px 32px rgba(0,0,0,0.06);
+  }
 
   /* Smooth hover transitions */
   .hover-lift {
@@ -167,6 +173,101 @@ body {
     background-image: radial-gradient(circle, hsl(var(--border)) 1px, transparent 1px);
     background-size: 24px 24px;
   }
+}
+
+/* ─── Premium Select Inputs ─────────────────────────────────────────── */
+select.form-select,
+.form-select {
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%236b7280' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  padding-right: 36px;
+  height: 2.5rem;
+  border-radius: 0.75rem;
+  border: 1px solid hsl(var(--input));
+  background-color: hsl(var(--background));
+  padding-left: 0.875rem;
+  font-size: 0.875rem;
+  color: hsl(var(--foreground));
+  transition: all 0.2s;
+  outline: none;
+}
+select.form-select:focus,
+.form-select:focus {
+  border-color: hsl(var(--primary) / 0.4);
+  box-shadow: 0 0 0 2px hsl(var(--ring) / 0.15);
+}
+
+/* ─── Premium Table Styles ──────────────────────────────────────────── */
+.premium-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+}
+.premium-table thead tr {
+  background: hsl(var(--muted) / 0.4);
+}
+.premium-table thead th {
+  padding: 0.75rem 1.25rem;
+  text-align: left;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: hsl(var(--muted-foreground));
+  border-bottom: 1px solid hsl(var(--border) / 0.5);
+}
+.premium-table tbody td {
+  padding: 0.75rem 1.25rem;
+  font-size: 0.875rem;
+  border-bottom: 1px solid hsl(var(--border) / 0.2);
+  vertical-align: middle;
+}
+.premium-table tbody tr {
+  transition: background-color 0.15s ease;
+}
+.premium-table tbody tr:hover {
+  background: hsl(var(--muted) / 0.25);
+}
+.premium-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+/* ─── Status Badges ─────────────────────────────────────────────────── */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.125rem 0.5rem;
+  border-radius: 9999px;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  line-height: 1.5;
+  letter-spacing: 0.01em;
+}
+.badge-success { background: rgba(16,185,129,0.1); color: #059669; }
+.badge-warning { background: rgba(245,158,11,0.1); color: #d97706; }
+.badge-danger  { background: rgba(239,68,68,0.1); color: #dc2626; }
+.badge-info    { background: rgba(59,130,246,0.1); color: #2563eb; }
+.badge-neutral { background: hsl(var(--muted)); color: hsl(var(--muted-foreground)); }
+
+/* ─── Stat Card Accent Bars ─────────────────────────────────────────── */
+.stat-card {
+  position: relative;
+  overflow: hidden;
+}
+.stat-card::before {
+  content: '';
+  position: absolute;
+  left: 0; top: 0; bottom: 0;
+  width: 3px;
+  border-radius: 0 3px 3px 0;
+  background: hsl(var(--primary));
+  opacity: 0;
+  transition: opacity 0.3s;
+}
+.stat-card:hover::before {
+  opacity: 1;
 }
 
 /* ─── Smooth Scrollbar ───────────────────────────────────────────────── */

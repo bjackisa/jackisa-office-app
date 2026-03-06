@@ -72,65 +72,89 @@ export default function AccountingDashboard() {
 
   const formatUGX = (n: number) => `UGX ${n.toLocaleString('en-US', { minimumFractionDigits: 0 })}`
 
-  const cards = [
-    { label: 'Total Revenue', value: formatUGX(stats.revenue), sub: 'Collected from paid invoices', icon: DollarSign, color: 'bg-green-500' },
-  ]
-
   return (
     <div className="p-6 lg:p-8 max-w-[1400px] mx-auto animate-fade-in">
-      <div className="mb-8">
+      <div className="mb-6">
         <h1 className="text-2xl font-bold text-foreground tracking-tight">Accounting</h1>
-        <p className="text-muted-foreground text-sm mt-1">Financial overview and management</p>
+        <p className="text-muted-foreground text-sm mt-0.5">Financial overview and management</p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-        {cards.map((stat) => {
-          const Icon = stat.icon
-          return (
-            <Card key={stat.label} className="p-5 hover-lift">
-              <div className="flex items-start justify-between">
-                <div>
-                  <p className="text-sm font-medium text-muted-foreground mb-1">{stat.label}</p>
-                  <p className="text-2xl font-bold text-foreground tracking-tight mb-0.5 tracking-tight">{stat.value}</p>
-                  <p className="text-xs text-muted-foreground font-medium">{stat.sub}</p>
-                </div>
-                <div className={`p-2.5 rounded-2xl ${stat.bg}`}>
-                  <Icon className="w-5 h-5 text-white" />
-                </div>
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6 stagger-children">
+        {[
+          { label: 'Total Revenue', value: formatUGX(stats.revenue), icon: DollarSign, gradient: 'from-emerald-500 to-green-600' },
+          { label: 'Total Expenses', value: formatUGX(stats.expenses), icon: TrendingUp, gradient: 'from-red-500 to-rose-600' },
+          { label: 'Profit Margin', value: `${stats.margin.toFixed(1)}%`, icon: TrendingUp, gradient: 'from-blue-500 to-blue-600' },
+          { label: 'Outstanding', value: formatUGX(stats.outstandingAmount), icon: AlertCircle, gradient: 'from-amber-500 to-orange-500' },
+        ].map((stat) => (
+          <Card key={stat.label} className="stat-card p-4">
+            <div className="flex items-center gap-3">
+              <div className={`w-10 h-10 rounded-xl bg-gradient-to-br ${stat.gradient} flex items-center justify-center shadow-sm flex-shrink-0`}>
+                <stat.icon className="w-4.5 h-4.5 text-white" />
               </div>
-            </Card>
-          )
-        })}
+              <div className="min-w-0">
+                <p className="text-lg font-bold text-foreground truncate tracking-tight">{stat.value}</p>
+                <p className="text-[11px] text-muted-foreground font-medium">{stat.label}</p>
+              </div>
+            </div>
+          </Card>
+        ))}
       </div>
 
-      <div className="grid md:grid-cols-2 gap-6">
-        <Card className="overflow-hidden">
-          <h2 className="text-lg font-semibold text-foreground mb-4">Quick Actions</h2>
-          <div className="divide-y divide-border/30">
-            <Link href="/app/accounting/invoices"><Button className="w-full justify-start" variant="outline">+ Create Invoice</Button></Link>
-            <Link href="/app/accounting/expenses"><Button className="w-full justify-start" variant="outline">+ Record Expense</Button></Link>
-            <Link href="/app/accounting/credit-notes"><Button className="w-full justify-start" variant="outline">+ View Credit Notes</Button></Link>
-            <Link href="/app/accounting/vat"><Button className="w-full justify-start" variant="outline">+ Calculate VAT</Button></Link>
+      <div className="grid md:grid-cols-2 gap-5">
+        <Card className="p-5">
+          <h2 className="text-sm font-semibold text-foreground mb-4">Quick Actions</h2>
+          <div className="space-y-2">
+            {[
+              { href: '/app/accounting/invoices', label: 'Create Invoice', icon: FileText, desc: 'Generate a new invoice' },
+              { href: '/app/accounting/expenses', label: 'Record Expense', icon: DollarSign, desc: 'Log a business expense' },
+              { href: '/app/accounting/credit-notes', label: 'Credit Notes', icon: FileText, desc: 'View and manage credits' },
+              { href: '/app/accounting/vat', label: 'VAT Calculator', icon: TrendingUp, desc: 'Calculate and track VAT' },
+            ].map((action) => (
+              <Link key={action.href} href={action.href} className="flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-muted/50 transition-all group">
+                <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0 group-hover:bg-primary/15 transition-colors">
+                  <action.icon className="w-4 h-4 text-primary" />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-sm font-medium text-foreground">{action.label}</p>
+                  <p className="text-[11px] text-muted-foreground/50">{action.desc}</p>
+                </div>
+              </Link>
+            ))}
           </div>
         </Card>
 
         <Card className="overflow-hidden">
-          <h2 className="text-lg font-semibold text-foreground mb-4">Recent Invoices</h2>
+          <div className="px-5 py-4 border-b border-border/30 flex items-center justify-between">
+            <h2 className="text-sm font-semibold text-foreground">Recent Invoices</h2>
+            <Link href="/app/accounting/invoices" className="text-xs text-primary font-medium hover:text-primary/80 transition-colors">View all</Link>
+          </div>
           {recentInvoices.length === 0 ? (
-            <div className="px-6 py-12 text-center">
-              <div className="w-12 h-12 rounded-2xl bg-muted/50 flex items-center justify-center mx-auto mb-3"><FileText className="w-6 h-6 text-muted-foreground/30" /></div>
-              <p className="text-sm text-muted-foreground">No recent invoices</p>
+            <div className="px-6 py-14 text-center">
+              <div className="w-14 h-14 rounded-2xl bg-muted/40 flex items-center justify-center mx-auto mb-4">
+                <FileText className="w-6 h-6 text-muted-foreground/25" />
+              </div>
+              <p className="text-sm text-muted-foreground font-medium">No recent invoices</p>
+              <p className="text-xs text-muted-foreground/40 mt-1">Create your first invoice to see it here</p>
             </div>
           ) : (
-            recentInvoices.map((invoice) => (
-              <div key={invoice.id} className="px-6 py-3.5 flex items-center justify-between hover:bg-muted/30 transition-colors duration-200">
-                <div>
-                  <p className="text-sm font-semibold text-foreground">{invoice.invoice_number}</p>
-                  <p className="text-xs text-muted-foreground/60">{invoice.customer_name}</p>
+            <div>
+              {recentInvoices.map((invoice) => (
+                <div key={invoice.id} className="px-5 py-3 flex items-center justify-between hover:bg-muted/20 transition-colors duration-200 border-b border-border/10 last:border-0">
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-foreground">{invoice.invoice_number}</p>
+                    <p className="text-[11px] text-muted-foreground/50">{invoice.customer_name}</p>
+                  </div>
+                  <div className="text-right flex-shrink-0 ml-3">
+                    <p className="text-sm font-bold text-foreground font-mono tabular-nums">{formatUGX(invoice.total_amount || 0)}</p>
+                    <span className={`badge text-[10px] ${
+                      invoice.status === 'paid' ? 'badge-success' :
+                      invoice.status === 'overdue' ? 'badge-danger' :
+                      invoice.status === 'sent' ? 'badge-info' : 'badge-neutral'
+                    }`}>{invoice.status}</span>
+                  </div>
                 </div>
-                <p className="text-sm font-medium text-foreground">{formatUGX(invoice.total_amount || 0)}</p>
-              </div>
-            ))
+              ))}
+            </div>
           )}
         </Card>
       </div>

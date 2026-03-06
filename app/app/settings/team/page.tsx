@@ -143,14 +143,13 @@ export default function TeamManagementPage() {
   return (
     <div className="p-6 lg:p-8 max-w-[1400px] mx-auto animate-fade-in">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-foreground tracking-tight mb-1">Team Management</h1>
+          <h1 className="text-2xl font-bold text-foreground tracking-tight">Team Management</h1>
           <p className="text-sm text-muted-foreground">Invite and manage team members for your workspace</p>
         </div>
         <Button
           size="sm"
-          className="bg-primary hover:bg-primary/90"
           onClick={() => setShowInviteForm(!showInviteForm)}
         >
           <UserPlus className="w-4 h-4 mr-1.5" />
@@ -168,33 +167,31 @@ export default function TeamManagementPage() {
       )}
 
       {/* Stats */}
-      <div className="grid grid-cols-3 gap-4 mb-6">
+      <div className="grid grid-cols-3 gap-4 mb-6 stagger-children">
         {[
-          { label: 'Total Invitations', value: invitations.length, icon: Mail, color: 'text-blue-600', bg: 'bg-blue-50' },
-          { label: 'Pending', value: pendingCount, icon: Clock, color: 'text-amber-600', bg: 'bg-amber-50' },
-          { label: 'Accepted', value: acceptedCount, icon: CheckCircle, color: 'text-emerald-600', bg: 'bg-emerald-50' },
+          { label: 'Total Invitations', value: invitations.length, gradient: 'from-blue-500 to-blue-600' },
+          { label: 'Pending', value: pendingCount, gradient: 'from-amber-500 to-orange-500' },
+          { label: 'Accepted', value: acceptedCount, gradient: 'from-emerald-500 to-green-600' },
         ].map(stat => (
-          <Card key={stat.label} className="p-4 border border-border/50 bg-card">
-            <div className="flex items-center gap-3">
-              <div className={`p-2 rounded-lg ${stat.bg}`}>
-                <stat.icon className={`w-4 h-4 ${stat.color}`} />
-              </div>
-              <div>
-                <p className="text-2xl font-bold text-foreground">{stat.value}</p>
-                <p className="text-xs text-muted-foreground">{stat.label}</p>
-              </div>
-            </div>
+          <Card key={stat.label} className="stat-card p-4">
+            <p className="text-[11px] text-muted-foreground font-medium mb-1">{stat.label}</p>
+            <p className="text-2xl font-bold text-foreground tracking-tight">{stat.value}</p>
           </Card>
         ))}
       </div>
 
       {/* Invite Form */}
       {showInviteForm && (
-        <Card className="border border-primary/20 bg-primary/[0.04] p-6 mb-6">
-          <h3 className="text-sm font-semibold text-foreground mb-4 flex items-center gap-2">
-            <UserPlus className="w-4 h-4 text-blue-600" />
-            Send Invitation
-          </h3>
+        <Card className="border border-primary/15 bg-primary/[0.02] p-5 mb-6">
+          <div className="flex items-center gap-2.5 mb-4">
+            <div className="w-8 h-8 rounded-xl bg-primary/10 flex items-center justify-center">
+              <UserPlus className="w-4 h-4 text-primary" />
+            </div>
+            <div>
+              <h3 className="text-sm font-semibold text-foreground">Send Invitation</h3>
+              <p className="text-[11px] text-muted-foreground/60">Invite a new team member</p>
+            </div>
+          </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-medium text-muted-foreground mb-1.5">Email *</label>
@@ -218,7 +215,7 @@ export default function TeamManagementPage() {
             <div>
               <label className="block text-xs font-medium text-muted-foreground mb-1.5">Role *</label>
               <select
-                className="w-full px-3 py-2 border border-border rounded-lg text-sm bg-card"
+                className="form-select bg-card"
                 value={form.roleId}
                 onChange={(e) => setForm({ ...form, roleId: e.target.value })}
               >
@@ -260,7 +257,6 @@ export default function TeamManagementPage() {
           <div className="flex items-center gap-3 mt-5">
             <Button
               size="sm"
-              className="bg-primary hover:bg-primary/90"
               onClick={handleInvite}
               disabled={sending}
             >
@@ -287,22 +283,25 @@ export default function TeamManagementPage() {
           </button>
         </div>
         <div className="overflow-x-auto">
-          <table className="w-full">
+          <table className="premium-table">
             <thead>
-              <tr className="border-b border-border/30 bg-muted/30">
-                <th className="px-5 py-3 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider">Invitee</th>
-                <th className="px-5 py-3 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider">Role</th>
-                <th className="px-5 py-3 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider">Department</th>
-                <th className="px-5 py-3 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider">Status</th>
-                <th className="px-5 py-3 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider">Sent</th>
-                <th className="px-5 py-3 text-right text-xs font-semibold text-muted-foreground uppercase tracking-wider">Actions</th>
+              <tr>
+                <th>Invitee</th>
+                <th>Role</th>
+                <th>Department</th>
+                <th>Status</th>
+                <th>Sent</th>
+                <th className="text-right">Actions</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-border/20">
+            <tbody>
               {loading ? (
-                <tr>
-                  <td colSpan={6} className="px-5 py-12 text-center text-sm text-muted-foreground/60">Loading...</td>
-                </tr>
+                <tr><td colSpan={6} className="!py-16 text-center">
+                  <div className="flex flex-col items-center gap-3">
+                    <div className="w-8 h-8 border-2 border-primary/30 border-t-primary rounded-full animate-spin" />
+                    <p className="text-sm text-muted-foreground">Loading team data...</p>
+                  </div>
+                </td></tr>
               ) : invitations.length === 0 ? (
                 <tr>
                   <td colSpan={6} className="px-5 py-12 text-center">
@@ -316,34 +315,31 @@ export default function TeamManagementPage() {
                   const badge = getStatusBadge(inv.status)
                   const StatusIcon = badge.icon
                   return (
-                    <tr key={inv.id} className="hover:bg-muted/30 transition-colors group">
-                      <td className="px-5 py-3.5">
-                        <div>
-                          <p className="text-sm font-medium text-foreground">{inv.full_name}</p>
-                          <p className="text-[11px] text-muted-foreground/60">{inv.email}</p>
-                        </div>
+                    <tr key={inv.id} className="group">
+                      <td>
+                        <p className="text-sm font-medium text-foreground">{inv.full_name}</p>
+                        <p className="text-[11px] text-muted-foreground/50">{inv.email}</p>
                       </td>
-                      <td className="px-5 py-3.5">
+                      <td>
                         <div className="flex items-center gap-1.5">
-                          <Shield className="w-3 h-3 text-muted-foreground/60" />
-                          <span className="text-sm text-muted-foreground">{inv.company_roles?.name || '—'}</span>
+                          <Shield className="w-3 h-3 text-muted-foreground/40" />
+                          <span className="text-muted-foreground">{inv.company_roles?.name || '—'}</span>
                         </div>
                       </td>
-                      <td className="px-5 py-3.5">
-                        <span className="text-sm text-muted-foreground">{inv.department || '—'}</span>
-                      </td>
-                      <td className="px-5 py-3.5">
-                        <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-medium border ${badge.bg}`}>
-                          <StatusIcon className="w-3 h-3" />
+                      <td className="text-muted-foreground">{inv.department || '—'}</td>
+                      <td>
+                        <span className={`badge ${
+                          inv.status === 'accepted' ? 'badge-success' :
+                          inv.status === 'pending' ? 'badge-warning' :
+                          inv.status === 'revoked' ? 'badge-danger' : 'badge-neutral'
+                        }`}>
                           {badge.label}
                         </span>
                       </td>
-                      <td className="px-5 py-3.5">
-                        <span className="text-xs text-muted-foreground/60">
-                          {new Date(inv.created_at).toLocaleDateString()}
-                        </span>
+                      <td className="text-xs text-muted-foreground/50">
+                        {new Date(inv.created_at).toLocaleDateString()}
                       </td>
-                      <td className="px-5 py-3.5 text-right">
+                      <td className="text-right">
                         {inv.status === 'pending' && (
                           <button
                             onClick={() => revokeInvitation(inv.id)}

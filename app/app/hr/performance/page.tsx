@@ -57,32 +57,73 @@ export default function PerformancePage() {
   }, [records])
 
   return (
-    <div className="p-6 lg:p-8 max-w-[1200px] mx-auto space-y-6">
-      <h1 className="text-2xl font-bold">Performance Reviews</h1>
-      <div className="grid md:grid-cols-3 gap-4">
-        <Card className="p-4"><p className="text-xs text-muted-foreground">Total Reviews</p><p className="text-2xl font-bold">{records.length}</p></Card>
-        <Card className="p-4"><p className="text-xs text-muted-foreground">Average Score</p><p className="text-2xl font-bold">{records.length ? (records.reduce((s:number,r:any)=>s+Number(r.points||0),0)/records.length).toFixed(1) : '0.0'}</p></Card>
-        <Card className="p-4"><p className="text-xs text-muted-foreground">Employees Rated</p><p className="text-2xl font-bold">{leaderboard.length}</p></Card>
+    <div className="p-6 lg:p-8 max-w-[1200px] mx-auto animate-fade-in space-y-6">
+      <div>
+        <h1 className="text-2xl font-bold text-foreground tracking-tight">Performance Reviews</h1>
+        <p className="text-sm text-muted-foreground mt-0.5">Track and manage employee performance</p>
       </div>
 
-      <Card className="p-4 space-y-3">
-        <h2 className="text-sm font-semibold">Add Performance Record</h2>
+      <div className="grid md:grid-cols-3 gap-4 stagger-children">
+        {[
+          { label: 'Total Reviews', value: records.length },
+          { label: 'Average Score', value: records.length ? (records.reduce((s:number,r:any)=>s+Number(r.points||0),0)/records.length).toFixed(1) : '0.0' },
+          { label: 'Employees Rated', value: leaderboard.length },
+        ].map(stat => (
+          <Card key={stat.label} className="stat-card p-4">
+            <p className="text-[11px] text-muted-foreground font-medium mb-1">{stat.label}</p>
+            <p className="text-2xl font-bold text-foreground tracking-tight">{stat.value}</p>
+          </Card>
+        ))}
+      </div>
+
+      <Card className="p-5 border border-primary/15 bg-primary/[0.02] space-y-3">
+        <div className="flex items-center gap-2.5 mb-1">
+          <div className="w-8 h-8 rounded-xl bg-primary/10 flex items-center justify-center">
+            <svg className="w-4 h-4 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+          </div>
+          <div>
+            <h3 className="text-sm font-semibold text-foreground">Add Performance Record</h3>
+            <p className="text-[11px] text-muted-foreground/60">Rate an employee&apos;s performance</p>
+          </div>
+        </div>
         <div className="grid md:grid-cols-3 gap-3">
-          <select className="px-3 py-2 border rounded" value={form.employee_id} onChange={(e)=>setForm({ ...form, employee_id: e.target.value })}><option value="">Employee</option>{employees.map((e:any)=><option key={e.id} value={e.id}>{e.users?.full_name || 'Unnamed'}</option>)}</select>
+          <select className="form-select" value={form.employee_id} onChange={(e)=>setForm({ ...form, employee_id: e.target.value })}><option value="">Employee</option>{employees.map((e:any)=><option key={e.id} value={e.id}>{e.users?.full_name || 'Unnamed'}</option>)}</select>
           <Input type="number" placeholder="Points" value={form.points} onChange={(e)=>setForm({ ...form, points: e.target.value })} />
           <Input placeholder="Description" value={form.description} onChange={(e)=>setForm({ ...form, description: e.target.value })} />
         </div>
-        <Button onClick={addRecord}>Save Record</Button>
+        <div className="pt-3 border-t border-border/30">
+          <Button size="sm" onClick={addRecord}>Save Record</Button>
+        </div>
       </Card>
 
       <div className="grid md:grid-cols-2 gap-4">
-        <Card className="p-4">
-          <h3 className="font-semibold mb-2">Leaderboard</h3>
-          <div className="space-y-2 text-sm">{leaderboard.length===0?<p className="text-muted-foreground/60">No scores yet</p>:leaderboard.map((l,idx)=><div key={idx} className="flex justify-between"><span>{l.name}</span><span className="font-mono">{l.score}</span></div>)}</div>
+        <Card className="p-5">
+          <h3 className="text-sm font-semibold text-foreground mb-3">Leaderboard</h3>
+          <div className="space-y-2 text-sm">
+            {leaderboard.length === 0 ? <p className="text-muted-foreground/60 text-xs">No scores yet</p> : leaderboard.map((l, idx) => (
+              <div key={idx} className="flex items-center justify-between py-1.5 border-b border-border/20 last:border-0">
+                <div className="flex items-center gap-2">
+                  <span className="w-5 h-5 rounded-full bg-primary/10 flex items-center justify-center text-[10px] font-bold text-primary">{idx + 1}</span>
+                  <span className="text-foreground">{l.name}</span>
+                </div>
+                <span className="font-mono font-bold tabular-nums">{l.score}</span>
+              </div>
+            ))}
+          </div>
         </Card>
-        <Card className="p-4 overflow-x-auto">
-          <h3 className="font-semibold mb-2">Recent Records</h3>
-          <div className="space-y-2 text-sm">{records.length===0?<p className="text-muted-foreground/60">No records</p>:records.slice(0,12).map((r:any)=><div key={r.id} className="border rounded px-2 py-1"><div className="flex justify-between"><span>{r.company_employees?.users?.full_name || 'Unknown'}</span><span className="font-mono">{r.points}</span></div><p className="text-xs text-muted-foreground">{r.description || 'No note'}</p></div>)}</div>
+        <Card className="p-5">
+          <h3 className="text-sm font-semibold text-foreground mb-3">Recent Records</h3>
+          <div className="space-y-2 text-sm">
+            {records.length === 0 ? <p className="text-muted-foreground/60 text-xs">No records</p> : records.slice(0, 12).map((r: any) => (
+              <div key={r.id} className="border border-border/30 rounded-xl px-3 py-2">
+                <div className="flex justify-between">
+                  <span className="font-medium text-foreground">{r.company_employees?.users?.full_name || 'Unknown'}</span>
+                  <span className="font-mono font-bold tabular-nums">{r.points}</span>
+                </div>
+                <p className="text-xs text-muted-foreground/60 mt-0.5">{r.description || 'No note'}</p>
+              </div>
+            ))}
+          </div>
         </Card>
       </div>
     </div>

@@ -75,6 +75,14 @@ export default function BookkeepingPage() {
     await loadData()
   }
 
+  const filtered = useMemo(() => {
+    const q = searchQuery.toLowerCase()
+    return entries.filter(e => {
+      if (!q) return true
+      return (e.description || '').toLowerCase().includes(q) || (e.reference_number || '').toLowerCase().includes(q)
+    })
+  }, [entries, searchQuery])
+
   const totals = useMemo(() => {
     let debit = 0
     let credit = 0
@@ -88,47 +96,96 @@ export default function BookkeepingPage() {
   }, [entries])
 
   return (
-    <div className="p-6 lg:p-8 max-w-[1300px] mx-auto space-y-6">
+    <div className="p-6 lg:p-8 max-w-[1300px] mx-auto animate-fade-in space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-foreground tracking-tight mb-1">Bookkeeping</h1>
-        <p className="text-sm text-muted-foreground">Record journal entries and track bookkeeping totals.</p>
+        <h1 className="text-2xl font-bold text-foreground tracking-tight">Bookkeeping</h1>
+        <p className="text-sm text-muted-foreground mt-0.5">Record journal entries and track bookkeeping totals.</p>
       </div>
 
-      <div className="grid md:grid-cols-3 gap-4">
-        <Card className="p-4 border border-border/50"><p className="text-xs text-muted-foreground">Entries</p><p className="text-2xl font-bold">{entries.length}</p></Card>
-        <Card className="p-4 border border-border/50"><p className="text-xs text-muted-foreground">Total Debits</p><p className="text-2xl font-bold">{totals.debit.toLocaleString()}</p></Card>
-        <Card className="p-4 border border-border/50"><p className="text-xs text-muted-foreground">Total Credits</p><p className="text-2xl font-bold">{totals.credit.toLocaleString()}</p></Card>
+      <div className="grid md:grid-cols-3 gap-4 stagger-children">
+        {[
+          { label: 'Total Entries', value: entries.length, gradient: 'from-blue-500 to-blue-600' },
+          { label: 'Total Debits', value: totals.debit.toLocaleString(), gradient: 'from-emerald-500 to-green-600' },
+          { label: 'Total Credits', value: totals.credit.toLocaleString(), gradient: 'from-violet-500 to-purple-600' },
+        ].map(stat => (
+          <Card key={stat.label} className="stat-card p-4">
+            <p className="text-[11px] text-muted-foreground font-medium mb-1">{stat.label}</p>
+            <p className="text-2xl font-bold text-foreground tracking-tight">{stat.value}</p>
+          </Card>
+        ))}
       </div>
 
-      <Card className="p-5 border border-border/50 space-y-3">
-        <h2 className="text-sm font-semibold">Record Entry</h2>
+      <Card className="p-5 border border-primary/15 bg-primary/[0.02]">
+        <div className="flex items-center gap-2.5 mb-4">
+          <div className="w-8 h-8 rounded-xl bg-primary/10 flex items-center justify-center">
+            <Search className="w-4 h-4 text-primary" />
+          </div>
+          <div>
+            <h3 className="text-sm font-semibold text-foreground">Record Entry</h3>
+            <p className="text-[11px] text-muted-foreground/60">Add a new journal entry</p>
+          </div>
+        </div>
         <div className="grid md:grid-cols-6 gap-3">
           <Input type="date" value={form.entry_date} onChange={(e) => setForm({ ...form, entry_date: e.target.value })} />
-          <Input placeholder="Description" className="md:col-span-2" value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} />
+          <Input placeholder="Description *" className="md:col-span-2" value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} />
           <Input placeholder="Reference" value={form.reference_number} onChange={(e) => setForm({ ...form, reference_number: e.target.value })} />
-          <select className="px-3 py-2 border border-input rounded-xl" value={form.account_id} onChange={(e) => setForm({ ...form, account_id: e.target.value })}><option value="">Select account</option>{accounts.map((account) => <option key={account.id} value={account.id}>{account.account_code} - {account.account_name}</option>)}</select>
+          <select className="form-select" value={form.account_id} onChange={(e) => setForm({ ...form, account_id: e.target.value })}>
+            <option value="">Select account *</option>
+            {accounts.map((account) => <option key={account.id} value={account.id}>{account.account_code} - {account.account_name}</option>)}
+          </select>
           <Input type="number" placeholder="Debit" value={form.debit} onChange={(e) => setForm({ ...form, debit: e.target.value })} />
           <Input type="number" placeholder="Credit" value={form.credit} onChange={(e) => setForm({ ...form, credit: e.target.value })} />
         </div>
-        <Button onClick={createEntry}>Save Entry</Button>
+        <div className="mt-4 pt-4 border-t border-border/30">
+          <Button size="sm" onClick={createEntry}>Save Entry</Button>
+        </div>
       </Card>
 
-      <Card className="p-3 border border-border/50"><div className="relative"><Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground/60"/><Input className="pl-10" placeholder="Search description or reference..." value={searchQuery} onChange={(e)=>setSearchQuery(e.target.value)} /></div></Card><Card className="border border-border/50 overflow-hidden">
+      <Card className="p-3">
+        <div className="relative">
+          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground/40"/>
+          <Input className="pl-10" placeholder="Search description or reference..." value={searchQuery} onChange={(e)=>setSearchQuery(e.target.value)} />
+        </div>
+      </Card>
+
+      <Card className="overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead><tr className="bg-muted/50 border-b text-xs text-muted-foreground uppercase"><th className="px-4 py-3 text-left">Date</th><th className="px-4 py-3 text-left">Description</th><th className="px-4 py-3 text-left">Reference</th><th className="px-4 py-3 text-left">Journal Lines</th></tr></thead>
+          <table className="premium-table">
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th>Description</th>
+                <th>Reference</th>
+                <th>Journal Lines</th>
+              </tr>
+            </thead>
             <tbody>
-              {filtered.length === 0 ? <tr><td colSpan={4} className="px-4 py-8 text-center text-muted-foreground/60">No entries recorded.</td></tr> : filtered.map((entry) => (
-                <tr key={entry.id} className="border-b last:border-0 align-top">
-                  <td className="px-4 py-3">{entry.entry_date}</td>
-                  <td className="px-4 py-3">{entry.description}</td>
-                  <td className="px-4 py-3">{entry.reference_number || '—'}</td>
-                  <td className="px-4 py-3">
+              {filtered.length === 0 ? (
+                <tr>
+                  <td colSpan={4} className="!py-16 text-center">
+                    <div className="w-14 h-14 rounded-2xl bg-muted/40 flex items-center justify-center mx-auto mb-4">
+                      <Search className="w-6 h-6 text-muted-foreground/25" />
+                    </div>
+                    <p className="text-sm text-muted-foreground font-medium">No entries recorded</p>
+                    <p className="text-xs text-muted-foreground/40 mt-1">Create your first journal entry above</p>
+                  </td>
+                </tr>
+              ) : filtered.map((entry) => (
+                <tr key={entry.id} className="align-top">
+                  <td className="text-muted-foreground text-xs whitespace-nowrap">{entry.entry_date}</td>
+                  <td className="font-medium text-foreground">{entry.description}</td>
+                  <td className="text-muted-foreground">{entry.reference_number || '—'}</td>
+                  <td>
                     {(entry.journal_entries || []).length === 0 ? '—' : (
-                      <div className="space-y-1">
+                      <div className="space-y-1.5">
                         {(entry.journal_entries || []).map((journal: any) => (
-                          <div key={journal.id} className="text-xs text-muted-foreground border rounded px-2 py-1">
-                            {journal.accounting_accounts?.account_code} {journal.accounting_accounts?.account_name} | Dr {Number(journal.debit || 0).toLocaleString()} | Cr {Number(journal.credit || 0).toLocaleString()}
+                          <div key={journal.id} className="text-xs text-muted-foreground bg-muted/30 rounded-lg px-2.5 py-1.5 flex items-center gap-2 flex-wrap">
+                            <span className="font-medium text-foreground">{journal.accounting_accounts?.account_code}</span>
+                            <span>{journal.accounting_accounts?.account_name}</span>
+                            <span className="text-muted-foreground/30">|</span>
+                            <span className="text-emerald-600 font-mono tabular-nums">Dr {Number(journal.debit || 0).toLocaleString()}</span>
+                            <span className="text-muted-foreground/30">|</span>
+                            <span className="text-blue-600 font-mono tabular-nums">Cr {Number(journal.credit || 0).toLocaleString()}</span>
                           </div>
                         ))}
                       </div>
@@ -139,6 +196,11 @@ export default function BookkeepingPage() {
             </tbody>
           </table>
         </div>
+        {filtered.length > 0 && (
+          <div className="px-5 py-3 border-t border-border/20 bg-muted/10">
+            <p className="text-xs text-muted-foreground/50">Showing <span className="font-semibold text-foreground">{filtered.length}</span> entries</p>
+          </div>
+        )}
       </Card>
     </div>
   )
