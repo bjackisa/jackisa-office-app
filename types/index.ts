@@ -192,7 +192,7 @@ export interface UserActiveCompany {
 // ACCOUNTING TYPES
 // ============================================================================
 
-export type InvoiceStatus = 'draft' | 'sent' | 'paid' | 'overdue' | 'cancelled'
+export type InvoiceStatus = 'draft' | 'sent' | 'partially_paid' | 'paid' | 'overdue' | 'cancelled'
 export type ExpenseCategory = 'utilities' | 'salaries' | 'rent' | 'equipment' | 'travel' | 'supplies' | 'marketing' | 'maintenance' | 'other'
 
 export interface AccountingAccount {

@@ -73,65 +73,56 @@ export default function CreditNotesPage() {
   const selectedOutstanding = getInvoiceOutstanding(selectedInvoice)
 
   const createCreditNote = async () => {
-    if (!companyId || !userId || !form.reason || !form.amount) return
-    if (form.invoice_id && !selectedInvoice) {
+    if (!companyId || !userId || !form.amount) return
+    if (!form.invoice_id) {
+      setError('Select an invoice to collect payment and create a credit note.')
+      return
+    }
+    if (!selectedInvoice) {
       setError('Select a valid invoice before applying a credit note.')
       return
     }
 
     const amount = Number(form.amount)
     if (Number.isNaN(amount) || amount <= 0) {
-      setError('Enter a valid partial payment amount.')
+      setError('Enter a valid partial collection amount.')
       return
     }
 
-    if (form.invoice_id && amount > selectedOutstanding) {
+    if (amount > selectedOutstanding) {
       setError(`Amount exceeds invoice outstanding balance of ${selectedOutstanding.toLocaleString()}.`)
       return
     }
 
     setError(null)
 
-    const { error: noteError } = await supabase.from('credit_notes').insert({
-      company_id: companyId,
-      credit_note_number: `CN-${Date.now()}`,
-      invoice_id: form.invoice_id || null,
-      credit_date: form.credit_date,
-      reason: form.reason,
-      amount,
-      created_by: userId,
+    const response = await fetch('/api/payments/initiate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        companyId,
+        module: 'invoicing',
+        moduleReferenceId: form.invoice_id,
+        moduleReferenceType: 'invoices',
+        direction: 'collection',
+        paymentMethod: 'cash',
+        currency: 'UGX',
+        amount,
+        description: form.reason || `Invoice partial settlement (${form.credit_date})`,
+        metadata: {
+          source: 'credit_notes_page',
+          credit_date: form.credit_date,
+          partial_settlement: true,
+        },
+        initiatedBy: userId,
+      }),
     })
 
-    if (noteError) {
-      setError(noteError.message || 'Failed to create credit note.')
+    const result = await response.json()
+
+    if (!response.ok || !result?.success) {
+      setError(result?.message || 'Failed to record credit note collection.')
       return
-    }
-
-    if (form.invoice_id && selectedInvoice) {
-      const total = parseAmount(selectedInvoice.total_amount || 0)
-      const currentlyPaid = parseAmount(selectedInvoice.paid_amount || 0)
-      const nextPaidAmount = Math.min(Math.max(currentlyPaid + amount, 0), total)
-      const nextOutstandingAmount = Math.max(total - nextPaidAmount, 0)
-      const nextStatus =
-        nextOutstandingAmount <= 0
-          ? 'paid'
-          : nextPaidAmount > 0
-            ? 'partially_paid'
-            : selectedInvoice.status
-
-      const { error: invoiceError } = await supabase
-        .from('invoices')
-        .update({
-          paid_amount: nextPaidAmount,
-          outstanding_amount: nextOutstandingAmount,
-          status: nextStatus,
-        })
-        .eq('id', form.invoice_id)
-        .eq('company_id', companyId)
-
-      if (invoiceError) {
-        setError(`Credit note created, but invoice balance was not updated: ${invoiceError.message}`)
-      }
     }
 
     setForm({ invoice_id: '', credit_date: new Date().toISOString().split('T')[0], reason: '', amount: '' })
@@ -152,12 +143,12 @@ export default function CreditNotesPage() {
           </div>
           <div>
             <h3 className="text-sm font-semibold text-foreground">Create Credit Note</h3>
-            <p className="text-[11px] text-muted-foreground/60">Apply a manual partial or full payment to an invoice</p>
+            <p className="text-[11px] text-muted-foreground/60">Collect a full or partial invoice payment (auto-creates credit note)</p>
           </div>
         </div>
         <div className="grid md:grid-cols-4 gap-3">
           <select className="form-select" value={form.invoice_id} onChange={(e) => { setError(null); setForm({ ...form, invoice_id: e.target.value }) }}>
-            <option value="">No linked invoice</option>
+            <option value="">Select invoice</option>
             {invoices.filter(invoiceHasBalance).map((invoice) => {
               const outstanding = getInvoiceOutstanding(invoice)
               return (
