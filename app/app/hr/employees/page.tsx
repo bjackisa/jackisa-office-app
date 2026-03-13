@@ -7,10 +7,11 @@ import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
-  Plus, Search, Mail, Phone, Edit, MoreHorizontal, User,
-  Users, UserCheck, UserX, Building2, Download, Filter,
+  Plus, Search, Mail, Phone, MoreHorizontal, User,
+  Users, UserCheck, UserX, Building2, Download, UserPlus,
 } from 'lucide-react'
-import type { CompanyEmployee } from '@/types'
+import type { EmployeeStatus } from '@/types'
+import { openTerminationLetterWindow } from '@/lib/hr-termination-letter'
 
 export default function EmployeesPage() {
   const [employees, setEmployees] = useState<any[]>([])
@@ -22,6 +23,7 @@ export default function EmployeesPage() {
   const [deptFilter, setDeptFilter] = useState('')
   const [companyId, setCompanyId] = useState<string | null>(null)
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
+  const [loadingEmployeeId, setLoadingEmployeeId] = useState<string | null>(null)
   const [employeeForm, setEmployeeForm] = useState({
     email: '',
     roleId: '',
@@ -76,17 +78,7 @@ export default function EmployeesPage() {
   const departments = [...new Set(employees.map(e => e.department).filter(Boolean))]
   const activeCount = employees.filter(e => e.status === 'active').length
   const pendingCount = employees.filter(e => e.status === 'pending_invitation').length
-  const suspendedCount = employees.filter(e => e.status === 'suspended').length
-
-  const getStatusBadge = (status: string) => {
-    const map: Record<string, string> = {
-      active: 'bg-emerald-50 text-emerald-700 border-emerald-200',
-      pending_invitation: 'bg-amber-50 text-amber-700 border-amber-200',
-      suspended: 'bg-red-50 text-red-600 border-red-200',
-      terminated: 'bg-muted text-muted-foreground border-border',
-    }
-    return map[status] || 'bg-muted text-muted-foreground border-border'
-  }
+  const terminatedCount = employees.filter(e => e.status === 'terminated').length
 
   const getStatusLabel = (status: string) => {
     const map: Record<string, string> = {
@@ -121,6 +113,106 @@ export default function EmployeesPage() {
     link.download = `employees-${new Date().toISOString().slice(0, 10)}.csv`
     link.click()
     URL.revokeObjectURL(url)
+  }
+
+
+  const handleStatusChange = async (employeeId: string, nextStatus: EmployeeStatus) => {
+    if (!companyId) return
+
+    try {
+      setLoadingEmployeeId(employeeId)
+      const nowIso = new Date().toISOString()
+      const terminationDate = nextStatus === 'terminated' ? nowIso.slice(0, 10) : null
+
+      const { error } = await supabase
+        .from('company_employees')
+        .update({
+          status: nextStatus,
+          termination_date: terminationDate,
+          updated_at: nowIso,
+        })
+        .eq('id', employeeId)
+        .eq('company_id', companyId)
+
+      if (error) throw error
+
+      setEmployees((prev) => prev.map((emp) => (emp.id === employeeId ? { ...emp, status: nextStatus, termination_date: terminationDate } : emp)))
+      setMessage({ type: 'success', text: `Employee status updated to ${getStatusLabel(nextStatus)}. HR points page reflects the same employee status automatically.` })
+    } catch (error: any) {
+      setMessage({ type: 'error', text: error.message || 'Failed to update employee status.' })
+    } finally {
+      setLoadingEmployeeId(null)
+    }
+  }
+
+  const handleViewTerminationLetter = async (employee: any) => {
+    if (!companyId) return
+
+    try {
+      setLoadingEmployeeId(employee.id)
+
+      const [{ data: companyData }, { data: txData }, { data: savedLetter }] = await Promise.all([
+        supabase.from('companies').select('name, email, country').eq('id', companyId).single(),
+        supabase
+          .from('point_transactions')
+          .select('recorded_date, points, reason, point_rules(indicator, category)')
+          .eq('company_id', companyId)
+          .eq('employee_id', employee.id)
+          .eq('action_type', 'loss')
+          .order('recorded_date', { ascending: false })
+          .limit(8),
+        supabase
+          .from('hr_termination_letters')
+          .select('reason, generated_at')
+          .eq('company_id', companyId)
+          .eq('employee_id', employee.id)
+          .order('generated_at', { ascending: false })
+          .limit(1)
+          .maybeSingle(),
+      ])
+
+      const reasons = (txData || []).map((tx: any) => ({
+        date: tx.recorded_date,
+        title: tx.point_rules?.indicator || tx.reason || 'Point deduction',
+        detail: tx.reason || tx.point_rules?.category || null,
+        points: tx.points,
+      }))
+
+      if (reasons.length === 0 && savedLetter?.reason) {
+        reasons.push({
+          date: savedLetter.generated_at,
+          title: 'Recorded termination reason',
+          detail: savedLetter.reason,
+          points: null,
+        })
+      }
+
+      const today = new Date().toISOString().slice(0, 10)
+      openTerminationLetterWindow({
+        companyName: companyData?.name || 'Company',
+        companyEmail: companyData?.email || null,
+        companyPhone: null,
+        companyAddress: null,
+        companyCityCountry: companyData?.country || null,
+        employeeName: employee.users?.full_name || 'Employee',
+        employeeId: employee.employee_id_number,
+        employeePosition: employee.position || employee.company_roles?.name,
+        employeeDepartment: employee.department,
+        dateIssued: today,
+        dateOfTermination: employee.termination_date || today,
+        referenceNumber: `TERM-${String(employee.employee_id_number || employee.id).slice(0, 8).toUpperCase()}`,
+        finalPayDate: today,
+        hrContactName: 'HR Department',
+        hrContactEmail: companyData?.email || null,
+        signatoryName: 'HR Manager',
+        signatoryTitle: 'Human Resources',
+        reasons,
+      })
+    } catch (error: any) {
+      setMessage({ type: 'error', text: error.message || 'Failed to prepare termination letter.' })
+    } finally {
+      setLoadingEmployeeId(null)
+    }
   }
 
   const handleAddEmployee = async () => {
@@ -232,12 +324,13 @@ export default function EmployeesPage() {
       )}
 
       {/* Stats */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6 stagger-children">
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-4 mb-6 stagger-children">
         {[
           { label: 'Total Employees', value: employees.length, icon: Users, gradient: 'from-blue-500 to-blue-600' },
           { label: 'Active', value: activeCount, icon: UserCheck, gradient: 'from-emerald-500 to-green-600' },
           { label: 'Pending Invite', value: pendingCount, icon: Mail, gradient: 'from-amber-500 to-orange-500' },
           { label: 'Departments', value: departments.length, icon: Building2, gradient: 'from-violet-500 to-purple-600' },
+          { label: 'Terminated', value: terminatedCount, icon: UserX, gradient: 'from-rose-500 to-red-600' },
         ].map(stat => (
           <Card key={stat.label} className="stat-card p-4">
             <div className="flex items-center gap-3">
@@ -363,9 +456,32 @@ export default function EmployeesPage() {
                       </span>
                     </td>
                     <td className="text-right">
-                      <button className="p-1.5 rounded-lg text-muted-foreground/40 hover:text-foreground hover:bg-muted/50 transition-all opacity-0 group-hover:opacity-100">
-                        <MoreHorizontal className="w-4 h-4" />
-                      </button>
+                      <div className="flex items-center justify-end gap-2">
+                        <select
+                          className="form-select !w-[150px] h-8 text-xs"
+                          value={emp.status}
+                          disabled={loadingEmployeeId === emp.id}
+                          onChange={(e) => handleStatusChange(emp.id, e.target.value as EmployeeStatus)}
+                          aria-label="Change employee status"
+                        >
+                          <option value="pending_invitation">Pending</option>
+                          <option value="active">Active</option>
+                          <option value="suspended">Suspended</option>
+                          <option value="terminated">Terminated</option>
+                        </select>
+                        {emp.status === 'terminated' && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-8 px-2.5 text-xs"
+                            onClick={() => handleViewTerminationLetter(emp)}
+                            disabled={loadingEmployeeId === emp.id}
+                          >
+                            <MoreHorizontal className="w-3.5 h-3.5 mr-1" />
+                            View & Print Letter
+                          </Button>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))

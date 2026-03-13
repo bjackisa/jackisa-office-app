@@ -17,28 +17,7 @@ import {
   Download,
   AlertTriangle,
 } from 'lucide-react'
-
-
-const loadJsPdf = async () => {
-  const existing = (window as any).jspdf?.jsPDF
-  if (existing) return existing
-
-  await new Promise<void>((resolve, reject) => {
-    const script = document.createElement('script')
-    script.src = 'https://cdn.jsdelivr.net/npm/jspdf@2.5.2/dist/jspdf.umd.min.js'
-    script.async = true
-    script.onload = () => resolve()
-    script.onerror = () => reject(new Error('Failed to load PDF generator. Please check your internet connection and try again.'))
-    document.head.appendChild(script)
-  })
-
-  const loaded = (window as any).jspdf?.jsPDF
-  if (!loaded) {
-    throw new Error('PDF generator could not be initialized.')
-  }
-
-  return loaded
-}
+import { openTerminationLetterWindow } from '@/lib/hr-termination-letter'
 
 export default function HRPointsPage() {
   const [transactions, setTransactions] = useState<any[]>([])
@@ -51,6 +30,7 @@ export default function HRPointsPage() {
   const [companyId, setCompanyId] = useState<string | null>(null)
   const [employees, setEmployees] = useState<any[]>([])
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
+  const [letterLoadingEmployeeId, setLetterLoadingEmployeeId] = useState<string | null>(null)
 
   const [awardForm, setAwardForm] = useState({ employeeId: '', ruleId: '', reason: '' })
 
@@ -92,7 +72,7 @@ export default function HRPointsPage() {
           .eq('company_id', context.companyId)
           .eq('is_active', true)
           .order('sort_order', { ascending: true }),
-        supabase.from('company_employees').select('id, users(full_name), status').eq('company_id', context.companyId),
+        supabase.from('company_employees').select('id, employee_id_number, department, position, termination_date, users(full_name), status').eq('company_id', context.companyId),
       ])
 
       setTransactions(txRes.data || [])
@@ -224,35 +204,75 @@ export default function HRPointsPage() {
     }
   }
 
-  const downloadTerminationLetter = async (employeeId: string) => {
+  const viewTerminationLetter = async (employeeId: string) => {
     if (!companyId) return
 
-    const { data, error } = await supabase
-      .from('hr_termination_letters')
-      .select('letter_body, generated_at, company_employees(users(full_name))')
-      .eq('company_id', companyId)
-      .eq('employee_id', employeeId)
-      .order('generated_at', { ascending: false })
-      .limit(1)
-      .maybeSingle()
+    try {
+      setLetterLoadingEmployeeId(employeeId)
 
-    if (error || !data?.letter_body) {
-      setMessage({ type: 'error', text: 'Termination letter not found for this employee.' })
-      return
+      const employee = employees.find((item: any) => item.id === employeeId)
+      const [{ data: companyData }, { data: txData }, { data: savedLetter }] = await Promise.all([
+        supabase.from('companies').select('name, email, country').eq('id', companyId).single(),
+        supabase
+          .from('point_transactions')
+          .select('recorded_date, points, reason, point_rules(indicator, category)')
+          .eq('company_id', companyId)
+          .eq('employee_id', employeeId)
+          .eq('action_type', 'loss')
+          .order('recorded_date', { ascending: false })
+          .limit(8),
+        supabase
+          .from('hr_termination_letters')
+          .select('reason, generated_at')
+          .eq('company_id', companyId)
+          .eq('employee_id', employeeId)
+          .order('generated_at', { ascending: false })
+          .limit(1)
+          .maybeSingle(),
+      ])
+
+      const reasons = (txData || []).map((tx: any) => ({
+        date: tx.recorded_date,
+        title: tx.point_rules?.indicator || tx.reason || 'Point deduction',
+        detail: tx.reason || tx.point_rules?.category || null,
+        points: tx.points,
+      }))
+
+      if (reasons.length === 0 && savedLetter?.reason) {
+        reasons.push({
+          date: savedLetter.generated_at,
+          title: 'Recorded termination reason',
+          detail: savedLetter.reason,
+          points: null,
+        })
+      }
+
+      const today = new Date().toISOString().slice(0, 10)
+      openTerminationLetterWindow({
+        companyName: companyData?.name || 'Company',
+        companyEmail: companyData?.email || null,
+        companyPhone: null,
+        companyAddress: null,
+        companyCityCountry: companyData?.country || null,
+        employeeName: employee?.users?.full_name || 'Employee',
+        employeeId: employee?.employee_id_number || employeeId,
+        employeePosition: employee?.position || null,
+        employeeDepartment: employee?.department || null,
+        dateIssued: today,
+        dateOfTermination: employee?.termination_date || today,
+        referenceNumber: `TERM-${String(employee?.employee_id_number || employeeId).slice(0, 8).toUpperCase()}`,
+        finalPayDate: today,
+        hrContactName: 'HR Department',
+        hrContactEmail: companyData?.email || null,
+        signatoryName: 'HR Manager',
+        signatoryTitle: 'Human Resources',
+        reasons,
+      })
+    } catch (error: any) {
+      setMessage({ type: 'error', text: error.message || 'Failed to prepare termination letter.' })
+    } finally {
+      setLetterLoadingEmployeeId(null)
     }
-
-    const JsPdf = await loadJsPdf()
-    const doc = new JsPdf({ unit: 'pt', format: 'a4' })
-    const employeeName =
-      (data as any)?.company_employees?.users?.full_name ||
-      (data as any)?.company_employees?.[0]?.users?.full_name ||
-      (data as any)?.company_employees?.[0]?.users?.[0]?.full_name ||
-      'employee'
-    const lines = doc.splitTextToSize(data.letter_body, 500)
-    doc.setFont('times', 'normal')
-    doc.setFontSize(12)
-    doc.text(lines, 50, 60)
-    doc.save(`termination-letter-${employeeName.replaceAll(' ', '-').toLowerCase()}.pdf`)
   }
 
   const exportPoints = () => {
@@ -529,8 +549,8 @@ export default function HRPointsPage() {
                         </td>
                         <td className="px-5 py-3 text-sm">
                           {isTerminated && (
-                            <Button variant="outline" size="sm" onClick={() => downloadTerminationLetter(b.employee_id)}>
-                              Download PDF
+                            <Button variant="outline" size="sm" disabled={letterLoadingEmployeeId === b.employee_id} onClick={() => viewTerminationLetter(b.employee_id)}>
+                              View & Print Letter
                             </Button>
                           )}
                         </td>
