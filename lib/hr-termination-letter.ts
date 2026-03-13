@@ -147,6 +147,9 @@ export const buildTerminationLetterHtml = (data: TerminationLetterData) => {
       <div><div class="sig-line">${safe(data.signatoryName, 'HR Manager')}<br/><span class="muted">${safe(data.signatoryTitle, 'Human Resources')}</span></div></div>
       <div><div class="sig-line">${safe(data.employeeName)}<br/><span class="muted">Acknowledged by Employee</span></div></div>
     </div>
+    <div class="letter-footer" style="margin-top:2rem;text-align:center;font-size:.78rem;color:#6b6b6b;">
+      <strong>Jackisa Office</strong> · Licensed to ${safe(data.companyName)} · © 2026 Jackisa LLC. All Rights Reserved.
+    </div>
   </div>
 </body>
 </html>`

@@ -22,7 +22,6 @@ export default function EmployeesPage() {
   const [statusFilter, setStatusFilter] = useState('')
   const [deptFilter, setDeptFilter] = useState('')
   const [companyId, setCompanyId] = useState<string | null>(null)
-  const [companyName, setCompanyName] = useState('Your Company')
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
   const [loadingEmployeeId, setLoadingEmployeeId] = useState<string | null>(null)
   const [employeeForm, setEmployeeForm] = useState({
@@ -41,7 +40,7 @@ export default function EmployeesPage() {
       if (!context?.companyId) return
       setCompanyId(context.companyId)
 
-      const [{ data }, { data: roleData }, { data: companyData }] = await Promise.all([
+      const [{ data }, { data: roleData }] = await Promise.all([
         supabase
           .from('company_employees')
           .select('*, users(full_name, email, avatar_url), company_roles(name)')
@@ -52,16 +51,10 @@ export default function EmployeesPage() {
           .select('id, name')
           .eq('company_id', context.companyId)
           .order('name', { ascending: true }),
-        supabase
-          .from('companies')
-          .select('name')
-          .eq('id', context.companyId)
-          .maybeSingle(),
       ])
 
       setEmployees(data || [])
       setRoles(roleData || [])
-      setCompanyName(companyData?.name || 'Your Company')
     } catch (error) {
       console.error('Failed to load employees:', error)
     } finally {
@@ -479,9 +472,6 @@ export default function EmployeesPage() {
           </div>
         )}
       </Card>
-      <div className="mt-6 text-center text-xs text-muted-foreground">
-        <span className="font-semibold text-foreground">Jackisa Office</span> · Licensed to {companyName} · © 2026 Jackisa LLC. All Rights Reserved.
-      </div>
 
     </div>
   )
