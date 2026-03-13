@@ -143,6 +143,24 @@ export default function HRPointsPage() {
     return map
   }, [employees])
 
+  const activeTrackedEmployeeIds = useMemo(() => {
+    const activeFromEmployees = new Set(
+      employees
+        .filter((employee: any) => employee.status === 'active')
+        .map((employee: any) => employee.id)
+    )
+
+    const activeFromBalances = new Set(
+      visibleBalances
+        .filter((balance: any) => (employeeStatusById.get(balance.employee_id) || 'active') === 'active')
+        .map((balance: any) => balance.employee_id)
+    )
+
+    return new Set([...activeFromEmployees, ...activeFromBalances])
+  }, [employees, visibleBalances, employeeStatusById])
+
+  const employeesTrackedCount = activeTrackedEmployeeIds.size
+
   const awardableEmployees = useMemo(
     () => employees.filter((employee: any) => ['active', 'suspended'].includes(employee.status)),
     [employees]
@@ -375,7 +393,7 @@ export default function HRPointsPage() {
 
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
         {[
-          { label: 'Employees Tracked', value: visibleBalances.length, icon: Target, color: 'text-blue-600', bg: 'bg-blue-50' },
+          { label: 'Employees Tracked', value: employeesTrackedCount, icon: Target, color: 'text-blue-600', bg: 'bg-blue-50' },
           { label: 'Total Gains', value: `+${totalGains.toFixed(1)}`, icon: ArrowUpCircle, color: 'text-emerald-600', bg: 'bg-emerald-50' },
           { label: 'Total Losses', value: `-${totalLosses.toFixed(1)}`, icon: ArrowDownCircle, color: 'text-red-600', bg: 'bg-red-50' },
           { label: 'Active Rules', value: rules.length, icon: Star, color: 'text-amber-600', bg: 'bg-amber-50' },
