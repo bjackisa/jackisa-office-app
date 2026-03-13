@@ -318,7 +318,23 @@ export default function HRPointsPage() {
 
   const totalGains = transactions.filter((t) => t.action_type === 'gain').reduce((s, t) => s + (t.points || 0), 0)
   const totalLosses = transactions.filter((t) => t.action_type === 'loss').reduce((s, t) => s + (t.points || 0), 0)
-  const flaggedTerminations = visibleBalances.filter((b) => b.is_termination_flagged || Number(b.closing_balance) <= 0).length
+  const flaggedTerminationIds = useMemo(() => {
+    const flaggedByEmployeeStatus = new Set(
+      employees
+        .filter((employee: any) => employee.status === 'terminated')
+        .map((employee: any) => employee.id)
+    )
+
+    const flaggedByPoints = new Set(
+      visibleBalances
+        .filter((balance: any) => balance.is_termination_flagged || Number(balance.closing_balance) <= 0)
+        .map((balance: any) => balance.employee_id)
+    )
+
+    return new Set([...flaggedByEmployeeStatus, ...flaggedByPoints])
+  }, [employees, visibleBalances])
+
+  const flaggedTerminations = flaggedTerminationIds.size
 
   const tabs = [
     { key: 'balances', label: 'Balances', icon: Target },
