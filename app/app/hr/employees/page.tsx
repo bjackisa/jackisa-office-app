@@ -7,7 +7,7 @@ import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
-  Plus, Search, Mail, Phone, MoreHorizontal, User,
+  Plus, Search, Mail, Phone, User,
   Users, UserCheck, UserX, Building2, Download, UserPlus,
 } from 'lucide-react'
 import type { EmployeeStatus } from '@/types'
@@ -115,7 +115,6 @@ export default function EmployeesPage() {
     URL.revokeObjectURL(url)
   }
 
-
   const handleStatusChange = async (employeeId: string, nextStatus: EmployeeStatus) => {
     if (!companyId) return
 
@@ -137,7 +136,7 @@ export default function EmployeesPage() {
       if (error) throw error
 
       setEmployees((prev) => prev.map((emp) => (emp.id === employeeId ? { ...emp, status: nextStatus, termination_date: terminationDate } : emp)))
-      setMessage({ type: 'success', text: `Employee status updated to ${getStatusLabel(nextStatus)}. HR points page reflects the same employee status automatically.` })
+      setMessage({ type: 'success', text: `Employee status updated to ${getStatusLabel(nextStatus)}. HR points page reflects this automatically.` })
     } catch (error: any) {
       setMessage({ type: 'error', text: error.message || 'Failed to update employee status.' })
     } finally {
@@ -147,6 +146,14 @@ export default function EmployeesPage() {
 
   const handleViewTerminationLetter = async (employee: any) => {
     if (!companyId) return
+
+    const previewWindow = window.open('', '_blank')
+    if (!previewWindow) {
+      setMessage({ type: 'error', text: 'Please allow pop-ups to view and print the termination letter.' })
+      return
+    }
+
+    previewWindow.document.write('<p style="font-family:sans-serif;padding:16px;">Preparing termination letter…</p>')
 
     try {
       setLoadingEmployeeId(employee.id)
@@ -207,8 +214,9 @@ export default function EmployeesPage() {
         signatoryName: 'HR Manager',
         signatoryTitle: 'Human Resources',
         reasons,
-      })
+      }, previewWindow)
     } catch (error: any) {
+      previewWindow.close()
       setMessage({ type: 'error', text: error.message || 'Failed to prepare termination letter.' })
     } finally {
       setLoadingEmployeeId(null)
@@ -260,8 +268,7 @@ export default function EmployeesPage() {
   }
 
   return (
-    <div className="p-6 lg:p-8 max-w-[1400px] mx-auto animate-fade-in">
-      {/* Header */}
+    <div className="p-4 lg:p-6 max-w-[1300px] mx-auto animate-fade-in">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
         <div>
           <h1 className="text-2xl font-bold text-foreground tracking-tight">Employees</h1>
@@ -300,11 +307,7 @@ export default function EmployeesPage() {
           </div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
             <Input placeholder="Employee email *" value={employeeForm.email} onChange={(e) => setEmployeeForm({ ...employeeForm, email: e.target.value })} />
-            <select
-              className="form-select"
-              value={employeeForm.roleId}
-              onChange={(e) => setEmployeeForm({ ...employeeForm, roleId: e.target.value })}
-            >
+            <select className="form-select" value={employeeForm.roleId} onChange={(e) => setEmployeeForm({ ...employeeForm, roleId: e.target.value })}>
               <option value="">Select role *</option>
               {roles.map((role) => (
                 <option key={role.id} value={role.id}>{role.name}</option>
@@ -323,7 +326,6 @@ export default function EmployeesPage() {
         </Card>
       )}
 
-      {/* Stats */}
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-4 mb-6 stagger-children">
         {[
           { label: 'Total Employees', value: employees.length, icon: Users, gradient: 'from-blue-500 to-blue-600' },
@@ -346,17 +348,11 @@ export default function EmployeesPage() {
         ))}
       </div>
 
-      {/* Filters */}
       <Card className="p-3 mb-4">
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
           <div className="flex-1 relative">
             <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground/40" />
-            <Input
-              placeholder="Search by name or email..."
-              className="pl-10"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-            />
+            <Input placeholder="Search by name or email..." className="pl-10" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
           </div>
           <select className="form-select" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
             <option value="">All Status</option>
@@ -374,121 +370,102 @@ export default function EmployeesPage() {
         </div>
       </Card>
 
-      {/* Table */}
       <Card className="overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="premium-table">
-            <thead>
+        <table className="premium-table table-fixed w-full">
+          <thead>
+            <tr>
+              <th className="w-[28%]">Employee</th>
+              <th className="w-[22%]">Role / Department</th>
+              <th className="w-[28%]">Contact</th>
+              <th className="w-[22%]">Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            {loading ? (
               <tr>
-                <th>Employee</th>
-                <th>Role</th>
-                <th>Department</th>
-                <th>Contact</th>
-                <th>Status</th>
-                <th className="text-right">Actions</th>
+                <td colSpan={4} className="!py-16 text-center">
+                  <div className="flex flex-col items-center gap-3">
+                    <div className="w-8 h-8 border-2 border-primary/30 border-t-primary rounded-full animate-spin" />
+                    <p className="text-sm text-muted-foreground">Loading employees...</p>
+                  </div>
+                </td>
               </tr>
-            </thead>
-            <tbody>
-              {loading ? (
-                <tr>
-                  <td colSpan={6} className="!py-16 text-center">
-                    <div className="flex flex-col items-center gap-3">
-                      <div className="w-8 h-8 border-2 border-primary/30 border-t-primary rounded-full animate-spin" />
-                      <p className="text-sm text-muted-foreground">Loading employees...</p>
-                    </div>
-                  </td>
-                </tr>
-              ) : filtered.length === 0 ? (
-                <tr>
-                  <td colSpan={6} className="!py-16 text-center">
-                    <div className="w-14 h-14 rounded-2xl bg-muted/40 flex items-center justify-center mx-auto mb-4">
-                      <Users className="w-6 h-6 text-muted-foreground/25" />
-                    </div>
-                    <p className="text-sm text-muted-foreground font-medium">No employees found</p>
-                    <p className="text-xs text-muted-foreground/40 mt-1">Add team members to get started</p>
-                  </td>
-                </tr>
-              ) : (
-                filtered.map((emp) => (
-                  <tr key={emp.id} className="group">
-                    <td>
-                      <div className="flex items-center gap-3">
-                        {emp.users?.avatar_url ? (
-                          <img src={emp.users.avatar_url} alt="" className="w-9 h-9 rounded-xl object-cover ring-1 ring-border/30" />
-                        ) : (
-                          <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-primary/10 to-blue-500/10 flex items-center justify-center text-primary text-xs font-bold ring-1 ring-primary/10">
-                            {getInitials(emp.users?.full_name || '')}
-                          </div>
-                        )}
-                        <div>
-                          <p className="text-sm font-semibold text-foreground">{emp.users?.full_name || 'Unnamed'}</p>
-                          <p className="text-[11px] text-muted-foreground/50">{emp.employee_id_number || 'No ID assigned'}</p>
+            ) : filtered.length === 0 ? (
+              <tr>
+                <td colSpan={4} className="!py-16 text-center">
+                  <div className="w-14 h-14 rounded-2xl bg-muted/40 flex items-center justify-center mx-auto mb-4">
+                    <Users className="w-6 h-6 text-muted-foreground/25" />
+                  </div>
+                  <p className="text-sm text-muted-foreground font-medium">No employees found</p>
+                  <p className="text-xs text-muted-foreground/40 mt-1">Add team members to get started</p>
+                </td>
+              </tr>
+            ) : (
+              filtered.map((emp) => (
+                <tr key={emp.id} className="group">
+                  <td>
+                    <div className="flex items-center gap-3 min-w-0">
+                      {emp.users?.avatar_url ? (
+                        <img src={emp.users.avatar_url} alt="" className="w-9 h-9 rounded-xl object-cover ring-1 ring-border/30" />
+                      ) : (
+                        <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-primary/10 to-blue-500/10 flex items-center justify-center text-primary text-xs font-bold ring-1 ring-primary/10">
+                          {getInitials(emp.users?.full_name || '')}
                         </div>
+                      )}
+                      <div className="min-w-0">
+                        <p className="text-sm font-semibold text-foreground truncate">{emp.users?.full_name || 'Unnamed'}</p>
+                        <p className="text-[11px] text-muted-foreground/50 truncate">{emp.employee_id_number || 'No ID assigned'}</p>
                       </div>
-                    </td>
-                    <td>
-                      <p className="text-sm text-foreground">{emp.position || emp.company_roles?.name || '—'}</p>
-                    </td>
-                    <td>
-                      <p className="text-sm text-muted-foreground">{emp.department || '—'}</p>
-                    </td>
-                    <td>
-                      <div className="space-y-1">
-                        <p className="text-xs text-muted-foreground flex items-center gap-1.5">
-                          <Mail className="w-3 h-3 text-muted-foreground/40" />
-                          {emp.users?.email || '—'}
+                    </div>
+                  </td>
+                  <td>
+                    <p className="text-sm text-foreground truncate">{emp.position || emp.company_roles?.name || '—'}</p>
+                    <p className="text-xs text-muted-foreground truncate">{emp.department || 'No department'}</p>
+                  </td>
+                  <td>
+                    <div className="space-y-1">
+                      <p className="text-xs text-muted-foreground flex items-center gap-1.5 break-all">
+                        <Mail className="w-3 h-3 text-muted-foreground/40 flex-shrink-0" />
+                        {emp.users?.email || '—'}
+                      </p>
+                      {emp.phone_number && (
+                        <p className="text-xs text-muted-foreground/50 flex items-center gap-1.5">
+                          <Phone className="w-3 h-3 text-muted-foreground/30" />
+                          {emp.phone_number}
                         </p>
-                        {emp.phone_number && (
-                          <p className="text-xs text-muted-foreground/50 flex items-center gap-1.5">
-                            <Phone className="w-3 h-3 text-muted-foreground/30" />
-                            {emp.phone_number}
-                          </p>
-                        )}
-                      </div>
-                    </td>
-                    <td>
-                      <span className={`badge ${
-                        emp.status === 'active' ? 'badge-success' :
-                        emp.status === 'pending_invitation' ? 'badge-warning' :
-                        emp.status === 'suspended' ? 'badge-danger' : 'badge-neutral'
-                      }`}>
-                        {getStatusLabel(emp.status)}
-                      </span>
-                    </td>
-                    <td className="text-right">
-                      <div className="flex items-center justify-end gap-2">
-                        <select
-                          className="form-select !w-[150px] h-8 text-xs"
-                          value={emp.status}
+                      )}
+                    </div>
+                  </td>
+                  <td>
+                    <div className="space-y-2">
+                      <select
+                        className="form-select h-9 text-sm"
+                        value={emp.status}
+                        disabled={loadingEmployeeId === emp.id}
+                        onChange={(e) => handleStatusChange(emp.id, e.target.value as EmployeeStatus)}
+                        aria-label="Change employee status"
+                      >
+                        <option value="pending_invitation">Pending</option>
+                        <option value="active">Active</option>
+                        <option value="suspended">Suspended</option>
+                        <option value="terminated">Terminated</option>
+                      </select>
+                      {emp.status === 'terminated' && (
+                        <button
+                          className="text-xs font-medium text-rose-700 underline underline-offset-2"
+                          onClick={() => handleViewTerminationLetter(emp)}
                           disabled={loadingEmployeeId === emp.id}
-                          onChange={(e) => handleStatusChange(emp.id, e.target.value as EmployeeStatus)}
-                          aria-label="Change employee status"
                         >
-                          <option value="pending_invitation">Pending</option>
-                          <option value="active">Active</option>
-                          <option value="suspended">Suspended</option>
-                          <option value="terminated">Terminated</option>
-                        </select>
-                        {emp.status === 'terminated' && (
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="h-8 px-2.5 text-xs"
-                            onClick={() => handleViewTerminationLetter(emp)}
-                            disabled={loadingEmployeeId === emp.id}
-                          >
-                            <MoreHorizontal className="w-3.5 h-3.5 mr-1" />
-                            View & Print Letter
-                          </Button>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
+                          {loadingEmployeeId === emp.id ? 'Preparing letter...' : 'Terminated — View & Print Letter'}
+                        </button>
+                      )}
+                    </div>
+                  </td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
         {filtered.length > 0 && (
           <div className="px-5 py-3 border-t border-border/20 flex items-center justify-between bg-muted/10">
             <p className="text-xs text-muted-foreground/50">Showing <span className="font-semibold text-foreground">{filtered.length}</span> of {employees.length} employees</p>

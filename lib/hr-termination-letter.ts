@@ -116,9 +116,9 @@ export const buildTerminationLetterHtml = (data: TerminationLetterData) => {
 </html>`
 }
 
-export const openTerminationLetterWindow = (data: TerminationLetterData) => {
+export const openTerminationLetterWindow = (data: TerminationLetterData, popupWindow?: Window | null) => {
   const html = buildTerminationLetterHtml(data)
-  const popup = window.open('', '_blank', 'noopener,noreferrer')
+  const popup = popupWindow || window.open('', '_blank', 'noopener,noreferrer')
   if (!popup) {
     throw new Error('Please allow pop-ups to view and print the termination letter.')
   }

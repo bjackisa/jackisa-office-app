@@ -207,6 +207,14 @@ export default function HRPointsPage() {
   const viewTerminationLetter = async (employeeId: string) => {
     if (!companyId) return
 
+    const previewWindow = window.open('', '_blank')
+    if (!previewWindow) {
+      setMessage({ type: 'error', text: 'Please allow pop-ups to view and print the termination letter.' })
+      return
+    }
+
+    previewWindow.document.write('<p style="font-family:sans-serif;padding:16px;">Preparing termination letter…</p>')
+
     try {
       setLetterLoadingEmployeeId(employeeId)
 
@@ -267,8 +275,9 @@ export default function HRPointsPage() {
         signatoryName: 'HR Manager',
         signatoryTitle: 'Human Resources',
         reasons,
-      })
+      }, previewWindow)
     } catch (error: any) {
+      previewWindow.close()
       setMessage({ type: 'error', text: error.message || 'Failed to prepare termination letter.' })
     } finally {
       setLetterLoadingEmployeeId(null)
