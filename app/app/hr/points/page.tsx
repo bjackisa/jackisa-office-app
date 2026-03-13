@@ -135,6 +135,14 @@ export default function HRPointsPage() {
       .sort((a, b) => (a.company_employees?.users?.full_name || '').localeCompare(b.company_employees?.users?.full_name || ''))
   }, [balances, companyId, employees])
 
+  const employeeStatusById = useMemo(() => {
+    const map = new Map<string, string>()
+    for (const employee of employees) {
+      map.set(employee.id, employee.status)
+    }
+    return map
+  }, [employees])
+
   const awardableEmployees = useMemo(
     () => employees.filter((employee: any) => ['active', 'suspended'].includes(employee.status)),
     [employees]
@@ -513,25 +521,28 @@ export default function HRPointsPage() {
                   <th className="px-5 py-3 text-right text-xs font-semibold text-muted-foreground uppercase tracking-wider">Redeemable (pts)</th>
                   <th className="px-5 py-3 text-right text-xs font-semibold text-muted-foreground uppercase tracking-wider">Monetary Value (UGX)</th>
                   <th className="px-5 py-3 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider">Status</th>
-                  <th className="px-5 py-3 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider">Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {loading ? (
                   <tr>
-                    <td colSpan={7} className="px-5 py-12 text-center text-sm text-muted-foreground/60">
+                    <td colSpan={6} className="px-5 py-12 text-center text-sm text-muted-foreground/60">
                       Loading...
                     </td>
                   </tr>
                 ) : visibleBalances.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="px-5 py-12 text-center text-sm text-muted-foreground/60">
+                    <td colSpan={6} className="px-5 py-12 text-center text-sm text-muted-foreground/60">
                       No point balances yet.
                     </td>
                   </tr>
                 ) : (
                   visibleBalances.map((b: any) => {
-                    const isTerminated = b.is_termination_flagged || Number(b.closing_balance) <= 0
+                    const status = employeeStatusById.get(b.employee_id) || 'active'
+                    const isTerminated = status === 'terminated'
+                    const isSuspended = status === 'suspended'
+                    const isPending = status === 'pending_invitation'
+
                     return (
                       <tr key={b.id} className={isTerminated ? 'bg-rose-50/40' : 'hover:bg-muted/30'}>
                         <td className="font-medium text-foreground">{b.company_employees?.users?.full_name || '—'}</td>
@@ -547,20 +558,26 @@ export default function HRPointsPage() {
                         </td>
                         <td className="px-5 py-3 text-sm">
                           {isTerminated ? (
-                            <span className="inline-flex items-center gap-1 rounded-md border border-rose-300 bg-rose-100 px-2 py-1 text-rose-700 text-xs font-semibold">
-                              <AlertTriangle className="h-3 w-3" /> Terminated
+                            <button
+                              className="inline-flex items-center gap-1 rounded-md border border-rose-300 bg-rose-100 px-2 py-1 text-rose-700 text-xs font-semibold"
+                              onClick={() => viewTerminationLetter(b.employee_id)}
+                              disabled={letterLoadingEmployeeId === b.employee_id}
+                            >
+                              <AlertTriangle className="h-3 w-3" />
+                              {letterLoadingEmployeeId === b.employee_id ? 'Preparing...' : 'Terminated'}
+                            </button>
+                          ) : isSuspended ? (
+                            <span className="inline-flex items-center rounded-md border border-amber-300 bg-amber-50 px-2 py-1 text-amber-700 text-xs font-semibold">
+                              Suspended
+                            </span>
+                          ) : isPending ? (
+                            <span className="inline-flex items-center rounded-md border border-blue-300 bg-blue-50 px-2 py-1 text-blue-700 text-xs font-semibold">
+                              Pending
                             </span>
                           ) : (
                             <span className="inline-flex items-center rounded-md border border-emerald-300 bg-emerald-50 px-2 py-1 text-emerald-700 text-xs font-semibold">
                               Active
                             </span>
-                          )}
-                        </td>
-                        <td className="px-5 py-3 text-sm">
-                          {isTerminated && (
-                            <Button variant="outline" size="sm" disabled={letterLoadingEmployeeId === b.employee_id} onClick={() => viewTerminationLetter(b.employee_id)}>
-                              View & Print Letter
-                            </Button>
                           )}
                         </td>
                       </tr>
