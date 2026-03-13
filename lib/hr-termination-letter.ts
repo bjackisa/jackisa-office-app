@@ -36,6 +36,42 @@ const escapeHtml = (value: string) =>
 
 const safe = (value?: string | null, fallback: string | null = 'N/A') => escapeHtml((value || '').trim() || (fallback || 'N/A'))
 
+
+const getCompanyInitials = (companyName: string) => {
+  const cleaned = (companyName || '').trim()
+  if (!cleaned) return 'X'
+  const words = cleaned.split(/\s+/).filter(Boolean)
+  if (words.length <= 1) {
+    return cleaned[0].toUpperCase()
+  }
+  return words.map((word) => word[0].toUpperCase()).join('').slice(0, 3)
+}
+
+const getStableThreeDigitCode = (seed: string) => {
+  let hash = 0
+  for (let i = 0; i < seed.length; i += 1) {
+    hash = (hash * 31 + seed.charCodeAt(i)) % 2147483647
+  }
+  const value = (Math.abs(hash) % 999) + 1
+  return String(value).padStart(3, '0')
+}
+
+export const buildTerminationReferenceNumber = ({
+  companyName,
+  joinedAt,
+  uniqueSeed,
+}: {
+  companyName: string
+  joinedAt?: string | null
+  uniqueSeed: string
+}) => {
+  const initials = getCompanyInitials(companyName)
+  const joinedTimestamp = joinedAt ? Math.floor(new Date(joinedAt).getTime() / 1000) : Math.floor(Date.now() / 1000)
+  const uniqueCode = getStableThreeDigitCode(uniqueSeed || `${companyName}-${joinedTimestamp}`)
+
+  return `JOTL-${initials}${joinedTimestamp}${uniqueCode}`
+}
+
 export const buildTerminationLetterHtml = (data: TerminationLetterData) => {
   const reasonsHtml =
     data.reasons.length > 0
@@ -102,7 +138,7 @@ export const buildTerminationLetterHtml = (data: TerminationLetterData) => {
     <p>Dear ${safe(data.employeeName)},</p>
     <p>This letter serves as formal written notice that your employment with ${safe(data.companyName)} in the capacity of ${safe(data.employeePosition)} is terminated effective ${safe(data.dateOfTermination)}.</p>
     <div class="reason-block">
-      <strong>Grounds for Termination (from HR points history)</strong>
+      <strong>Grounds of Termination per HR Points:</strong>
       ${reasonsHtml}
     </div>
     <p>Your final remuneration and any outstanding dues will be processed on or before ${safe(data.finalPayDate, data.dateOfTermination)} based on payroll policy and applicable labor requirements.</p>

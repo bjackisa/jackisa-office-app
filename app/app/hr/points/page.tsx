@@ -17,7 +17,7 @@ import {
   Download,
   AlertTriangle,
 } from 'lucide-react'
-import { openTerminationLetterWindow } from '@/lib/hr-termination-letter'
+import { buildTerminationReferenceNumber, openTerminationLetterWindow } from '@/lib/hr-termination-letter'
 
 export default function HRPointsPage() {
   const [transactions, setTransactions] = useState<any[]>([])
@@ -28,6 +28,7 @@ export default function HRPointsPage() {
   const [showAwardForm, setShowAwardForm] = useState(false)
   const [showRuleForm, setShowRuleForm] = useState(false)
   const [companyId, setCompanyId] = useState<string | null>(null)
+  const [companyName, setCompanyName] = useState('Your Company')
   const [employees, setEmployees] = useState<any[]>([])
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
   const [letterLoadingEmployeeId, setLetterLoadingEmployeeId] = useState<string | null>(null)
@@ -52,7 +53,7 @@ export default function HRPointsPage() {
       if (!context?.companyId) return
       setCompanyId(context.companyId)
 
-      const [txRes, balRes, rulesRes, empsRes] = await Promise.all([
+      const [txRes, balRes, rulesRes, empsRes, companyRes] = await Promise.all([
         supabase
           .from('point_transactions')
           .select('*, company_employees(users(full_name)), point_rules(indicator)')
@@ -72,13 +73,15 @@ export default function HRPointsPage() {
           .eq('company_id', context.companyId)
           .eq('is_active', true)
           .order('sort_order', { ascending: true }),
-        supabase.from('company_employees').select('id, employee_id_number, department, position, termination_date, users(full_name), status').eq('company_id', context.companyId),
+        supabase.from('company_employees').select('id, employee_id_number, department, position, joined_at, termination_date, users(full_name), status').eq('company_id', context.companyId),
+        supabase.from('companies').select('name').eq('id', context.companyId).maybeSingle(),
       ])
 
       setTransactions(txRes.data || [])
       setBalances(balRes.data || [])
       setRules(rulesRes.data || [])
       setEmployees(empsRes.data || [])
+      setCompanyName(companyRes.data?.name || 'Your Company')
     } catch (error) {
       console.error('Failed to load points data:', error)
     } finally {
@@ -268,7 +271,7 @@ export default function HRPointsPage() {
         employeeDepartment: employee?.department || null,
         dateIssued: today,
         dateOfTermination: employee?.termination_date || today,
-        referenceNumber: `TERM-${String(employee?.employee_id_number || employeeId).slice(0, 8).toUpperCase()}`,
+        referenceNumber: buildTerminationReferenceNumber({ companyName: companyData?.name || 'Company', joinedAt: employee?.joined_at, uniqueSeed: employee?.id || employeeId }),
         finalPayDate: today,
         hrContactName: 'HR Department',
         hrContactEmail: companyData?.email || null,
@@ -669,6 +672,10 @@ export default function HRPointsPage() {
           </div>
         </Card>
       )}
+
+      <div className="mt-6 text-center text-xs text-muted-foreground">
+        <span className="font-semibold text-foreground">Jackisa Office</span> · Licensed to {companyName} · © 2026 Jackisa LLC. All Rights Reserved.
+      </div>
     </div>
   )
 }
