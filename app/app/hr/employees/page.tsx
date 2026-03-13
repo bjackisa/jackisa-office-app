@@ -7,10 +7,11 @@ import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
-  Plus, Search, Mail, Phone, Edit, MoreHorizontal, User,
-  Users, UserCheck, UserX, Building2, Download, Filter,
+  Plus, Search, Mail, Phone, User,
+  Users, UserCheck, UserX, Building2, Download, UserPlus,
 } from 'lucide-react'
-import type { CompanyEmployee } from '@/types'
+import type { EmployeeStatus } from '@/types'
+import { buildTerminationReferenceNumber, openTerminationLetterWindow } from '@/lib/hr-termination-letter'
 
 export default function EmployeesPage() {
   const [employees, setEmployees] = useState<any[]>([])
@@ -22,6 +23,7 @@ export default function EmployeesPage() {
   const [deptFilter, setDeptFilter] = useState('')
   const [companyId, setCompanyId] = useState<string | null>(null)
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
+  const [loadingEmployeeId, setLoadingEmployeeId] = useState<string | null>(null)
   const [employeeForm, setEmployeeForm] = useState({
     email: '',
     roleId: '',
@@ -76,17 +78,7 @@ export default function EmployeesPage() {
   const departments = [...new Set(employees.map(e => e.department).filter(Boolean))]
   const activeCount = employees.filter(e => e.status === 'active').length
   const pendingCount = employees.filter(e => e.status === 'pending_invitation').length
-  const suspendedCount = employees.filter(e => e.status === 'suspended').length
-
-  const getStatusBadge = (status: string) => {
-    const map: Record<string, string> = {
-      active: 'bg-emerald-50 text-emerald-700 border-emerald-200',
-      pending_invitation: 'bg-amber-50 text-amber-700 border-amber-200',
-      suspended: 'bg-red-50 text-red-600 border-red-200',
-      terminated: 'bg-muted text-muted-foreground border-border',
-    }
-    return map[status] || 'bg-muted text-muted-foreground border-border'
-  }
+  const terminatedCount = employees.filter(e => e.status === 'terminated').length
 
   const getStatusLabel = (status: string) => {
     const map: Record<string, string> = {
@@ -121,6 +113,114 @@ export default function EmployeesPage() {
     link.download = `employees-${new Date().toISOString().slice(0, 10)}.csv`
     link.click()
     URL.revokeObjectURL(url)
+  }
+
+  const handleStatusChange = async (employeeId: string, nextStatus: EmployeeStatus) => {
+    if (!companyId) return
+
+    try {
+      setLoadingEmployeeId(employeeId)
+      const nowIso = new Date().toISOString()
+      const terminationDate = nextStatus === 'terminated' ? nowIso.slice(0, 10) : null
+
+      const { error } = await supabase
+        .from('company_employees')
+        .update({
+          status: nextStatus,
+          termination_date: terminationDate,
+          updated_at: nowIso,
+        })
+        .eq('id', employeeId)
+        .eq('company_id', companyId)
+
+      if (error) throw error
+
+      setEmployees((prev) => prev.map((emp) => (emp.id === employeeId ? { ...emp, status: nextStatus, termination_date: terminationDate } : emp)))
+      setMessage({ type: 'success', text: `Employee status updated to ${getStatusLabel(nextStatus)}. HR points page reflects this automatically.` })
+    } catch (error: any) {
+      setMessage({ type: 'error', text: error.message || 'Failed to update employee status.' })
+    } finally {
+      setLoadingEmployeeId(null)
+    }
+  }
+
+  const handleViewTerminationLetter = async (employee: any) => {
+    if (!companyId) return
+
+    const previewWindow = window.open('', '_blank')
+    if (!previewWindow) {
+      setMessage({ type: 'error', text: 'Please allow pop-ups to view and print the termination letter.' })
+      return
+    }
+
+    previewWindow.document.write('<p style="font-family:sans-serif;padding:16px;">Preparing termination letter…</p>')
+
+    try {
+      setLoadingEmployeeId(employee.id)
+
+      const [{ data: companyData }, { data: txData }, { data: savedLetter }] = await Promise.all([
+        supabase.from('companies').select('name, email, country').eq('id', companyId).single(),
+        supabase
+          .from('point_transactions')
+          .select('recorded_date, points, reason, point_rules(indicator, category)')
+          .eq('company_id', companyId)
+          .eq('employee_id', employee.id)
+          .eq('action_type', 'loss')
+          .order('recorded_date', { ascending: false })
+          .limit(8),
+        supabase
+          .from('hr_termination_letters')
+          .select('reason, generated_at')
+          .eq('company_id', companyId)
+          .eq('employee_id', employee.id)
+          .order('generated_at', { ascending: false })
+          .limit(1)
+          .maybeSingle(),
+      ])
+
+      const reasons = (txData || []).map((tx: any) => ({
+        date: tx.recorded_date,
+        title: tx.point_rules?.indicator || tx.reason || 'Point deduction',
+        detail: tx.reason || tx.point_rules?.category || null,
+        points: tx.points,
+      }))
+
+      if (reasons.length === 0 && savedLetter?.reason) {
+        reasons.push({
+          date: savedLetter.generated_at,
+          title: 'Recorded termination reason',
+          detail: savedLetter.reason,
+          points: null,
+        })
+      }
+
+      const today = new Date().toISOString().slice(0, 10)
+      openTerminationLetterWindow({
+        companyName: companyData?.name || 'Company',
+        companyEmail: companyData?.email || null,
+        companyPhone: null,
+        companyAddress: null,
+        companyCityCountry: companyData?.country || null,
+        employeeName: employee.users?.full_name || 'Employee',
+        employeeId: employee.employee_id_number,
+        employeePosition: employee.position || employee.company_roles?.name,
+        employeeDepartment: employee.department,
+        dateIssued: today,
+        dateOfTermination: employee.termination_date || today,
+        referenceNumber: buildTerminationReferenceNumber({ companyName: companyData?.name || 'Company', joinedAt: employee.joined_at, uniqueSeed: employee.id }),
+        finalPayDate: today,
+        hrContactName: 'HR Department',
+        hrContactEmail: companyData?.email || null,
+        signatoryName: 'HR Manager',
+        signatoryTitle: 'Human Resources',
+        reasons,
+      }, previewWindow)
+    } catch (error: any) {
+      previewWindow.close()
+      setMessage({ type: 'error', text: error.message || 'Failed to prepare termination letter.' })
+    } finally {
+      setLoadingEmployeeId(null)
+    }
   }
 
   const handleAddEmployee = async () => {
@@ -168,8 +268,7 @@ export default function EmployeesPage() {
   }
 
   return (
-    <div className="p-6 lg:p-8 max-w-[1400px] mx-auto animate-fade-in">
-      {/* Header */}
+    <div className="p-4 lg:p-6 max-w-[1300px] mx-auto animate-fade-in">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
         <div>
           <h1 className="text-2xl font-bold text-foreground tracking-tight">Employees</h1>
@@ -208,11 +307,7 @@ export default function EmployeesPage() {
           </div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
             <Input placeholder="Employee email *" value={employeeForm.email} onChange={(e) => setEmployeeForm({ ...employeeForm, email: e.target.value })} />
-            <select
-              className="form-select"
-              value={employeeForm.roleId}
-              onChange={(e) => setEmployeeForm({ ...employeeForm, roleId: e.target.value })}
-            >
+            <select className="form-select" value={employeeForm.roleId} onChange={(e) => setEmployeeForm({ ...employeeForm, roleId: e.target.value })}>
               <option value="">Select role *</option>
               {roles.map((role) => (
                 <option key={role.id} value={role.id}>{role.name}</option>
@@ -231,13 +326,13 @@ export default function EmployeesPage() {
         </Card>
       )}
 
-      {/* Stats */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6 stagger-children">
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-4 mb-6 stagger-children">
         {[
           { label: 'Total Employees', value: employees.length, icon: Users, gradient: 'from-blue-500 to-blue-600' },
           { label: 'Active', value: activeCount, icon: UserCheck, gradient: 'from-emerald-500 to-green-600' },
           { label: 'Pending Invite', value: pendingCount, icon: Mail, gradient: 'from-amber-500 to-orange-500' },
           { label: 'Departments', value: departments.length, icon: Building2, gradient: 'from-violet-500 to-purple-600' },
+          { label: 'Terminated', value: terminatedCount, icon: UserX, gradient: 'from-rose-500 to-red-600' },
         ].map(stat => (
           <Card key={stat.label} className="stat-card p-4">
             <div className="flex items-center gap-3">
@@ -253,17 +348,11 @@ export default function EmployeesPage() {
         ))}
       </div>
 
-      {/* Filters */}
       <Card className="p-3 mb-4">
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
           <div className="flex-1 relative">
             <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground/40" />
-            <Input
-              placeholder="Search by name or email..."
-              className="pl-10"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-            />
+            <Input placeholder="Search by name or email..." className="pl-10" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
           </div>
           <select className="form-select" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
             <option value="">All Status</option>
@@ -281,104 +370,109 @@ export default function EmployeesPage() {
         </div>
       </Card>
 
-      {/* Table */}
       <Card className="overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="premium-table">
-            <thead>
+        <table className="premium-table table-fixed w-full">
+          <thead>
+            <tr>
+              <th className="w-[28%]">Employee</th>
+              <th className="w-[22%]">Role / Department</th>
+              <th className="w-[28%]">Contact</th>
+              <th className="w-[22%]">Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            {loading ? (
               <tr>
-                <th>Employee</th>
-                <th>Role</th>
-                <th>Department</th>
-                <th>Contact</th>
-                <th>Status</th>
-                <th className="text-right">Actions</th>
+                <td colSpan={4} className="!py-16 text-center">
+                  <div className="flex flex-col items-center gap-3">
+                    <div className="w-8 h-8 border-2 border-primary/30 border-t-primary rounded-full animate-spin" />
+                    <p className="text-sm text-muted-foreground">Loading employees...</p>
+                  </div>
+                </td>
               </tr>
-            </thead>
-            <tbody>
-              {loading ? (
-                <tr>
-                  <td colSpan={6} className="!py-16 text-center">
-                    <div className="flex flex-col items-center gap-3">
-                      <div className="w-8 h-8 border-2 border-primary/30 border-t-primary rounded-full animate-spin" />
-                      <p className="text-sm text-muted-foreground">Loading employees...</p>
-                    </div>
-                  </td>
-                </tr>
-              ) : filtered.length === 0 ? (
-                <tr>
-                  <td colSpan={6} className="!py-16 text-center">
-                    <div className="w-14 h-14 rounded-2xl bg-muted/40 flex items-center justify-center mx-auto mb-4">
-                      <Users className="w-6 h-6 text-muted-foreground/25" />
-                    </div>
-                    <p className="text-sm text-muted-foreground font-medium">No employees found</p>
-                    <p className="text-xs text-muted-foreground/40 mt-1">Add team members to get started</p>
-                  </td>
-                </tr>
-              ) : (
-                filtered.map((emp) => (
-                  <tr key={emp.id} className="group">
-                    <td>
-                      <div className="flex items-center gap-3">
-                        {emp.users?.avatar_url ? (
-                          <img src={emp.users.avatar_url} alt="" className="w-9 h-9 rounded-xl object-cover ring-1 ring-border/30" />
-                        ) : (
-                          <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-primary/10 to-blue-500/10 flex items-center justify-center text-primary text-xs font-bold ring-1 ring-primary/10">
-                            {getInitials(emp.users?.full_name || '')}
-                          </div>
-                        )}
-                        <div>
-                          <p className="text-sm font-semibold text-foreground">{emp.users?.full_name || 'Unnamed'}</p>
-                          <p className="text-[11px] text-muted-foreground/50">{emp.employee_id_number || 'No ID assigned'}</p>
+            ) : filtered.length === 0 ? (
+              <tr>
+                <td colSpan={4} className="!py-16 text-center">
+                  <div className="w-14 h-14 rounded-2xl bg-muted/40 flex items-center justify-center mx-auto mb-4">
+                    <Users className="w-6 h-6 text-muted-foreground/25" />
+                  </div>
+                  <p className="text-sm text-muted-foreground font-medium">No employees found</p>
+                  <p className="text-xs text-muted-foreground/40 mt-1">Add team members to get started</p>
+                </td>
+              </tr>
+            ) : (
+              filtered.map((emp) => (
+                <tr key={emp.id} className="group">
+                  <td>
+                    <div className="flex items-center gap-3 min-w-0">
+                      {emp.users?.avatar_url ? (
+                        <img src={emp.users.avatar_url} alt="" className="w-9 h-9 rounded-xl object-cover ring-1 ring-border/30" />
+                      ) : (
+                        <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-primary/10 to-blue-500/10 flex items-center justify-center text-primary text-xs font-bold ring-1 ring-primary/10">
+                          {getInitials(emp.users?.full_name || '')}
                         </div>
+                      )}
+                      <div className="min-w-0">
+                        <p className="text-sm font-semibold text-foreground truncate">{emp.users?.full_name || 'Unnamed'}</p>
+                        <p className="text-[11px] text-muted-foreground/50 truncate">{emp.employee_id_number || 'No ID assigned'}</p>
                       </div>
-                    </td>
-                    <td>
-                      <p className="text-sm text-foreground">{emp.position || emp.company_roles?.name || '—'}</p>
-                    </td>
-                    <td>
-                      <p className="text-sm text-muted-foreground">{emp.department || '—'}</p>
-                    </td>
-                    <td>
-                      <div className="space-y-1">
-                        <p className="text-xs text-muted-foreground flex items-center gap-1.5">
-                          <Mail className="w-3 h-3 text-muted-foreground/40" />
-                          {emp.users?.email || '—'}
+                    </div>
+                  </td>
+                  <td>
+                    <p className="text-sm text-foreground truncate">{emp.position || emp.company_roles?.name || '—'}</p>
+                    <p className="text-xs text-muted-foreground truncate">{emp.department || 'No department'}</p>
+                  </td>
+                  <td>
+                    <div className="space-y-1">
+                      <p className="text-xs text-muted-foreground flex items-center gap-1.5 break-all">
+                        <Mail className="w-3 h-3 text-muted-foreground/40 flex-shrink-0" />
+                        {emp.users?.email || '—'}
+                      </p>
+                      {emp.phone_number && (
+                        <p className="text-xs text-muted-foreground/50 flex items-center gap-1.5">
+                          <Phone className="w-3 h-3 text-muted-foreground/30" />
+                          {emp.phone_number}
                         </p>
-                        {emp.phone_number && (
-                          <p className="text-xs text-muted-foreground/50 flex items-center gap-1.5">
-                            <Phone className="w-3 h-3 text-muted-foreground/30" />
-                            {emp.phone_number}
-                          </p>
-                        )}
-                      </div>
-                    </td>
-                    <td>
-                      <span className={`badge ${
-                        emp.status === 'active' ? 'badge-success' :
-                        emp.status === 'pending_invitation' ? 'badge-warning' :
-                        emp.status === 'suspended' ? 'badge-danger' : 'badge-neutral'
-                      }`}>
-                        {getStatusLabel(emp.status)}
-                      </span>
-                    </td>
-                    <td className="text-right">
-                      <button className="p-1.5 rounded-lg text-muted-foreground/40 hover:text-foreground hover:bg-muted/50 transition-all opacity-0 group-hover:opacity-100">
-                        <MoreHorizontal className="w-4 h-4" />
-                      </button>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
+                      )}
+                    </div>
+                  </td>
+                  <td>
+                    <div className="space-y-2">
+                      <select
+                        className="form-select h-9 text-sm"
+                        value={emp.status}
+                        disabled={loadingEmployeeId === emp.id}
+                        onChange={(e) => handleStatusChange(emp.id, e.target.value as EmployeeStatus)}
+                        aria-label="Change employee status"
+                      >
+                        <option value="pending_invitation">Pending</option>
+                        <option value="active">Active</option>
+                        <option value="suspended">Suspended</option>
+                        <option value="terminated">Terminated</option>
+                      </select>
+                      {emp.status === 'terminated' && (
+                        <button
+                          className="text-xs font-medium text-rose-700 underline underline-offset-2"
+                          onClick={() => handleViewTerminationLetter(emp)}
+                          disabled={loadingEmployeeId === emp.id}
+                        >
+                          {loadingEmployeeId === emp.id ? 'Preparing letter...' : 'Termination Letter'}
+                        </button>
+                      )}
+                    </div>
+                  </td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
         {filtered.length > 0 && (
           <div className="px-5 py-3 border-t border-border/20 flex items-center justify-between bg-muted/10">
             <p className="text-xs text-muted-foreground/50">Showing <span className="font-semibold text-foreground">{filtered.length}</span> of {employees.length} employees</p>
           </div>
         )}
       </Card>
+
     </div>
   )
 }

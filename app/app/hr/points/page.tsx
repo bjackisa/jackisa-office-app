@@ -17,28 +17,7 @@ import {
   Download,
   AlertTriangle,
 } from 'lucide-react'
-
-
-const loadJsPdf = async () => {
-  const existing = (window as any).jspdf?.jsPDF
-  if (existing) return existing
-
-  await new Promise<void>((resolve, reject) => {
-    const script = document.createElement('script')
-    script.src = 'https://cdn.jsdelivr.net/npm/jspdf@2.5.2/dist/jspdf.umd.min.js'
-    script.async = true
-    script.onload = () => resolve()
-    script.onerror = () => reject(new Error('Failed to load PDF generator. Please check your internet connection and try again.'))
-    document.head.appendChild(script)
-  })
-
-  const loaded = (window as any).jspdf?.jsPDF
-  if (!loaded) {
-    throw new Error('PDF generator could not be initialized.')
-  }
-
-  return loaded
-}
+import { buildTerminationReferenceNumber, openTerminationLetterWindow } from '@/lib/hr-termination-letter'
 
 export default function HRPointsPage() {
   const [transactions, setTransactions] = useState<any[]>([])
@@ -51,6 +30,7 @@ export default function HRPointsPage() {
   const [companyId, setCompanyId] = useState<string | null>(null)
   const [employees, setEmployees] = useState<any[]>([])
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
+  const [letterLoadingEmployeeId, setLetterLoadingEmployeeId] = useState<string | null>(null)
 
   const [awardForm, setAwardForm] = useState({ employeeId: '', ruleId: '', reason: '' })
 
@@ -92,7 +72,7 @@ export default function HRPointsPage() {
           .eq('company_id', context.companyId)
           .eq('is_active', true)
           .order('sort_order', { ascending: true }),
-        supabase.from('company_employees').select('id, users(full_name), status').eq('company_id', context.companyId),
+        supabase.from('company_employees').select('id, employee_id_number, department, position, joined_at, termination_date, users(full_name), status').eq('company_id', context.companyId),
       ])
 
       setTransactions(txRes.data || [])
@@ -154,6 +134,32 @@ export default function HRPointsPage() {
       })
       .sort((a, b) => (a.company_employees?.users?.full_name || '').localeCompare(b.company_employees?.users?.full_name || ''))
   }, [balances, companyId, employees])
+
+  const employeeStatusById = useMemo(() => {
+    const map = new Map<string, string>()
+    for (const employee of employees) {
+      map.set(employee.id, employee.status)
+    }
+    return map
+  }, [employees])
+
+  const activeTrackedEmployeeIds = useMemo(() => {
+    const activeFromEmployees = new Set(
+      employees
+        .filter((employee: any) => employee.status === 'active')
+        .map((employee: any) => employee.id)
+    )
+
+    const activeFromBalances = new Set(
+      visibleBalances
+        .filter((balance: any) => (employeeStatusById.get(balance.employee_id) || 'active') === 'active')
+        .map((balance: any) => balance.employee_id)
+    )
+
+    return new Set([...activeFromEmployees, ...activeFromBalances])
+  }, [employees, visibleBalances, employeeStatusById])
+
+  const employeesTrackedCount = activeTrackedEmployeeIds.size
 
   const awardableEmployees = useMemo(
     () => employees.filter((employee: any) => ['active', 'suspended'].includes(employee.status)),
@@ -224,35 +230,84 @@ export default function HRPointsPage() {
     }
   }
 
-  const downloadTerminationLetter = async (employeeId: string) => {
+  const viewTerminationLetter = async (employeeId: string) => {
     if (!companyId) return
 
-    const { data, error } = await supabase
-      .from('hr_termination_letters')
-      .select('letter_body, generated_at, company_employees(users(full_name))')
-      .eq('company_id', companyId)
-      .eq('employee_id', employeeId)
-      .order('generated_at', { ascending: false })
-      .limit(1)
-      .maybeSingle()
-
-    if (error || !data?.letter_body) {
-      setMessage({ type: 'error', text: 'Termination letter not found for this employee.' })
+    const previewWindow = window.open('', '_blank')
+    if (!previewWindow) {
+      setMessage({ type: 'error', text: 'Please allow pop-ups to view and print the termination letter.' })
       return
     }
 
-    const JsPdf = await loadJsPdf()
-    const doc = new JsPdf({ unit: 'pt', format: 'a4' })
-    const employeeName =
-      (data as any)?.company_employees?.users?.full_name ||
-      (data as any)?.company_employees?.[0]?.users?.full_name ||
-      (data as any)?.company_employees?.[0]?.users?.[0]?.full_name ||
-      'employee'
-    const lines = doc.splitTextToSize(data.letter_body, 500)
-    doc.setFont('times', 'normal')
-    doc.setFontSize(12)
-    doc.text(lines, 50, 60)
-    doc.save(`termination-letter-${employeeName.replaceAll(' ', '-').toLowerCase()}.pdf`)
+    previewWindow.document.write('<p style="font-family:sans-serif;padding:16px;">Preparing termination letter…</p>')
+
+    try {
+      setLetterLoadingEmployeeId(employeeId)
+
+      const employee = employees.find((item: any) => item.id === employeeId)
+      const [{ data: companyData }, { data: txData }, { data: savedLetter }] = await Promise.all([
+        supabase.from('companies').select('name, email, country').eq('id', companyId).single(),
+        supabase
+          .from('point_transactions')
+          .select('recorded_date, points, reason, point_rules(indicator, category)')
+          .eq('company_id', companyId)
+          .eq('employee_id', employeeId)
+          .eq('action_type', 'loss')
+          .order('recorded_date', { ascending: false })
+          .limit(8),
+        supabase
+          .from('hr_termination_letters')
+          .select('reason, generated_at')
+          .eq('company_id', companyId)
+          .eq('employee_id', employeeId)
+          .order('generated_at', { ascending: false })
+          .limit(1)
+          .maybeSingle(),
+      ])
+
+      const reasons = (txData || []).map((tx: any) => ({
+        date: tx.recorded_date,
+        title: tx.point_rules?.indicator || tx.reason || 'Point deduction',
+        detail: tx.reason || tx.point_rules?.category || null,
+        points: tx.points,
+      }))
+
+      if (reasons.length === 0 && savedLetter?.reason) {
+        reasons.push({
+          date: savedLetter.generated_at,
+          title: 'Recorded termination reason',
+          detail: savedLetter.reason,
+          points: null,
+        })
+      }
+
+      const today = new Date().toISOString().slice(0, 10)
+      openTerminationLetterWindow({
+        companyName: companyData?.name || 'Company',
+        companyEmail: companyData?.email || null,
+        companyPhone: null,
+        companyAddress: null,
+        companyCityCountry: companyData?.country || null,
+        employeeName: employee?.users?.full_name || 'Employee',
+        employeeId: employee?.employee_id_number || employeeId,
+        employeePosition: employee?.position || null,
+        employeeDepartment: employee?.department || null,
+        dateIssued: today,
+        dateOfTermination: employee?.termination_date || today,
+        referenceNumber: buildTerminationReferenceNumber({ companyName: companyData?.name || 'Company', joinedAt: employee?.joined_at, uniqueSeed: employee?.id || employeeId }),
+        finalPayDate: today,
+        hrContactName: 'HR Department',
+        hrContactEmail: companyData?.email || null,
+        signatoryName: 'HR Manager',
+        signatoryTitle: 'Human Resources',
+        reasons,
+      }, previewWindow)
+    } catch (error: any) {
+      previewWindow.close()
+      setMessage({ type: 'error', text: error.message || 'Failed to prepare termination letter.' })
+    } finally {
+      setLetterLoadingEmployeeId(null)
+    }
   }
 
   const exportPoints = () => {
@@ -281,7 +336,23 @@ export default function HRPointsPage() {
 
   const totalGains = transactions.filter((t) => t.action_type === 'gain').reduce((s, t) => s + (t.points || 0), 0)
   const totalLosses = transactions.filter((t) => t.action_type === 'loss').reduce((s, t) => s + (t.points || 0), 0)
-  const flaggedTerminations = visibleBalances.filter((b) => b.is_termination_flagged || Number(b.closing_balance) <= 0).length
+  const flaggedTerminationIds = useMemo(() => {
+    const flaggedByEmployeeStatus = new Set(
+      employees
+        .filter((employee: any) => employee.status === 'terminated')
+        .map((employee: any) => employee.id)
+    )
+
+    const flaggedByPoints = new Set(
+      visibleBalances
+        .filter((balance: any) => balance.is_termination_flagged || Number(balance.closing_balance) <= 0)
+        .map((balance: any) => balance.employee_id)
+    )
+
+    return new Set([...flaggedByEmployeeStatus, ...flaggedByPoints])
+  }, [employees, visibleBalances])
+
+  const flaggedTerminations = flaggedTerminationIds.size
 
   const tabs = [
     { key: 'balances', label: 'Balances', icon: Target },
@@ -322,7 +393,7 @@ export default function HRPointsPage() {
 
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
         {[
-          { label: 'Employees Tracked', value: visibleBalances.length, icon: Target, color: 'text-blue-600', bg: 'bg-blue-50' },
+          { label: 'Employees Tracked', value: employeesTrackedCount, icon: Target, color: 'text-blue-600', bg: 'bg-blue-50' },
           { label: 'Total Gains', value: `+${totalGains.toFixed(1)}`, icon: ArrowUpCircle, color: 'text-emerald-600', bg: 'bg-emerald-50' },
           { label: 'Total Losses', value: `-${totalLosses.toFixed(1)}`, icon: ArrowDownCircle, color: 'text-red-600', bg: 'bg-red-50' },
           { label: 'Active Rules', value: rules.length, icon: Star, color: 'text-amber-600', bg: 'bg-amber-50' },
@@ -484,25 +555,28 @@ export default function HRPointsPage() {
                   <th className="px-5 py-3 text-right text-xs font-semibold text-muted-foreground uppercase tracking-wider">Redeemable (pts)</th>
                   <th className="px-5 py-3 text-right text-xs font-semibold text-muted-foreground uppercase tracking-wider">Monetary Value (UGX)</th>
                   <th className="px-5 py-3 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider">Status</th>
-                  <th className="px-5 py-3 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider">Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {loading ? (
                   <tr>
-                    <td colSpan={7} className="px-5 py-12 text-center text-sm text-muted-foreground/60">
+                    <td colSpan={6} className="px-5 py-12 text-center text-sm text-muted-foreground/60">
                       Loading...
                     </td>
                   </tr>
                 ) : visibleBalances.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="px-5 py-12 text-center text-sm text-muted-foreground/60">
+                    <td colSpan={6} className="px-5 py-12 text-center text-sm text-muted-foreground/60">
                       No point balances yet.
                     </td>
                   </tr>
                 ) : (
                   visibleBalances.map((b: any) => {
-                    const isTerminated = b.is_termination_flagged || Number(b.closing_balance) <= 0
+                    const status = employeeStatusById.get(b.employee_id) || 'active'
+                    const isTerminated = status === 'terminated'
+                    const isSuspended = status === 'suspended'
+                    const isPending = status === 'pending_invitation'
+
                     return (
                       <tr key={b.id} className={isTerminated ? 'bg-rose-50/40' : 'hover:bg-muted/30'}>
                         <td className="font-medium text-foreground">{b.company_employees?.users?.full_name || '—'}</td>
@@ -518,20 +592,26 @@ export default function HRPointsPage() {
                         </td>
                         <td className="px-5 py-3 text-sm">
                           {isTerminated ? (
-                            <span className="inline-flex items-center gap-1 rounded-md border border-rose-300 bg-rose-100 px-2 py-1 text-rose-700 text-xs font-semibold">
-                              <AlertTriangle className="h-3 w-3" /> Terminated
+                            <button
+                              className="inline-flex items-center gap-1 rounded-md border border-rose-300 bg-rose-100 px-2 py-1 text-rose-700 text-xs font-semibold"
+                              onClick={() => viewTerminationLetter(b.employee_id)}
+                              disabled={letterLoadingEmployeeId === b.employee_id}
+                            >
+                              <AlertTriangle className="h-3 w-3" />
+                              {letterLoadingEmployeeId === b.employee_id ? 'Preparing...' : 'Terminated'}
+                            </button>
+                          ) : isSuspended ? (
+                            <span className="inline-flex items-center rounded-md border border-amber-300 bg-amber-50 px-2 py-1 text-amber-700 text-xs font-semibold">
+                              Suspended
+                            </span>
+                          ) : isPending ? (
+                            <span className="inline-flex items-center rounded-md border border-blue-300 bg-blue-50 px-2 py-1 text-blue-700 text-xs font-semibold">
+                              Pending
                             </span>
                           ) : (
                             <span className="inline-flex items-center rounded-md border border-emerald-300 bg-emerald-50 px-2 py-1 text-emerald-700 text-xs font-semibold">
                               Active
                             </span>
-                          )}
-                        </td>
-                        <td className="px-5 py-3 text-sm">
-                          {isTerminated && (
-                            <Button variant="outline" size="sm" onClick={() => downloadTerminationLetter(b.employee_id)}>
-                              Download PDF
-                            </Button>
                           )}
                         </td>
                       </tr>
@@ -640,6 +720,7 @@ export default function HRPointsPage() {
           </div>
         </Card>
       )}
+
     </div>
   )
 }
