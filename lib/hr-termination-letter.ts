@@ -143,7 +143,10 @@ export const buildTerminationLetterHtml = (data: TerminationLetterData) => {
     <p>Your final remuneration and any outstanding dues will be processed on or before ${safe(data.finalPayDate, data.dateOfTermination)} based on payroll policy and applicable labor requirements.</p>
     <p>For any clarification, contact the responsible human resource or adminstrator Department.</p>
     <div class="sig-block">
-      <p>On behalf of ${safe(data.companyName)}, ${safe(data.signatoryName, 'Authorized Representative')} (${safe(data.signatoryTitle, 'Title')})</p>
+      <p>On behalf of <strong>${safe(data.companyName)}</strong>,</p>
+      <p>Name:</p>
+      <p>_________________________________________________________________________________</p>
+      <p>Title: _______________________________________________________</p>
     </div>
   </div>
 </body>

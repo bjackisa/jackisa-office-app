@@ -246,7 +246,7 @@ export default function HRPointsPage() {
 
       const employee = employees.find((item: any) => item.id === employeeId)
       const [{ data: companyData }, { data: txData }, { data: savedLetter }] = await Promise.all([
-        supabase.from('companies').select('name, email, country').eq('id', companyId).single(),
+        supabase.from('companies').select('name, email, phone, address, city, country').eq('id', companyId).single(),
         supabase
           .from('point_transactions')
           .select('recorded_date, points, reason, point_rules(indicator, category)')
@@ -285,9 +285,9 @@ export default function HRPointsPage() {
       openTerminationLetterWindow({
         companyName: companyData?.name || 'Company',
         companyEmail: companyData?.email || null,
-        companyPhone: null,
-        companyAddress: null,
-        companyCityCountry: companyData?.country || null,
+        companyPhone: companyData?.phone || null,
+        companyAddress: companyData?.address || null,
+        companyCityCountry: [companyData?.city, companyData?.country].filter(Boolean).join(', ') || null,
         employeeName: employee?.users?.full_name || 'Employee',
         employeeId: employee?.employee_id_number || employeeId,
         employeePosition: employee?.position || null,

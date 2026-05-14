@@ -159,7 +159,7 @@ export default function EmployeesPage() {
       setLoadingEmployeeId(employee.id)
 
       const [{ data: companyData }, { data: txData }, { data: savedLetter }] = await Promise.all([
-        supabase.from('companies').select('name, email, country').eq('id', companyId).single(),
+        supabase.from('companies').select('name, email, phone, address, city, country').eq('id', companyId).single(),
         supabase
           .from('point_transactions')
           .select('recorded_date, points, reason, point_rules(indicator, category)')
@@ -198,9 +198,9 @@ export default function EmployeesPage() {
       openTerminationLetterWindow({
         companyName: companyData?.name || 'Company',
         companyEmail: companyData?.email || null,
-        companyPhone: null,
-        companyAddress: null,
-        companyCityCountry: companyData?.country || null,
+        companyPhone: companyData?.phone || null,
+        companyAddress: companyData?.address || null,
+        companyCityCountry: [companyData?.city, companyData?.country].filter(Boolean).join(', ') || null,
         employeeName: employee.users?.full_name || 'Employee',
         employeeId: employee.employee_id_number,
         employeePosition: employee.position || employee.company_roles?.name,
