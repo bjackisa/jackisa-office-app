@@ -110,7 +110,7 @@ export const buildTerminationLetterHtml = (data: TerminationLetterData) => {
     .reason-list { margin:0; padding-left:1.1rem; }
     .reason-list li { margin:.35rem 0; }
     .muted { color:var(--meta); font-size:.88em; }
-    .sig-block { margin-top:2rem; display:grid; grid-template-columns:1fr 1fr; gap:2rem; }
+    .sig-block { margin-top:2rem; }
     .sig-line { border-top:1px solid var(--ink); margin-top:2rem; padding-top:.4rem; }
     @media print { .toolbar { display:none } body { background:#fff; padding:0 } .letter-card { box-shadow:none; max-width:100%; margin:0; } }
   </style>
@@ -144,11 +144,9 @@ export const buildTerminationLetterHtml = (data: TerminationLetterData) => {
     <p>Your final remuneration and any outstanding dues will be processed on or before ${safe(data.finalPayDate, data.dateOfTermination)} based on payroll policy and applicable labor requirements.</p>
     <p>For any clarification, contact ${safe(data.hrContactName, 'HR Department')} at ${safe(data.hrContactEmail, data.companyEmail || null)}.</p>
     <div class="sig-block">
-      <div><div class="sig-line">${safe(data.signatoryName, 'HR Manager')}<br/><span class="muted">${safe(data.signatoryTitle, 'Human Resources')}</span></div></div>
-      <div><div class="sig-line">${safe(data.employeeName)}<br/><span class="muted">Acknowledged by Employee</span></div></div>
-    </div>
-    <div class="letter-footer" style="margin-top:2rem;text-align:center;font-size:.78rem;color:#6b6b6b;">
-      <strong>Jackisa Office</strong> · Licensed to ${safe(data.companyName)} · © 2026 Jackisa LLC. All Rights Reserved.
+      <p>On behalf of ${safe(data.companyName)},</p>
+      <div class="sig-line">Name: __________________________</div>
+      <div class="sig-line">Title: __________________________</div>
     </div>
   </div>
 </body>
