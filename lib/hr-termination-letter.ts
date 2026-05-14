@@ -111,7 +111,6 @@ export const buildTerminationLetterHtml = (data: TerminationLetterData) => {
     .reason-list li { margin:.35rem 0; }
     .muted { color:var(--meta); font-size:.88em; }
     .sig-block { margin-top:2rem; }
-    .sig-line { border-top:1px solid var(--ink); margin-top:2rem; padding-top:.4rem; }
     @media print { .toolbar { display:none } body { background:#fff; padding:0 } .letter-card { box-shadow:none; max-width:100%; margin:0; } }
   </style>
 </head>
@@ -142,11 +141,9 @@ export const buildTerminationLetterHtml = (data: TerminationLetterData) => {
       ${reasonsHtml}
     </div>
     <p>Your final remuneration and any outstanding dues will be processed on or before ${safe(data.finalPayDate, data.dateOfTermination)} based on payroll policy and applicable labor requirements.</p>
-    <p>For any clarification, contact ${safe(data.hrContactName, 'HR Department')} at ${safe(data.hrContactEmail, data.companyEmail || null)}.</p>
+    <p>For any clarification, contact the responsible human resource or adminstrator Department.</p>
     <div class="sig-block">
-      <p>On behalf of ${safe(data.companyName)},</p>
-      <div class="sig-line">Name: __________________________</div>
-      <div class="sig-line">Title: __________________________</div>
+      <p>On behalf of ${safe(data.companyName)}, ${safe(data.signatoryName, 'Authorized Representative')} (${safe(data.signatoryTitle, 'Title')})</p>
     </div>
   </div>
 </body>
