@@ -5,7 +5,7 @@ import { supabase } from '@/lib/supabase'
 import { getSessionContext } from '@/lib/company-context'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Plus, Search, Check, X, Zap, Camera, QrCode, ShieldAlert, Clock } from 'lucide-react'
+import { Plus, Search, Check, X, Zap, Camera, QrCode, ShieldAlert, Clock, Keyboard } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { logEcosystemEvent, awardAttendancePoints } from '@/lib/ecosystem'
 
@@ -63,7 +63,9 @@ export default function AttendancePage() {
   const [selectedCameraId, setSelectedCameraId] = useState('')
   const [authorizationDenied, setAuthorizationDenied] = useState(false)
   const [lastScan, setLastScan] = useState<{ employee: string; time: string; status: string } | null>(null)
+  const [hardwareScanInput, setHardwareScanInput] = useState('')
   const scannerRef = useRef<any>(null)
+  const hardwareScannerInputRef = useRef<HTMLInputElement | null>(null)
   const scanLockRef = useRef(false)
 
   const loadData = async () => {
@@ -154,6 +156,12 @@ export default function AttendancePage() {
     }
   }, [])
 
+  useEffect(() => {
+    if (typeof window === 'undefined' || !window.matchMedia('(min-width: 768px)').matches) return
+
+    hardwareScannerInputRef.current?.focus()
+  }, [])
+
   const getEmployeeName = (row: any) => row.company_employees?.users?.full_name || row.company_employees?.[0]?.users?.[0]?.full_name || row.company_employees?.[0]?.users?.full_name || ''
 
   const filtered = useMemo(() => records.filter((r) => {
@@ -172,7 +180,7 @@ export default function AttendancePage() {
     leave: filtered.filter(r => r.status === 'leave').length,
   }
 
-  const saveAttendance = async (employee: any, status: string, clockIn: string, attendanceDate: string, notes?: string, clockOut = DEFAULT_CLOCK_OUT) => {
+  const saveAttendance = async (employee: any, status: string, clockIn: string, attendanceDate: string, notes?: string, clockOut = DEFAULT_CLOCK_OUT, source = 'manual') => {
     if (!companyId) return
 
     await supabase
@@ -188,7 +196,7 @@ export default function AttendancePage() {
       }, { onConflict: 'employee_id,attendance_date' })
 
     if (userId) {
-      await logEcosystemEvent({ companyId, eventType: 'attendance_recorded', sourceTable: 'attendance_records', sourceId: employee.id, payload: { status, date: attendanceDate, source: 'qr_scan' } })
+      await logEcosystemEvent({ companyId, eventType: 'attendance_recorded', sourceTable: 'attendance_records', sourceId: employee.id, payload: { status, date: attendanceDate, source } })
       const pts = await awardAttendancePoints({ companyId, employeeId: employee.id, status, userId })
       if (pts) {
         setEcosystemMsg(`${employee.users?.full_name || 'Employee'}: ${pts.points > 0 ? '+' : ''}${pts.points} HR points (${pts.status})`)
@@ -212,6 +220,7 @@ export default function AttendancePage() {
       dateFilter,
       form.notes,
       form.clock_out || DEFAULT_CLOCK_OUT,
+      'manual',
     )
 
     setShowForm(false)
@@ -232,10 +241,15 @@ export default function AttendancePage() {
     return data
   }
 
-  const handleQrScan = async (decodedText: string) => {
+  const processScanPayload = async (decodedText: string, source: 'camera' | 'hardware') => {
     if (scanLockRef.current || !companyId) return
     scanLockRef.current = true
-    setScannerStatus('saving')
+
+    if (source === 'camera') {
+      setScannerStatus('saving')
+    } else {
+      setScannerMessage('Processing connected scanner input...')
+    }
 
     const token = parseQrEmployeeToken(decodedText)
     const employee = await findEmployeeByQrToken(token)
@@ -243,9 +257,10 @@ export default function AttendancePage() {
     if (!employee || employee.status !== 'active') {
       setAuthorizationDenied(true)
       setScannerMessage('Authorization Denied! Only active employees can record attendance with QR scan.')
-      setScannerStatus('scanning')
+      if (source === 'camera') setScannerStatus('scanning')
       window.setTimeout(() => {
         scanLockRef.current = false
+        hardwareScannerInputRef.current?.focus()
       }, 1800)
       return
     }
@@ -254,12 +269,26 @@ export default function AttendancePage() {
     const clockIn = getBrowserTime(now, true)
     const attendanceDate = getBrowserDate(now)
     const status = isPastBrowserLateCutoff(now) ? 'late' : 'present'
+    const scanSourceLabel = source === 'camera' ? 'phone camera QR scan' : 'connected desktop scanner'
 
-    await saveAttendance(employee, status, clockIn, attendanceDate, `Recorded automatically from QR scan at ${clockIn}.`)
-    setScannerStatus('scanning')
+    await saveAttendance(employee, status, clockIn, attendanceDate, `Recorded automatically from ${scanSourceLabel} at ${clockIn}.`, DEFAULT_CLOCK_OUT, source)
+    if (source === 'camera') setScannerStatus('scanning')
     window.setTimeout(() => {
       scanLockRef.current = false
+      hardwareScannerInputRef.current?.focus()
     }, 1800)
+  }
+
+  const handleQrScan = (decodedText: string) => {
+    processScanPayload(decodedText, 'camera')
+  }
+
+  const handleHardwareScanSubmit = async () => {
+    const payload = hardwareScanInput.trim()
+    if (!payload) return
+
+    setHardwareScanInput('')
+    await processScanPayload(payload, 'hardware')
   }
 
   const startScanner = async () => {
@@ -345,49 +374,65 @@ export default function AttendancePage() {
         </Card>
       )}
 
-      <Card className="mb-6 overflow-hidden border-primary/15 bg-gradient-to-br from-primary/[0.04] via-background to-background">
+      <Card className="mb-6 hidden overflow-hidden border-primary/15 bg-gradient-to-br from-primary/[0.04] via-background to-background md:block">
         <div className="grid gap-0 lg:grid-cols-[1.15fr_0.85fr]">
           <div className="p-5">
             <div className="mb-4 flex items-start justify-between gap-3">
               <div className="flex items-center gap-3">
                 <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-primary/10">
-                  <QrCode className="h-5 w-5 text-primary" />
+                  <Keyboard className="h-5 w-5 text-primary" />
                 </div>
                 <div>
-                  <h3 className="text-sm font-semibold text-foreground">QR Code Attendance Scanner</h3>
-                  <p className="text-[11px] text-muted-foreground/70">Scan an employee QR code to auto-save today&apos;s attendance.</p>
+                  <h3 className="text-sm font-semibold text-foreground">Desktop Connected Scanner</h3>
+                  <p className="text-[11px] text-muted-foreground/70">Keep this field active and scan with the USB/Bluetooth reader connected to this computer.</p>
                 </div>
               </div>
-              <span className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${scannerStatus === 'scanning' ? 'bg-green-100 text-green-700' : scannerStatus === 'error' ? 'bg-red-100 text-red-700' : 'bg-muted text-muted-foreground'}`}>
-                {scannerStatus}
+              <span className="rounded-full bg-green-100 px-2.5 py-1 text-[11px] font-semibold text-green-700">
+                ready
               </span>
             </div>
 
-            <div className="grid gap-3 md:grid-cols-[1fr_auto_auto]">
-              <select className="form-select" value={selectedCameraId} onChange={(e) => setSelectedCameraId(e.target.value)} disabled={scannerStatus === 'scanning' || scannerStatus === 'starting'}>
-                <option value="">Auto-select camera</option>
-                {cameras.map(camera => <option key={camera.id} value={camera.id}>{camera.label}</option>)}
-              </select>
-              <Button size="sm" onClick={startScanner} disabled={scannerStatus === 'starting' || scannerStatus === 'scanning'}>
-                <Camera className="mr-1.5 h-4 w-4" />
-                Start Camera
-              </Button>
-              <Button size="sm" variant="outline" onClick={stopScanner} disabled={!scannerRef.current}>
-                <X className="mr-1.5 h-4 w-4" />
-                Stop
+            <div className="grid gap-3 lg:grid-cols-[1fr_auto]">
+              <Input
+                ref={hardwareScannerInputRef}
+                value={hardwareScanInput}
+                onChange={(e) => setHardwareScanInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault()
+                    handleHardwareScanSubmit()
+                  }
+                }}
+                placeholder="Scan employee QR/barcode here; connected scanners usually press Enter automatically"
+                className="h-12 font-mono text-base"
+                autoComplete="off"
+              />
+              <Button size="sm" className="h-12" onClick={handleHardwareScanSubmit} disabled={!hardwareScanInput.trim()}>
+                <QrCode className="mr-1.5 h-4 w-4" />
+                Process Scan
               </Button>
             </div>
 
-            <div className="mt-4 rounded-xl border border-dashed border-primary/20 bg-background/80 p-3">
-              <div id={SCANNER_REGION_ID} className="mx-auto min-h-[280px] max-w-xl overflow-hidden rounded-lg bg-muted/40" />
+            <div className="mt-4 grid gap-3 sm:grid-cols-3">
+              <div className="rounded-xl border border-border/50 bg-background/80 p-3">
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Desktop mode</p>
+                <p className="mt-1 text-xs text-muted-foreground">No camera is opened on PCs; the connected scanner feeds the QR text into the focused field.</p>
+              </div>
+              <div className="rounded-xl border border-border/50 bg-background/80 p-3">
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Auto-save</p>
+                <p className="mt-1 text-xs text-muted-foreground">A successful scan saves immediately with the browser time and {DEFAULT_CLOCK_OUT} end time.</p>
+              </div>
+              <div className="rounded-xl border border-border/50 bg-background/80 p-3">
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Access control</p>
+                <p className="mt-1 text-xs text-muted-foreground">Only active employees are accepted; any other status triggers Authorization Denied.</p>
+              </div>
             </div>
           </div>
 
           <div className="border-t bg-muted/10 p-5 lg:border-l lg:border-t-0">
             <h4 className="mb-3 flex items-center gap-2 text-sm font-semibold text-foreground"><Clock className="h-4 w-4 text-primary" /> Automation rules</h4>
             <div className="space-y-3 text-xs text-muted-foreground">
-              <p><span className="font-semibold text-foreground">Instant scan:</span> QR values can be an employee UUID, employee ID number, or JSON containing employee_id.</p>
-              <p><span className="font-semibold text-foreground">Auto-save:</span> active employees are saved with the browser scan time, status present, and end time {DEFAULT_CLOCK_OUT}.</p>
+              <p><span className="font-semibold text-foreground">Input format:</span> QR values can be an employee UUID, employee ID number, or JSON containing employee_id.</p>
               <p><span className="font-semibold text-foreground">Late rule:</span> scans after 7:30 PM in the browser&apos;s local time are saved as late.</p>
               <p><span className="font-semibold text-foreground">Absence rule:</span> Monday-Friday after 10:00 AM EAT, active employees without a record are saved as absent.</p>
             </div>
@@ -399,6 +444,58 @@ export default function AttendancePage() {
             )}
             <p className="mt-5 rounded-xl bg-background/70 p-3 text-xs font-medium text-muted-foreground">{scannerMessage}</p>
           </div>
+        </div>
+      </Card>
+
+      <Card className="mb-6 overflow-hidden border-primary/15 bg-gradient-to-br from-primary/[0.04] via-background to-background md:hidden">
+        <div className="p-5">
+          <div className="mb-4 flex items-start justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-primary/10">
+                <Camera className="h-5 w-5 text-primary" />
+              </div>
+              <div>
+                <h3 className="text-sm font-semibold text-foreground">Phone Camera QR Scanner</h3>
+                <p className="text-[11px] text-muted-foreground/70">Use the phone camera to scan employee QR codes and auto-save attendance.</p>
+              </div>
+            </div>
+            <span className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${scannerStatus === 'scanning' ? 'bg-green-100 text-green-700' : scannerStatus === 'error' ? 'bg-red-100 text-red-700' : 'bg-muted text-muted-foreground'}`}>
+              {scannerStatus}
+            </span>
+          </div>
+
+          <div className="grid gap-3">
+            <select className="form-select" value={selectedCameraId} onChange={(e) => setSelectedCameraId(e.target.value)} disabled={scannerStatus === 'scanning' || scannerStatus === 'starting'}>
+              <option value="">Auto-select camera</option>
+              {cameras.map(camera => <option key={camera.id} value={camera.id}>{camera.label}</option>)}
+            </select>
+            <div className="grid grid-cols-2 gap-3">
+              <Button size="sm" onClick={startScanner} disabled={scannerStatus === 'starting' || scannerStatus === 'scanning'}>
+                <Camera className="mr-1.5 h-4 w-4" />
+                Start Camera
+              </Button>
+              <Button size="sm" variant="outline" onClick={stopScanner} disabled={!scannerRef.current}>
+                <X className="mr-1.5 h-4 w-4" />
+                Stop
+              </Button>
+            </div>
+          </div>
+
+          <div className="mt-4 rounded-xl border border-dashed border-primary/20 bg-background/80 p-3">
+            <div id={SCANNER_REGION_ID} className="mx-auto min-h-[280px] overflow-hidden rounded-lg bg-muted/40" />
+          </div>
+
+          <div className="mt-4 space-y-3 text-xs text-muted-foreground">
+            <p><span className="font-semibold text-foreground">Phone mode:</span> camera scanning is shown only on small screens where a built-in camera makes sense.</p>
+            <p><span className="font-semibold text-foreground">Rules:</span> active employees save instantly; scans after 7:30 PM browser time are late; inactive statuses are denied.</p>
+          </div>
+          {lastScan && (
+            <div className="mt-5 rounded-xl border border-green-200 bg-green-50 p-3 text-xs text-green-800">
+              <p className="font-semibold">Last successful scan</p>
+              <p>{lastScan.employee} • {lastScan.time} • {lastScan.status}</p>
+            </div>
+          )}
+          <p className="mt-5 rounded-xl bg-background/70 p-3 text-xs font-medium text-muted-foreground">{scannerMessage}</p>
         </div>
       </Card>
 
