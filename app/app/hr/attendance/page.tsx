@@ -1,28 +1,70 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { getSessionContext } from '@/lib/company-context'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Plus, Search, Check, X, Landmark, Zap } from 'lucide-react'
+import { Plus, Search, Check, X, Zap, Camera, QrCode, ShieldAlert, Clock } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { logEcosystemEvent, awardAttendancePoints } from '@/lib/ecosystem'
 
 type AttendanceRow = any
+type CameraDevice = { id: string; label: string }
+type ScannerStatus = 'idle' | 'starting' | 'scanning' | 'saving' | 'error'
+
+const SCANNER_REGION_ID = 'attendance-qr-reader'
+const DEFAULT_CLOCK_OUT = '19:00'
+
+const pad = (value: number) => value.toString().padStart(2, '0')
+const getBrowserDate = (date = new Date()) => `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`
+const getBrowserTime = (date = new Date(), includeSeconds = false) => `${pad(date.getHours())}:${pad(date.getMinutes())}${includeSeconds ? `:${pad(date.getSeconds())}` : ''}`
+const isPastBrowserLateCutoff = (date = new Date()) => date.getHours() > 19 || (date.getHours() === 19 && (date.getMinutes() > 30 || (date.getMinutes() === 30 && date.getSeconds() > 0)))
+const getEATDate = (date = new Date()) => new Date(date.getTime() + 3 * 60 * 60 * 1000)
+const getEATDateString = (date = new Date()) => getEATDate(date).toISOString().split('T')[0]
+const isEATWorkdayAfterAbsenceCutoff = (date = new Date()) => {
+  const eatDate = getEATDate(date)
+  const day = eatDate.getUTCDay()
+  const hour = eatDate.getUTCHours()
+  const minute = eatDate.getUTCMinutes()
+
+  return day >= 1 && day <= 5 && (hour > 10 || (hour === 10 && minute >= 0))
+}
+
+const parseQrEmployeeToken = (decodedText: string) => {
+  const trimmed = decodedText.trim()
+
+  if (!trimmed) return ''
+
+  try {
+    const parsed = JSON.parse(trimmed)
+    return String(parsed.employee_id || parsed.employeeId || parsed.employee_id_number || parsed.employeeIdNumber || parsed.id || '').trim()
+  } catch {
+    return trimmed
+  }
+}
 
 export default function AttendancePage() {
   const [records, setRecords] = useState<AttendanceRow[]>([])
   const [employees, setEmployees] = useState<any[]>([])
+  const [allEmployees, setAllEmployees] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [companyId, setCompanyId] = useState<string | null>(null)
   const [search, setSearch] = useState('')
-  const [dateFilter, setDateFilter] = useState(new Date().toISOString().split('T')[0])
+  const [dateFilter, setDateFilter] = useState(getBrowserDate())
   const [statusFilter, setStatusFilter] = useState('')
   const [showForm, setShowForm] = useState(false)
   const [form, setForm] = useState({ employee_id: '', status: 'present', clock_in: '09:00', clock_out: '17:00', notes: '' })
   const [userId, setUserId] = useState<string | null>(null)
   const [ecosystemMsg, setEcosystemMsg] = useState<string | null>(null)
+  const [scannerStatus, setScannerStatus] = useState<ScannerStatus>('idle')
+  const [scannerMessage, setScannerMessage] = useState('Choose a camera and start scanning employee QR codes.')
+  const [cameras, setCameras] = useState<CameraDevice[]>([])
+  const [selectedCameraId, setSelectedCameraId] = useState('')
+  const [authorizationDenied, setAuthorizationDenied] = useState(false)
+  const [lastScan, setLastScan] = useState<{ employee: string; time: string; status: string } | null>(null)
+  const scannerRef = useRef<any>(null)
+  const scanLockRef = useRef(false)
 
   const loadData = async () => {
     try {
@@ -31,7 +73,7 @@ export default function AttendancePage() {
       setCompanyId(context.companyId)
       setUserId(context.userId)
 
-      const [recordsRes, employeesRes] = await Promise.all([
+      const [recordsRes, employeesRes, allEmployeesRes] = await Promise.all([
         supabase
           .from('attendance_records')
           .select('id, attendance_date, clock_in, clock_out, status, company_employees(users(full_name))')
@@ -40,21 +82,76 @@ export default function AttendancePage() {
           .limit(200),
         supabase
           .from('company_employees')
-          .select('id, users(full_name)')
+          .select('id, employee_id_number, status, users(full_name)')
           .eq('company_id', context.companyId)
           .eq('status', 'active')
+          .order('created_at', { ascending: false }),
+        supabase
+          .from('company_employees')
+          .select('id, employee_id_number, status, users(full_name)')
+          .eq('company_id', context.companyId)
           .order('created_at', { ascending: false }),
       ])
 
       setRecords((recordsRes.data as AttendanceRow[]) || [])
       setEmployees(employeesRes.data || [])
+      setAllEmployees(allEmployeesRes.data || [])
     } finally {
       setLoading(false)
     }
   }
 
+  const markMissingEmployeesAbsent = async (activeEmployees = employees, activeCompanyId = companyId) => {
+    if (!activeCompanyId || activeEmployees.length === 0 || !isEATWorkdayAfterAbsenceCutoff()) return
+
+    const eatToday = getEATDateString()
+    const { data: existingRecords } = await supabase
+      .from('attendance_records')
+      .select('employee_id')
+      .eq('company_id', activeCompanyId)
+      .eq('attendance_date', eatToday)
+
+    const registeredIds = new Set((existingRecords || []).map((record: any) => record.employee_id))
+    const absentRows = activeEmployees
+      .filter((employee: any) => employee.status === 'active' && !registeredIds.has(employee.id))
+      .map((employee: any) => ({
+        company_id: activeCompanyId,
+        employee_id: employee.id,
+        attendance_date: eatToday,
+        status: 'absent',
+        clock_in: null,
+        clock_out: null,
+        notes: 'Automatically marked absent after 10:00 AM EAT.',
+      }))
+
+    if (absentRows.length === 0) return
+
+    await supabase
+      .from('attendance_records')
+      .upsert(absentRows, { onConflict: 'employee_id,attendance_date' })
+
+    setEcosystemMsg(`${absentRows.length} active employee${absentRows.length === 1 ? '' : 's'} automatically marked absent for ${eatToday}.`)
+    setTimeout(() => setEcosystemMsg(null), 4000)
+    await loadData()
+  }
+
   useEffect(() => {
     loadData()
+  }, [])
+
+  useEffect(() => {
+    if (!companyId || employees.length === 0) return
+
+    markMissingEmployeesAbsent(employees, companyId)
+    const interval = window.setInterval(() => markMissingEmployeesAbsent(employees, companyId), 60 * 1000)
+
+    return () => window.clearInterval(interval)
+  }, [companyId, employees])
+
+  useEffect(() => () => {
+    if (scannerRef.current) {
+      scannerRef.current.stop().catch(() => null)
+    }
   }, [])
 
   const getEmployeeName = (row: any) => row.company_employees?.users?.full_name || row.company_employees?.[0]?.users?.[0]?.full_name || row.company_employees?.[0]?.users?.full_name || ''
@@ -75,42 +172,159 @@ export default function AttendancePage() {
     leave: filtered.filter(r => r.status === 'leave').length,
   }
 
-  const handleRecordAttendance = async () => {
-    if (!companyId || !form.employee_id) return
+  const saveAttendance = async (employee: any, status: string, clockIn: string, attendanceDate: string, notes?: string, clockOut = DEFAULT_CLOCK_OUT) => {
+    if (!companyId) return
+
     await supabase
       .from('attendance_records')
       .upsert({
         company_id: companyId,
-        employee_id: form.employee_id,
-        attendance_date: dateFilter,
-        status: form.status,
-        clock_in: form.clock_in || null,
-        clock_out: form.clock_out || null,
-        notes: form.notes || null,
+        employee_id: employee.id,
+        attendance_date: attendanceDate,
+        status,
+        clock_in: clockIn || null,
+        clock_out: clockOut,
+        notes: notes || null,
       }, { onConflict: 'employee_id,attendance_date' })
 
-    // Ecosystem: award/deduct HR points based on attendance
     if (userId) {
-      await logEcosystemEvent({ companyId, eventType: 'attendance_recorded', sourceTable: 'attendance_records', sourceId: form.employee_id, payload: { status: form.status, date: dateFilter } })
-      const pts = await awardAttendancePoints({ companyId, employeeId: form.employee_id, status: form.status, userId })
+      await logEcosystemEvent({ companyId, eventType: 'attendance_recorded', sourceTable: 'attendance_records', sourceId: employee.id, payload: { status, date: attendanceDate, source: 'qr_scan' } })
+      const pts = await awardAttendancePoints({ companyId, employeeId: employee.id, status, userId })
       if (pts) {
-        const empName = employees.find(e => e.id === form.employee_id)?.users?.full_name || 'Employee'
-        setEcosystemMsg(`${empName}: ${pts.points > 0 ? '+' : ''}${pts.points} HR points (${pts.status})`)
+        setEcosystemMsg(`${employee.users?.full_name || 'Employee'}: ${pts.points > 0 ? '+' : ''}${pts.points} HR points (${pts.status})`)
         setTimeout(() => setEcosystemMsg(null), 4000)
       }
     }
 
-    setShowForm(false)
-    setForm({ employee_id: '', status: 'present', clock_in: '09:00', clock_out: '17:00', notes: '' })
+    setLastScan({ employee: employee.users?.full_name || employee.employee_id_number || employee.id, time: clockIn, status })
+    setScannerMessage(`${employee.users?.full_name || 'Employee'} recorded at ${clockIn} as ${status}.`)
     await loadData()
   }
 
-  const getStatusColor = (status: string) => ({
-    present: 'bg-green-100 text-green-800', absent: 'bg-red-100 text-red-800', late: 'bg-yellow-100 text-yellow-800', leave: 'bg-blue-100 text-blue-800',
-  }[status] || 'bg-muted text-foreground')
+  const handleRecordAttendance = async () => {
+    if (!companyId || !form.employee_id) return
+    const employee = employees.find((item: any) => item.id === form.employee_id)
+
+    await saveAttendance(
+      employee || { id: form.employee_id, users: { full_name: employees.find(e => e.id === form.employee_id)?.users?.full_name || 'Employee' } },
+      form.status,
+      form.clock_in,
+      dateFilter,
+      form.notes,
+      form.clock_out || DEFAULT_CLOCK_OUT,
+    )
+
+    setShowForm(false)
+    setForm({ employee_id: '', status: 'present', clock_in: '09:00', clock_out: '17:00', notes: '' })
+  }
+
+  const findEmployeeByQrToken = async (token: string) => {
+    const employee = allEmployees.find((item: any) => item.id === token || item.employee_id_number === token)
+    if (employee || !companyId) return employee
+
+    const { data } = await supabase
+      .from('company_employees')
+      .select('id, employee_id_number, status, users(full_name)')
+      .eq('company_id', companyId)
+      .eq(token.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i) ? 'id' : 'employee_id_number', token)
+      .maybeSingle()
+
+    return data
+  }
+
+  const handleQrScan = async (decodedText: string) => {
+    if (scanLockRef.current || !companyId) return
+    scanLockRef.current = true
+    setScannerStatus('saving')
+
+    const token = parseQrEmployeeToken(decodedText)
+    const employee = await findEmployeeByQrToken(token)
+
+    if (!employee || employee.status !== 'active') {
+      setAuthorizationDenied(true)
+      setScannerMessage('Authorization Denied! Only active employees can record attendance with QR scan.')
+      setScannerStatus('scanning')
+      window.setTimeout(() => {
+        scanLockRef.current = false
+      }, 1800)
+      return
+    }
+
+    const now = new Date()
+    const clockIn = getBrowserTime(now, true)
+    const attendanceDate = getBrowserDate(now)
+    const status = isPastBrowserLateCutoff(now) ? 'late' : 'present'
+
+    await saveAttendance(employee, status, clockIn, attendanceDate, `Recorded automatically from QR scan at ${clockIn}.`)
+    setScannerStatus('scanning')
+    window.setTimeout(() => {
+      scanLockRef.current = false
+    }, 1800)
+  }
+
+  const startScanner = async () => {
+    if (scannerStatus === 'starting' || scannerStatus === 'scanning') return
+
+    setScannerStatus('starting')
+    setScannerMessage('Requesting camera access...')
+
+    const { Html5Qrcode } = await import('html5-qrcode')
+
+    try {
+      const devices = await Html5Qrcode.getCameras()
+      const mappedDevices = devices.map((device: any) => ({ id: device.id, label: device.label || `Camera ${device.id.slice(0, 6)}` }))
+      setCameras(mappedDevices)
+
+      const cameraId = selectedCameraId || mappedDevices[0]?.id
+      if (!cameraId) {
+        setScannerStatus('error')
+        setScannerMessage('No camera was found. Connect a camera and try again.')
+        return
+      }
+
+      setSelectedCameraId(cameraId)
+      const scanner = new Html5Qrcode(SCANNER_REGION_ID)
+      scannerRef.current = scanner
+      await scanner.start(
+        cameraId,
+        { fps: 10, qrbox: { width: 260, height: 260 }, aspectRatio: 1.777778 },
+        handleQrScan,
+        undefined,
+      )
+      setScannerStatus('scanning')
+      setScannerMessage('Camera is live. Point an employee QR code at the scanner.')
+    } catch (error) {
+      setScannerStatus('error')
+      setScannerMessage(error instanceof Error ? error.message : 'Unable to start QR scanner.')
+    }
+  }
+
+  const stopScanner = async () => {
+    if (!scannerRef.current) return
+
+    await scannerRef.current.stop().catch(() => null)
+    await scannerRef.current.clear().catch(() => null)
+    scannerRef.current = null
+    scanLockRef.current = false
+    setScannerStatus('idle')
+    setScannerMessage('Scanner stopped. Choose a camera and start scanning employee QR codes.')
+  }
 
   return (
     <div className="p-6 lg:p-8 max-w-[1400px] mx-auto animate-fade-in">
+      {authorizationDenied && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <Card className="w-full max-w-sm p-6 text-center shadow-2xl border-red-200">
+            <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-red-100">
+              <ShieldAlert className="h-7 w-7 text-red-600" />
+            </div>
+            <h2 className="text-xl font-bold text-red-700">Authorization Denied!</h2>
+            <p className="mt-2 text-sm text-muted-foreground">Only active employees can scan QR codes to record attendance.</p>
+            <Button className="mt-5 w-full" variant="destructive" onClick={() => setAuthorizationDenied(false)}>Close</Button>
+          </Card>
+        </div>
+      )}
+
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
         <div>
           <h1 className="text-2xl font-bold text-foreground tracking-tight">Attendance Management</h1>
@@ -131,10 +345,67 @@ export default function AttendancePage() {
         </Card>
       )}
 
+      <Card className="mb-6 overflow-hidden border-primary/15 bg-gradient-to-br from-primary/[0.04] via-background to-background">
+        <div className="grid gap-0 lg:grid-cols-[1.15fr_0.85fr]">
+          <div className="p-5">
+            <div className="mb-4 flex items-start justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-primary/10">
+                  <QrCode className="h-5 w-5 text-primary" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-semibold text-foreground">QR Code Attendance Scanner</h3>
+                  <p className="text-[11px] text-muted-foreground/70">Scan an employee QR code to auto-save today&apos;s attendance.</p>
+                </div>
+              </div>
+              <span className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${scannerStatus === 'scanning' ? 'bg-green-100 text-green-700' : scannerStatus === 'error' ? 'bg-red-100 text-red-700' : 'bg-muted text-muted-foreground'}`}>
+                {scannerStatus}
+              </span>
+            </div>
+
+            <div className="grid gap-3 md:grid-cols-[1fr_auto_auto]">
+              <select className="form-select" value={selectedCameraId} onChange={(e) => setSelectedCameraId(e.target.value)} disabled={scannerStatus === 'scanning' || scannerStatus === 'starting'}>
+                <option value="">Auto-select camera</option>
+                {cameras.map(camera => <option key={camera.id} value={camera.id}>{camera.label}</option>)}
+              </select>
+              <Button size="sm" onClick={startScanner} disabled={scannerStatus === 'starting' || scannerStatus === 'scanning'}>
+                <Camera className="mr-1.5 h-4 w-4" />
+                Start Camera
+              </Button>
+              <Button size="sm" variant="outline" onClick={stopScanner} disabled={!scannerRef.current}>
+                <X className="mr-1.5 h-4 w-4" />
+                Stop
+              </Button>
+            </div>
+
+            <div className="mt-4 rounded-xl border border-dashed border-primary/20 bg-background/80 p-3">
+              <div id={SCANNER_REGION_ID} className="mx-auto min-h-[280px] max-w-xl overflow-hidden rounded-lg bg-muted/40" />
+            </div>
+          </div>
+
+          <div className="border-t bg-muted/10 p-5 lg:border-l lg:border-t-0">
+            <h4 className="mb-3 flex items-center gap-2 text-sm font-semibold text-foreground"><Clock className="h-4 w-4 text-primary" /> Automation rules</h4>
+            <div className="space-y-3 text-xs text-muted-foreground">
+              <p><span className="font-semibold text-foreground">Instant scan:</span> QR values can be an employee UUID, employee ID number, or JSON containing employee_id.</p>
+              <p><span className="font-semibold text-foreground">Auto-save:</span> active employees are saved with the browser scan time, status present, and end time {DEFAULT_CLOCK_OUT}.</p>
+              <p><span className="font-semibold text-foreground">Late rule:</span> scans after 7:30 PM in the browser&apos;s local time are saved as late.</p>
+              <p><span className="font-semibold text-foreground">Absence rule:</span> Monday-Friday after 10:00 AM EAT, active employees without a record are saved as absent.</p>
+            </div>
+            {lastScan && (
+              <div className="mt-5 rounded-xl border border-green-200 bg-green-50 p-3 text-xs text-green-800">
+                <p className="font-semibold">Last successful scan</p>
+                <p>{lastScan.employee} • {lastScan.time} • {lastScan.status}</p>
+              </div>
+            )}
+            <p className="mt-5 rounded-xl bg-background/70 p-3 text-xs font-medium text-muted-foreground">{scannerMessage}</p>
+          </div>
+        </div>
+      </Card>
+
       {showForm && (
         <Card className="mb-6 p-5 border border-primary/15 bg-primary/[0.02]">
           <div className="flex items-center gap-2.5 mb-4">
-            <div className="w-8 h-8 rounded-xl bg-primary/10 flex items-center justify-center">
+            <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
               <Check className="w-4 h-4 text-primary" />
             </div>
             <div>
