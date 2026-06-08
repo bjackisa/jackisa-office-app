@@ -190,8 +190,8 @@ export default function HRPointsPage() {
       return
     }
 
-    if (isAccountRefillRule && (!Number.isFinite(refillPointsValue) || refillPointsValue <= 0)) {
-      setMessage({ type: 'error', text: 'Please enter the number of points to add for Account Refill.' })
+    if (isAccountRefillRule && (!Number.isFinite(refillPointsValue) || refillPointsValue <= 0 || refillPointsValue > 100)) {
+      setMessage({ type: 'error', text: 'Please enter more than 0 and no more than 100 points for Account Refill.' })
       return
     }
 
@@ -485,8 +485,9 @@ export default function HRPointsPage() {
                   <Input
                     type="number"
                     min="0.01"
+                    max="100"
                     step="0.01"
-                    placeholder="Points to add"
+                    placeholder="Points to add (max 100)"
                     value={awardForm.refillPoints}
                     onChange={(e) => setAwardForm({ ...awardForm, refillPoints: e.target.value })}
                     className="bg-card"
@@ -504,8 +505,8 @@ export default function HRPointsPage() {
                   </select>
                 </div>
                 <div className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-800">
-                  <p className="font-semibold">Account Refill adds the entered points as a gain.</p>
-                  <p>When monetary value is considered, the first 50 points cost UGX 1,000 each and points above 50 cost UGX 5,000 each.</p>
+                  <p className="font-semibold">Account Refill adds the entered points as a gain, up to 100 points per refill.</p>
+                  <p>When monetary value is considered, the first 50 points cost UGX 1,000 each and points 51 to 100 cost UGX 5,000 each.</p>
                   {awardForm.considerMonetaryValue === 'yes' && refillPointsValue > 0 && (
                     <p className="mt-1 font-semibold">Monetary adjustment: -UGX {accountRefillCost.toLocaleString()}</p>
                   )}

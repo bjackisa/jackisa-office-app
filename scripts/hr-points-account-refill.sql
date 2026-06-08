@@ -71,6 +71,10 @@ BEGIN
     RAISE EXCEPTION 'Point value must be greater than zero';
   END IF;
 
+  IF v_is_account_refill AND v_event_points > 100 THEN
+    RAISE EXCEPTION 'Account Refill cannot exceed 100 points';
+  END IF;
+
   IF v_rule.action_type = 'gain' THEN
     v_points_gained := v_event_points;
   ELSE
