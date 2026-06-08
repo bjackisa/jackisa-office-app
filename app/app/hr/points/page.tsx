@@ -32,7 +32,13 @@ export default function HRPointsPage() {
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
   const [letterLoadingEmployeeId, setLetterLoadingEmployeeId] = useState<string | null>(null)
 
-  const [awardForm, setAwardForm] = useState({ employeeId: '', ruleId: '', reason: '' })
+  const [awardForm, setAwardForm] = useState({
+    employeeId: '',
+    ruleId: '',
+    refillPoints: '',
+    considerMonetaryValue: 'no' as 'yes' | 'no',
+    reason: '',
+  })
 
   const [ruleForm, setRuleForm] = useState({
     category: '',
@@ -87,6 +93,18 @@ export default function HRPointsPage() {
   }
 
   const selectedRule = useMemo(() => rules.find((r: any) => r.id === awardForm.ruleId), [rules, awardForm.ruleId])
+  const isAccountRefillRule = selectedRule?.category === 'Account Refill' && selectedRule?.indicator === 'Points Redemption'
+
+  const calculateAccountRefillCost = (points: number) => {
+    const firstTierPoints = Math.min(points, 50)
+    const secondTierPoints = Math.max(points - 50, 0)
+    return firstTierPoints * 1000 + secondTierPoints * 5000
+  }
+
+  const refillPointsValue = Number(awardForm.refillPoints || 0)
+  const accountRefillCost = isAccountRefillRule && awardForm.considerMonetaryValue === 'yes'
+    ? calculateAccountRefillCost(refillPointsValue)
+    : 0
 
   const visibleBalances = useMemo(() => {
     const now = new Date()
@@ -111,8 +129,8 @@ export default function HRPointsPage() {
             company_employees: existing.company_employees || employee,
             period_month: existing.period_month ?? currentMonth,
             period_year: existing.period_year ?? currentYear,
-            redeemable_points: monetizablePoints,
-            redeemable_amount_ugx: monetizablePoints * 1000,
+            redeemable_points: existing.redeemable_points ?? monetizablePoints,
+            redeemable_amount_ugx: existing.redeemable_amount_ugx ?? monetizablePoints * 1000,
           }
         }
 
@@ -172,6 +190,11 @@ export default function HRPointsPage() {
       return
     }
 
+    if (isAccountRefillRule && (!Number.isFinite(refillPointsValue) || refillPointsValue <= 0 || refillPointsValue > 100)) {
+      setMessage({ type: 'error', text: 'Please enter more than 0 and no more than 100 points for Account Refill.' })
+      return
+    }
+
     try {
       const {
         data: { session },
@@ -185,6 +208,8 @@ export default function HRPointsPage() {
         p_reason: awardForm.reason || null,
         p_recorded_by: session.user.id,
         p_recorded_date: new Date().toISOString().slice(0, 10),
+        p_points_override: isAccountRefillRule ? refillPointsValue : null,
+        p_consider_monetary_value: isAccountRefillRule && awardForm.considerMonetaryValue === 'yes',
       })
 
       if (error) throw error
@@ -193,7 +218,7 @@ export default function HRPointsPage() {
         type: 'success',
         text: `Point event applied using "${selectedRule?.indicator || 'rule'}". Balances and monetization were recalculated automatically.`,
       })
-      setAwardForm({ employeeId: '', ruleId: '', reason: '' })
+      setAwardForm({ employeeId: '', ruleId: '', refillPoints: '', considerMonetaryValue: 'no', reason: '' })
       setShowAwardForm(false)
       loadData()
     } catch (error: any) {
@@ -447,11 +472,47 @@ export default function HRPointsPage() {
                 {rules.map((r: any) => (
                   <option key={r.id} value={r.id}>
                     {r.category} - {r.indicator} ({r.action_type === 'gain' ? '+' : '-'}
-                    {r.point_value})
+                    {r.category === 'Account Refill' && r.indicator === 'Points Redemption' ? 'Dynamic' : r.point_value})
                   </option>
                 ))}
               </select>
             </div>
+
+            {isAccountRefillRule && (
+              <>
+                <div>
+                  <label className="block text-xs font-medium text-muted-foreground mb-1.5">Number of Points *</label>
+                  <Input
+                    type="number"
+                    min="0.01"
+                    max="100"
+                    step="0.01"
+                    placeholder="Points to add (max 100)"
+                    value={awardForm.refillPoints}
+                    onChange={(e) => setAwardForm({ ...awardForm, refillPoints: e.target.value })}
+                    className="bg-card"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-muted-foreground mb-1.5">Consider Monetary value?</label>
+                  <select
+                    className="form-select bg-card"
+                    value={awardForm.considerMonetaryValue}
+                    onChange={(e) => setAwardForm({ ...awardForm, considerMonetaryValue: e.target.value as 'yes' | 'no' })}
+                  >
+                    <option value="no">No</option>
+                    <option value="yes">Yes</option>
+                  </select>
+                </div>
+                <div className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-800">
+                  <p className="font-semibold">Account Refill adds the entered points as a gain, up to 100 points per refill.</p>
+                  <p>When monetary value is considered, the first 50 points cost UGX 1,000 each and points 51 to 100 cost UGX 5,000 each.</p>
+                  {awardForm.considerMonetaryValue === 'yes' && refillPointsValue > 0 && (
+                    <p className="mt-1 font-semibold">Monetary adjustment: -UGX {accountRefillCost.toLocaleString()}</p>
+                  )}
+                </div>
+              </>
+            )}
 
             <div className="md:col-span-3">
               <label className="block text-xs font-medium text-muted-foreground mb-1.5">Reason (optional)</label>
@@ -587,7 +648,7 @@ export default function HRPointsPage() {
                           {b.closing_balance}
                         </td>
                         <td className="px-5 py-3 text-sm text-right font-mono text-blue-700">{b.redeemable_points ?? b.closing_balance}</td>
-                        <td className="px-5 py-3 text-sm text-right font-mono text-emerald-700">
+                        <td className={`px-5 py-3 text-sm text-right font-mono ${Number(b.redeemable_amount_ugx || 0) < 0 ? 'text-red-600' : 'text-emerald-700'}`}>
                           {(Number(b.redeemable_amount_ugx || 0)).toLocaleString()}
                         </td>
                         <td className="px-5 py-3 text-sm">
@@ -710,7 +771,7 @@ export default function HRPointsPage() {
                       <td className="px-5 py-3 text-sm">{r.action_type === 'gain' ? 'Gain' : 'Loss'}</td>
                       <td className={`px-5 py-3 text-sm font-bold text-right font-mono ${r.action_type === 'gain' ? 'text-emerald-600' : 'text-red-500'}`}>
                         {r.action_type === 'gain' ? '+' : '-'}
-                        {r.point_value}
+                        {r.category === 'Account Refill' && r.indicator === 'Points Redemption' ? 'Dynamic' : r.point_value}
                       </td>
                     </tr>
                   ))
