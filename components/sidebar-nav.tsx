@@ -54,6 +54,7 @@ import {
   ArrowUpCircle,
   ArrowDownCircle,
   AlertTriangle,
+  MessageSquareQuote,
 } from 'lucide-react'
 import { useState, useMemo } from 'react'
 import type { User, Company, CompanyRole } from '@/types'
@@ -99,6 +100,7 @@ const NAV: NavEntry[] = [
     children: [
       { label: 'Overview', href: '/app/hr', icon: <Users className="w-4 h-4" /> },
       { label: 'Employees', href: '/app/hr/employees', icon: <UserCog className="w-4 h-4" /> },
+      { label: 'Interview', href: '/app/hr/interview', icon: <MessageSquareQuote className="w-4 h-4" /> },
       { label: 'Salary Structures', href: '/app/hr/salary-structures', icon: <Wallet className="w-4 h-4" /> },
       { label: 'Payroll', href: '/app/hr/payroll', icon: <Banknote className="w-4 h-4" /> },
       { label: 'PAYE & Tax', href: '/app/hr/paye', icon: <Calculator className="w-4 h-4" /> },
