@@ -8,12 +8,27 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
-import { Brain, CheckCircle2, Sparkles, UserPlus, Users } from 'lucide-react'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Brain, CheckCircle2, Eye, Sparkles, UserPlus, Users } from 'lucide-react'
 
-type Question = { category: string; type: string; question: string; expectedAnswer: string; maxMarks: number }
+type Question = { category: string; type?: string; question?: string; expectedAnswer?: string; maxMarks?: number }
 
 type Candidate = { id: string; full_name: string; email: string }
 type Role = { id: string; name: string; description?: string | null }
+type PastInterview = {
+  id: string
+  candidate_user_id: string
+  company_role_id: string
+  questions: Question[] | null
+  marks: Record<string, number> | null
+  impression_rating: number | null
+  interviewer_notes: string | null
+  total_percentage: number | null
+  grade: string
+  status: string
+  created_at: string
+}
 
 const categoryLabels: Record<string, string> = {
   skill: 'Skill',
@@ -47,6 +62,20 @@ export default function InterviewPage() {
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
   const [savedResultId, setSavedResultId] = useState<string | null>(null)
+  const [pastInterviews, setPastInterviews] = useState<PastInterview[]>([])
+  const [selectedReport, setSelectedReport] = useState<PastInterview | null>(null)
+
+
+  const loadPastInterviews = async (currentCompanyId = companyId) => {
+    if (!currentCompanyId) return
+    const { data, error } = await supabase
+      .from('hr_interviews')
+      .select('id, candidate_user_id, company_role_id, questions, marks, impression_rating, interviewer_notes, total_percentage, grade, status, created_at')
+      .eq('company_id', currentCompanyId)
+      .order('created_at', { ascending: false })
+    if (error) throw error
+    setPastInterviews((data || []) as PastInterview[])
+  }
 
   useEffect(() => {
     const load = async () => {
@@ -60,6 +89,7 @@ export default function InterviewPage() {
         ])
         setCandidates(users || [])
         setRoles(roleData || [])
+        await loadPastInterviews(context.companyId)
       } catch (error: any) {
         setMessage({ type: 'error', text: error.message || 'Failed to load interview setup data.' })
       } finally {
@@ -71,7 +101,7 @@ export default function InterviewPage() {
 
   const selectedRole = roles.find((role) => role.id === roleId)
   const selectedCandidate = candidates.find((candidate) => candidate.id === candidateId)
-  const questionTotal = questions.reduce((sum, question) => sum + question.maxMarks, 0)
+  const questionTotal = questions.reduce((sum, question) => sum + (question.maxMarks || 10), 0)
   const scoredMarks = questions.reduce((sum, _, index) => sum + Math.min(Math.max(Number(marks[index] || 0), 0), 10), 0)
   const grandTotal = questionTotal + 10
   const percent = grandTotal ? Math.round(((scoredMarks + impressionRating) / grandTotal) * 100) : 0
@@ -100,7 +130,7 @@ export default function InterviewPage() {
       setQuestions(data.questions || [])
       setMarks({})
       setImpressionRating(0)
-      setMessage({ type: 'success', text: `Generated ${(data.questions || []).length} interview questions${data.source === 'fallback' ? ' using the built-in fallback because Gemini is not configured' : ' with Gemini'}.` })
+      setMessage({ type: 'success', text: `Generated ${(data.questions || []).length} interview questions.` })
     } catch (error: any) {
       setMessage({ type: 'error', text: error.message || 'Failed to generate questions.' })
     } finally {
@@ -126,7 +156,12 @@ export default function InterviewPage() {
       }).select('id').single()
       if (error) throw error
       setSavedResultId(data.id)
-      setMessage({ type: 'success', text: 'Interview result saved.' })
+      setQuestions([])
+      setMarks({})
+      setImpressionRating(0)
+      setNotes('')
+      await loadPastInterviews(companyId)
+      setMessage({ type: 'success', text: 'Interview result saved. You can review it in the past interviews table.' })
     } catch (error: any) {
       setMessage({ type: 'error', text: error.message || 'Failed to save result.' })
     } finally {
@@ -159,8 +194,7 @@ export default function InterviewPage() {
   return (
     <div className="p-4 lg:p-6 max-w-[1400px] mx-auto animate-fade-in">
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-foreground tracking-tight">AI Interview</h1>
-        <p className="text-sm text-muted-foreground mt-0.5">Select a system user and role, generate a structured Gemini interview, score answers, and hire qualified candidates.</p>
+        <h1 className="text-2xl font-bold text-foreground tracking-tight">Interview</h1>
       </div>
 
       {message && <div className={`mb-5 px-4 py-3 rounded-xl text-sm font-medium ${message.type === 'success' ? 'bg-emerald-500/10 text-emerald-700 border border-emerald-500/20' : 'bg-red-500/10 text-red-600 border border-red-500/20'}`}>{message.text}</div>}
@@ -169,7 +203,7 @@ export default function InterviewPage() {
         <div className="grid md:grid-cols-3 gap-3">
           <select className="form-select" value={candidateId} onChange={(e) => setCandidateId(e.target.value)} disabled={loading}>
             <option value="">Choose system user</option>
-            {candidates.map((candidate) => <option key={candidate.id} value={candidate.id}>{candidate.full_name} — {candidate.email}</option>)}
+            {candidates.map((candidate) => <option key={candidate.id} value={candidate.id}>{candidate.full_name} ({candidate.email})</option>)}
           </select>
           <select className="form-select" value={roleId} onChange={(e) => setRoleId(e.target.value)} disabled={loading}>
             <option value="">Choose role</option>
@@ -191,9 +225,9 @@ export default function InterviewPage() {
                 return <div key={`${category}-${localIndex}`} className="rounded-xl border border-border/40 p-4">
                   <div className="flex flex-col md:flex-row md:items-start justify-between gap-3">
                     <div>
-                      <Badge variant={question.type === 'practical' ? 'default' : 'outline'}>{question.type}</Badge>
-                      <p className="mt-2 text-sm font-medium text-foreground">{localIndex + 1}. {question.question}</p>
-                      <p className="mt-1 text-xs text-muted-foreground">Expected: {question.expectedAnswer}</p>
+                      <Badge variant={question.type === 'practical' ? 'default' : 'outline'}>{question.type || 'question'}</Badge>
+                      <p className="mt-2 text-sm font-medium text-foreground">{localIndex + 1}. {question.question || 'Question missing'}</p>
+                      {question.expectedAnswer && <p className="mt-1 text-xs text-muted-foreground">Expected: {question.expectedAnswer}</p>}
                     </div>
                     <Input className="w-28" type="number" min="0" max="10" placeholder="/10" value={marks[globalIndex] ?? ''} onChange={(e) => setMarks({ ...marks, [globalIndex]: Number(e.target.value) })} />
                   </div>
@@ -217,7 +251,96 @@ export default function InterviewPage() {
         </Card>
       </div>}
 
+
+      <Card className="p-5 mt-6">
+        <div className="flex items-center justify-between gap-3 mb-4">
+          <div>
+            <h2 className="font-semibold">Past Interviews</h2>
+            <p className="text-xs text-muted-foreground">Saved interviews are listed here with reviewable reports.</p>
+          </div>
+          <Badge variant="secondary">{pastInterviews.length}</Badge>
+        </div>
+        {pastInterviews.length === 0 ? <p className="text-sm text-muted-foreground">No saved interviews yet.</p> : <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Candidate</TableHead>
+              <TableHead>Role</TableHead>
+              <TableHead>Score</TableHead>
+              <TableHead>Grade</TableHead>
+              <TableHead>Date</TableHead>
+              <TableHead className="text-right">Report</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {pastInterviews.map((interview) => {
+              const candidate = candidates.find((item) => item.id === interview.candidate_user_id)
+              const role = roles.find((item) => item.id === interview.company_role_id)
+              return <TableRow key={interview.id}>
+                <TableCell>{candidate ? `${candidate.full_name} (${candidate.email})` : 'Unknown candidate'}</TableCell>
+                <TableCell>{role?.name || 'Unknown role'}</TableCell>
+                <TableCell>{Math.round(Number(interview.total_percentage || 0))}%</TableCell>
+                <TableCell><Badge variant={interview.grade === 'Hired' ? 'default' : 'secondary'}>{interview.grade}</Badge></TableCell>
+                <TableCell>{new Date(interview.created_at).toLocaleDateString()}</TableCell>
+                <TableCell className="text-right"><Button size="sm" variant="outline" onClick={() => setSelectedReport(interview)}><Eye className="w-4 h-4 mr-2" />Review</Button></TableCell>
+              </TableRow>
+            })}
+          </TableBody>
+        </Table>}
+      </Card>
+
+      <Dialog open={!!selectedReport} onOpenChange={(open) => !open && setSelectedReport(null)}>
+        <DialogContent className="max-w-4xl max-h-[85vh] overflow-y-auto">
+          <DialogHeader><DialogTitle>Interview Report</DialogTitle></DialogHeader>
+          {selectedReport && <InterviewReport interview={selectedReport} candidate={candidates.find((item) => item.id === selectedReport.candidate_user_id)} role={roles.find((item) => item.id === selectedReport.company_role_id)} />}
+        </DialogContent>
+      </Dialog>
+
       {!loading && questions.length === 0 && <Card className="p-10 text-center"><Users className="w-10 h-10 mx-auto text-muted-foreground/30 mb-3" /><p className="text-sm text-muted-foreground">Choose a user and role to start a 60-question structured interview.</p></Card>}
     </div>
   )
+}
+
+
+function InterviewReport({ interview, candidate, role }: { interview: PastInterview; candidate?: Candidate; role?: Role }) {
+  const questions = interview.questions || []
+  const marks = interview.marks || {}
+  const categoryScores = questions.reduce<Record<string, { earned: number; total: number }>>((acc, question, index) => {
+    const category = question.category || 'uncategorized'
+    const maxMarks = question.maxMarks || 10
+    acc[category] = acc[category] || { earned: 0, total: 0 }
+    acc[category].earned += Math.min(Math.max(Number(marks[index] || 0), 0), maxMarks)
+    acc[category].total += maxMarks
+    return acc
+  }, {})
+
+  return <div className="space-y-5">
+    <div className="grid md:grid-cols-3 gap-3">
+      <div className="rounded-xl bg-muted/40 p-4"><p className="text-xs text-muted-foreground">Candidate</p><p className="font-medium">{candidate ? `${candidate.full_name} (${candidate.email})` : 'Unknown candidate'}</p></div>
+      <div className="rounded-xl bg-muted/40 p-4"><p className="text-xs text-muted-foreground">Role</p><p className="font-medium">{role?.name || 'Unknown role'}</p></div>
+      <div className="rounded-xl bg-muted/40 p-4"><p className="text-xs text-muted-foreground">Overall Score</p><p className="font-medium">{Math.round(Number(interview.total_percentage || 0))}% · {interview.grade}</p></div>
+    </div>
+
+    <Card className="p-4">
+      <h3 className="font-semibold mb-3">Category Scores</h3>
+      {Object.keys(categoryScores).length === 0 ? <p className="text-sm text-muted-foreground">No category scores were saved for this interview.</p> : <div className="grid md:grid-cols-2 gap-3">
+        {Object.entries(categoryScores).map(([category, score]) => <div key={category} className="rounded-xl border border-border/40 p-3">
+          <p className="text-sm font-medium">{categoryLabels[category] || category.replace(/_/g, ' ')}</p>
+          <p className="text-xs text-muted-foreground">{score.earned}/{score.total} marks · {score.total ? Math.round((score.earned / score.total) * 100) : 0}%</p>
+        </div>)}
+      </div>}
+    </Card>
+
+    <Card className="p-4">
+      <h3 className="font-semibold mb-3">Questions</h3>
+      {questions.length === 0 ? <p className="text-sm text-muted-foreground">Question missing</p> : <div className="space-y-3">
+        {questions.map((question, index) => <div key={`${question.category}-${index}`} className="rounded-xl border border-border/40 p-3">
+          <div className="flex flex-wrap items-center gap-2 mb-2"><Badge variant="outline">{categoryLabels[question.category] || question.category || 'Uncategorized'}</Badge><span className="text-xs text-muted-foreground">Score: {Number(marks[index] || 0)}/{question.maxMarks || 10}</span></div>
+          <p className="text-sm font-medium">{index + 1}. {question.question || 'Question missing'}</p>
+          {question.expectedAnswer && <p className="mt-1 text-xs text-muted-foreground">Expected: {question.expectedAnswer}</p>}
+        </div>)}
+      </div>}
+    </Card>
+
+    {interview.interviewer_notes && <Card className="p-4"><h3 className="font-semibold mb-2">Interviewer Notes</h3><p className="text-sm text-muted-foreground whitespace-pre-wrap">{interview.interviewer_notes}</p></Card>}
+  </div>
 }

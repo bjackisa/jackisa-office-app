@@ -41,7 +41,7 @@ export default function HRDashboard() {
           <div className="space-y-2">
             {[
               { href: '/app/hr/employees', label: 'Add Employee', icon: UserPlus, desc: 'Register a new team member' },
-              { href: '/app/hr/interview', label: 'AI Interview', icon: MessageSquareQuote, desc: 'Generate and score candidate interviews' },
+              { href: '/app/hr/interview', label: 'Interview', icon: MessageSquareQuote, desc: 'Generate and score candidate interviews' },
               { href: '/app/hr/attendance', label: 'Mark Attendance', icon: CalendarCheck, desc: 'Record daily attendance' },
               { href: '/app/hr/payroll', label: 'Process Payroll', icon: DollarSign, desc: 'Run monthly payroll' },
               { href: '/app/hr/paye', label: 'PAYE Calculator', icon: Calculator, desc: 'Calculate tax deductions' },
