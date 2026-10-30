@@ -1,7 +1,11 @@
 'use client'
 
 import { useAuth } from '@/lib/hooks/useAuth'
+import { LicenseProvider } from '@/lib/lic/useLicense'
 import { SidebarNav } from '@/components/sidebar-nav'
+import { TrialBanner } from '@/components/trial-banner'
+import { RouteLicenseGate } from '@/components/license-gate'
+import { VerificationBadge } from '@/components/verification-badge'
 import { Spinner } from '@/components/ui/spinner'
 import { Bell, Search, HelpCircle } from 'lucide-react'
 import { useState, useEffect } from 'react'
@@ -12,7 +16,7 @@ export default function AppLayout({
 }: {
   children: React.ReactNode
 }) {
-  const { user, company, companies, loading, logout, switchCompany } = useAuth()
+  const { user, company, companies, employee, role, loading, logout, switchCompany } = useAuth()
   const [notificationCount, setNotificationCount] = useState(0)
 
   useEffect(() => {
@@ -43,6 +47,13 @@ export default function AppLayout({
   }
 
   return (
+    <LicenseProvider
+      companyId={company?.id ?? null}
+      companyKind={(company as any)?.kind ?? null}
+      employee={employee}
+      role={role}
+      userId={user?.id ?? null}
+    >
     <div className="flex h-screen bg-background">
       <SidebarNav
         onLogout={logout}
@@ -54,6 +65,7 @@ export default function AppLayout({
         onSwitchCompany={switchCompany}
       />
       <div className="flex-1 flex flex-col overflow-hidden min-w-0">
+        <TrialBanner />
         {/* Top Bar */}
         <header className="h-[56px] bg-card/80 backdrop-blur-xl border-b border-border/60 flex items-center justify-between px-6 flex-shrink-0">
           <div className="flex items-center gap-3">
@@ -89,8 +101,14 @@ export default function AppLayout({
                 </div>
               )}
               <div className="hidden sm:block">
-                <p className="text-sm font-semibold text-foreground leading-tight">{user?.full_name || 'User'}</p>
-                <p className="text-[11px] text-muted-foreground/60 leading-tight">{company?.name || 'No workspace'}</p>
+                <p className="text-sm font-semibold text-foreground leading-tight flex items-center gap-1">
+                  {user?.full_name || 'User'}
+                  <VerificationBadge kind="individual" verified={(user as any)?.kyc_status === 'verified'} />
+                </p>
+                <p className="text-[11px] text-muted-foreground/60 leading-tight flex items-center gap-1">
+                  {company?.name || 'No workspace'}
+                  <VerificationBadge kind="company" verified={(company as any)?.verified} />
+                </p>
               </div>
             </div>
           </div>
@@ -98,9 +116,10 @@ export default function AppLayout({
 
         {/* Main Content */}
         <main className="flex-1 overflow-auto">
-          {children}
+          <RouteLicenseGate>{children}</RouteLicenseGate>
         </main>
       </div>
     </div>
+    </LicenseProvider>
   )
 }

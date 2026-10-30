@@ -1,0 +1,84 @@
+import { NextRequest, NextResponse } from 'next/server'
+import { lic } from '@/lib/lic/client'
+import { adminClient, adminAvailable } from '@/lib/lic/peer'
+import { getCaller } from '@/lib/lic/serverAuth'
+import crypto from 'crypto'
+
+export const dynamic = 'force-dynamic'
+
+const TRIAL_DAYS = 7
+
+/**
+ * POST /api/trial
+ * Body: { action: 'start' | 'cancel' | 'status', companyId, msisdn?, fingerprint? }
+ *
+ * Starts a 7-day free trial. Eligibility is decided on the licence hub using a
+ * device fingerprint plus IP, so a brand-new device/IP gets one trial and a
+ * near-identical repeat does not. After the trial the number on file is charged
+ * by JPesa; the user may cancel any time before then.
+ */
+export async function POST(req: NextRequest) {
+  const body = await req.json().catch(() => ({}))
+  const action = String(body?.action || 'start')
+  const companyId = String(body?.companyId || '')
+  if (!companyId) return NextResponse.json({ ok: false, error: 'companyId is required' }, { status: 400 })
+
+  const caller = await getCaller(req)
+  const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || req.headers.get('x-real-ip') || '0.0.0.0'
+  const fingerprint = String(body?.fingerprint || deriveFingerprint(req, caller?.id))
+
+  if (action === 'cancel') {
+    if (!adminAvailable()) return NextResponse.json({ ok: false, error: 'Not configured' }, { status: 500 })
+    const db = adminClient()
+    await db
+      .from('trial_registrations')
+      .update({ status: 'cancelled', cancelled_at: new Date().toISOString() })
+      .eq('company_id', companyId)
+      .in('status', ['active', 'reminded'])
+    return NextResponse.json({ ok: true, cancelled: true })
+  }
+
+  if (action === 'status') {
+    if (!adminAvailable()) return NextResponse.json({ ok: false, error: 'Not configured' }, { status: 500 })
+    const db = adminClient()
+    const { data } = await db.from('trial_registrations').select('*').eq('company_id', companyId).order('created_at', { ascending: false }).limit(1).maybeSingle()
+    return NextResponse.json({ ok: true, trial: data })
+  }
+
+  // action === 'start'
+  const res = await lic.startTrial(companyId, fingerprint, {
+    user_id: caller?.id,
+    msisdn: body?.msisdn ? String(body.msisdn) : undefined,
+  })
+  if (res.api_status !== '200') {
+    return NextResponse.json({ ok: false, error: res.errors?.error_text || 'Could not start a trial' }, { status: 400 })
+  }
+
+  const granted = res.data?.granted !== false
+  const endsAt = res.data?.ends_at || new Date(Date.now() + TRIAL_DAYS * 86400000).toISOString()
+
+  if (adminAvailable()) {
+    try {
+      const db = adminClient()
+      await db.from('trial_registrations').insert({
+        company_id: companyId,
+        user_id: caller?.id || null,
+        fingerprint,
+        ip_address: ip,
+        msisdn: body?.msisdn ? String(body.msisdn) : null,
+        ends_at: endsAt,
+        status: 'active',
+      })
+    } catch (e) {
+      console.error('[trial] mirror failed', e)
+    }
+  }
+
+  return NextResponse.json({ ok: true, granted, endsAt, days: TRIAL_DAYS })
+}
+
+function deriveFingerprint(req: NextRequest, userId?: string): string {
+  const ua = req.headers.get('user-agent') || ''
+  const lang = req.headers.get('accept-language') || ''
+  return crypto.createHash('sha256').update(`${ua}|${lang}|${userId || 'anon'}`).digest('hex')
+}

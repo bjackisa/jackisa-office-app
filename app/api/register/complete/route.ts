@@ -39,6 +39,16 @@ export async function POST(request: Request) {
     const rawPackageTier = typeof body?.packageTier === 'string' ? body.packageTier : 'basic'
     const packageTier = ['basic', 'pro', 'platinum'].includes(rawPackageTier) ? rawPackageTier : 'basic'
     const couponCode = body?.couponCode
+    // The plan the visitor chose (e.g. pro_12m) is remembered across the signup
+    // round-trip; fall back to the tier's monthly plan when it is missing.
+    const planCode = typeof body?.planCode === 'string' && /^(basic|pro|platinum)_\d+m$/.test(body.planCode)
+      ? body.planCode
+      : `${packageTier}_1m`
+    const intervalMonths = (() => {
+      const m = planCode.match(/_(\d+)m$/)
+      const n = m ? Number(m[1]) : 1
+      return [1, 3, 6, 12, 24, 36].includes(n) ? n : 1
+    })()
 
     const email = (typeof body?.email === 'string' && body.email.trim())
       ? body.email.trim().toLowerCase()
@@ -159,7 +169,7 @@ export async function POST(request: Request) {
     }
 
     const startDate = new Date()
-    const endDate = addDays(startDate, 30 + freeDays)
+    const endDate = addDays(startDate, intervalMonths * 30 + freeDays)
 
     const { error: subscriptionErr } = await supabase.from('company_subscriptions').insert({
       company_id: company.id,
@@ -167,7 +177,7 @@ export async function POST(request: Request) {
       status: 'active',
       monthly_cost: Number(monthlyCost.toFixed(2)),
       yearly_cost: Number(yearlyCost.toFixed(2)),
-      billing_cycle: 'monthly',
+      billing_cycle: intervalMonths === 1 ? 'monthly' : intervalMonths === 12 ? 'yearly' : `every_${intervalMonths}_months`,
       start_date: startDate.toISOString(),
       end_date: endDate.toISOString(),
     })
@@ -183,7 +193,22 @@ export async function POST(request: Request) {
       .from('user_active_company')
       .upsert({ user_id: authedUser.id, company_id: company.id }, { onConflict: 'user_id' })
 
-    return NextResponse.json({ ok: true, companyId: company.id })
+    // Issue a licence on the hub for the chosen plan and mirror it locally.
+    // Non-fatal: if the hub is unreachable the workspace is still created and
+    // the licence can be issued from the billing page afterwards.
+    try {
+      const origin = new URL(request.url).origin
+      const licRes = await fetch(`${origin}/api/lic/license`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'issue', companyId: company.id, planCode, intervalMonths }),
+      }).then((r) => r.json())
+      if (!licRes?.ok) console.error('[register] licence issue failed', licRes?.error)
+    } catch (e) {
+      console.error('[register] licence issue error', e)
+    }
+
+    return NextResponse.json({ ok: true, companyId: company.id, planCode, intervalMonths })
   } catch (err: any) {
     return new NextResponse(err?.message || 'Server error', { status: 500 })
   }

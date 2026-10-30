@@ -55,9 +55,53 @@ import {
   ArrowDownCircle,
   AlertTriangle,
   MessageSquareQuote,
+  Lock,
+  ShieldCheck,
 } from 'lucide-react'
 import { useState, useMemo } from 'react'
+import { useLicense } from '@/lib/lic/useLicense'
 import type { User, Company, CompanyRole } from '@/types'
+
+/**
+ * Maps a route to the feature slug that gates it. Used to hide/lock nav items
+ * the current tier or role does not unlock.
+ */
+const ROUTE_FEATURE: Record<string, string> = {
+  '/app/payments': 'payments_hub',
+  '/app/accounting': 'accounting',
+  '/app/accounting/invoices': 'invoicing',
+  '/app/accounting/expenses': 'expenses',
+  '/app/accounting/vat': 'vat',
+  '/app/accounting/income-tax': 'income_tax',
+  '/app/accounting/bookkeeping': 'bookkeeping',
+  '/app/hr': 'hr',
+  '/app/hr/payroll': 'payroll',
+  '/app/hr/paye': 'paye',
+  '/app/hr/attendance': 'attendance',
+  '/app/hr/leave': 'leave',
+  '/app/hr/performance': 'performance',
+  '/app/hr/points': 'hr_points',
+  '/app/education': 'education',
+  '/app/education/students': 'students',
+  '/app/education/coursework': 'coursework',
+  '/app/sales': 'sales',
+  '/app/sales/commissions': 'commissions',
+  '/app/affiliate': 'affiliate',
+  '/app/investment': 'investment',
+  '/app/investment/my-portfolio': 'unit_trust',
+  '/app/dividends': 'dividends',
+  '/app/legal': 'legal',
+  '/app/cms': 'cms',
+  '/app/helpdesk': 'helpdesk',
+}
+
+export function featureForRoute(href: string): string | undefined {
+  if (ROUTE_FEATURE[href]) return ROUTE_FEATURE[href]
+  const match = Object.keys(ROUTE_FEATURE)
+    .filter((route) => href.startsWith(route + '/'))
+    .sort((a, b) => b.length - a.length)[0]
+  return match ? ROUTE_FEATURE[match] : undefined
+}
 
 interface NavChild {
   label: string
@@ -91,6 +135,7 @@ const NAV: NavEntry[] = [
       { label: 'Debit Notes', href: '/app/accounting/debit-notes', icon: <FilePlus className="w-4 h-4" /> },
       { label: 'Chart of Accounts', href: '/app/accounting/chart-of-accounts', icon: <BookOpen className="w-4 h-4" /> },
       { label: 'VAT Management', href: '/app/accounting/vat', icon: <Percent className="w-4 h-4" /> },
+      { label: 'Income Tax', href: '/app/accounting/income-tax', icon: <Landmark className="w-4 h-4" /> },
       { label: 'Bookkeeping', href: '/app/accounting/bookkeeping', icon: <Book className="w-4 h-4" /> },
     ],
   },
@@ -175,8 +220,19 @@ const NAV: NavEntry[] = [
 
 function NavGroupComponent({ group, collapsed }: { group: NavGroup; collapsed: boolean }) {
   const pathname = usePathname()
+  const { can, loading } = useLicense()
   const isActive = group.children.some(c => pathname === c.href || pathname.startsWith(c.href + '/'))
   const [open, setOpen] = useState(isActive)
+
+  const visibleChildren = group.children.map((child) => {
+    const slug = featureForRoute(child.href)
+    const allowed = !slug || loading || can(slug)
+    return { ...child, allowed }
+  })
+  // Hide a group entirely when the whole group is locked out.
+  if (!loading && visibleChildren.every((c) => !c.allowed)) {
+    return null
+  }
 
   return (
     <div>
@@ -204,8 +260,21 @@ function NavGroupComponent({ group, collapsed }: { group: NavGroup; collapsed: b
       </button>
       {open && !collapsed && (
         <div className="mt-1 ml-[18px] pl-3 border-l border-white/[0.06] space-y-0.5">
-          {group.children.map(child => {
+          {visibleChildren.map(child => {
             const active = pathname === child.href
+            if (!child.allowed) {
+              return (
+                <div
+                  key={child.href}
+                  className="flex items-center gap-2 px-2.5 py-[7px] rounded-lg text-[12.5px] text-white/20 cursor-not-allowed"
+                  title="Upgrade your plan to unlock this"
+                >
+                  <span className="opacity-40">{child.icon}</span>
+                  <span className="truncate">{child.label}</span>
+                  <Lock className="w-3 h-3 ml-auto opacity-50" />
+                </div>
+              )
+            }
             return (
               <Link
                 key={child.href}
@@ -248,6 +317,7 @@ export function SidebarNav({
   onSwitchCompany,
 }: SidebarNavProps) {
   const pathname = usePathname()
+  const { can, loading: licenseLoading, tier, trial, badge } = useLicense()
   const [mobileOpen, setMobileOpen] = useState(false)
   const [companySwitcherOpen, setCompanySwitcherOpen] = useState(false)
 
@@ -337,6 +407,21 @@ export function SidebarNav({
             return <NavGroupComponent key={entry.label} group={entry} collapsed={false} />
           }
           const active = pathname === entry.href
+          const slug = featureForRoute(entry.href)
+          const allowed = !slug || licenseLoading || can(slug)
+          if (!allowed) {
+            return (
+              <div
+                key={entry.href}
+                className="flex items-center gap-2.5 px-3 py-2 rounded-xl text-[13px] font-medium text-white/20 cursor-not-allowed"
+                title="Upgrade your plan to unlock this"
+              >
+                <span className="flex-shrink-0 opacity-40">{entry.icon}</span>
+                <span>{entry.label}</span>
+                <Lock className="w-3 h-3 ml-auto opacity-50" />
+              </div>
+            )
+          }
           return (
             <Link
               key={entry.href}
@@ -354,6 +439,27 @@ export function SidebarNav({
           )
         })}
       </nav>
+
+      {/* Licence status strip */}
+      <div className="px-3 pb-1">
+        <Link
+          href="/app/settings/license"
+          className="flex items-center gap-2 px-3 py-2 rounded-xl bg-white/[0.03] border border-white/[0.06] hover:bg-white/[0.06] transition-all duration-200"
+        >
+          <ShieldCheck className="w-3.5 h-3.5 text-emerald-400 flex-shrink-0" />
+          <div className="min-w-0 flex-1">
+            <p className="text-white/70 text-[11px] font-medium truncate">
+              {tier ? tier.charAt(0).toUpperCase() + tier.slice(1) : 'Basic'} plan
+            </p>
+            <p className="text-white/30 text-[10px] truncate">
+              {trial?.active ? `Trial · ${trial.daysLeft}d left` : 'Manage licence'}
+            </p>
+          </div>
+          {badge && (
+            <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-amber-400/20 text-amber-300">KYC</span>
+          )}
+        </Link>
+      </div>
 
       {/* User Footer */}
       <div className="p-3 border-t border-white/[0.05]">

@@ -1,0 +1,25 @@
+# Jackisa License Hub — route everything under /api/v1 to the front controller.
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    RewriteBase /
+
+    # Never rewrite real files/directories.
+    RewriteCond %{REQUEST_FILENAME} -f [OR]
+    RewriteCond %{REQUEST_FILENAME} -d
+    RewriteRule ^ - [L]
+
+    # API traffic -> index.php (the whole /api prefix is ours)
+    RewriteRule ^api(/.*)?$ index.php [L,QSA]
+</IfModule>
+
+<IfModule mod_headers.c>
+    Header always set X-Content-Type-Options "nosniff"
+    Header always set X-Frame-Options "DENY"
+</IfModule>
+
+# Block direct access to anything that is not the front controller.
+<FilesMatch "\.(sql|md|log|ini|env|json|lock)$">
+    Require all denied
+</FilesMatch>
+
+Options -Indexes

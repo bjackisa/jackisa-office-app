@@ -1,0 +1,110 @@
+/**
+ * Feature gating by subscription tier AND by the user's role in a company.
+ *
+ * A feature is available when all three hold:
+ *   1. the licence tier unlocks it (min_tier <= licence tier), and
+ *   2. the company has not explicitly overridden it off, and
+ *   3. the role grants it (role is a "top tier" role, or an explicit grant).
+ */
+
+export type Tier = 'basic' | 'pro' | 'platinum' | 'enterprise'
+
+/** Company kinds, mirroring companies.kind. */
+export type CompanyKind = 'company' | 'institution' | 'ngo' | 'individual' | 'cooperative'
+
+export const TIER_RANK: Record<Tier, number> = {
+  basic: 1,
+  pro: 2,
+  platinum: 3,
+  enterprise: 4,
+}
+
+/** Features that only make sense for certain kinds of organisation. */
+export const FEATURE_KINDS: Record<string, CompanyKind[]> = {
+  education: ['institution', 'ngo'],
+  students: ['institution', 'ngo'],
+  coursework: ['institution', 'ngo'],
+  investment: ['company', 'cooperative', 'individual'],
+  unit_trust: ['company', 'cooperative', 'individual'],
+  dividends: ['company', 'cooperative'],
+  commissions: ['company', 'cooperative'],
+  affiliate: ['company'],
+  cms: ['company', 'ngo'],
+}
+
+/** Feature catalogue: slug -> minimum tier. Mirrors the SQL seed + lic. */
+export const FEATURES: Record<string, { name: string; category: string; minTier: Tier; route?: string }> = {
+  dashboard:    { name: 'Dashboard',            category: 'core',       minTier: 'basic',    route: '/app' },
+  payments_hub: { name: 'Payments Hub',         category: 'core',       minTier: 'basic',    route: '/app/payments' },
+  accounting:   { name: 'Accounting & Finance', category: 'finance',    minTier: 'basic',    route: '/app/accounting' },
+  invoicing:    { name: 'Invoicing',            category: 'finance',    minTier: 'basic',    route: '/app/accounting/invoices' },
+  expenses:     { name: 'Expenses',             category: 'finance',    minTier: 'basic',    route: '/app/accounting/expenses' },
+  vat:          { name: 'VAT Management',       category: 'finance',    minTier: 'basic',    route: '/app/accounting/vat' },
+  bookkeeping:  { name: 'Bookkeeping',          category: 'finance',    minTier: 'basic',    route: '/app/accounting/bookkeeping' },
+  hr:           { name: 'HR & Payroll',         category: 'hr',         minTier: 'basic',    route: '/app/hr' },
+  payroll:      { name: 'Payroll',              category: 'hr',         minTier: 'basic',    route: '/app/hr/payroll' },
+  paye:         { name: 'PAYE & Tax',           category: 'hr',         minTier: 'basic',    route: '/app/hr/paye' },
+  attendance:   { name: 'Attendance',           category: 'hr',         minTier: 'basic',    route: '/app/hr/attendance' },
+  leave:        { name: 'Leave Management',     category: 'hr',         minTier: 'basic',    route: '/app/hr/leave' },
+  performance:  { name: 'Performance',          category: 'hr',         minTier: 'pro',      route: '/app/hr/performance' },
+  hr_points:    { name: 'HR Points',            category: 'hr',         minTier: 'pro',      route: '/app/hr/points' },
+  education:    { name: 'Education Management', category: 'education',  minTier: 'pro',      route: '/app/education' },
+  students:     { name: 'Students',             category: 'education',  minTier: 'pro',      route: '/app/education/students' },
+  coursework:   { name: 'Coursework',           category: 'education',  minTier: 'pro',      route: '/app/education/coursework' },
+  sales:        { name: 'Sales & Marketing',    category: 'sales',      minTier: 'basic',    route: '/app/sales' },
+  commissions:  { name: 'Commissions',          category: 'sales',      minTier: 'pro',      route: '/app/sales/commissions' },
+  affiliate:    { name: 'Affiliate Program',    category: 'sales',      minTier: 'pro',      route: '/app/affiliate' },
+  investment:   { name: 'Investment & Funds',   category: 'investment', minTier: 'pro',      route: '/app/investment' },
+  unit_trust:   { name: 'Unit Trust',           category: 'investment', minTier: 'platinum', route: '/app/investment/my-portfolio' },
+  dividends:    { name: 'Dividends',            category: 'investment', minTier: 'platinum', route: '/app/dividends' },
+  income_tax:   { name: 'Income Tax Evaluator', category: 'finance',    minTier: 'platinum' },
+  legal:        { name: 'Legal Documents',      category: 'legal',      minTier: 'pro',      route: '/app/legal' },
+  cms:          { name: 'CMS',                  category: 'content',    minTier: 'pro',      route: '/app/cms' },
+  helpdesk:     { name: 'Help Desk',            category: 'support',    minTier: 'basic',    route: '/app/helpdesk' },
+  kyc:          { name: 'KYC Verification',     category: 'compliance', minTier: 'platinum', route: '/app/settings/license' },
+  api_access:   { name: 'API Access',           category: 'platform',   minTier: 'platinum' },
+  whapi_alerts: { name: 'WhatsApp Alerts',      category: 'platform',   minTier: 'pro' },
+  pdf_reports:  { name: 'PDF Reports',          category: 'platform',   minTier: 'pro' },
+}
+
+export function tierRank(tier?: string | null): number {
+  return TIER_RANK[(tier as Tier) ?? 'basic'] ?? 1
+}
+
+export function isTierAtLeast(tier: string | null | undefined, min: Tier): boolean {
+  return tierRank(tier) >= TIER_RANK[min]
+}
+
+export interface GateContext {
+  tier: string | null | undefined
+  /** The kind of organisation (companies.kind). */
+  companyKind?: string | null
+  /** Overrides set for the company (feature_slug -> enabled). */
+  overrides?: Record<string, boolean>
+  /** Role grants (feature_slug -> enabled) for the user's role. */
+  roleGrants?: Record<string, boolean>
+  /** True when the role is an admin/owner role and gets everything in-tier. */
+  isAdminRole?: boolean
+}
+
+export function hasFeature(slug: string, ctx: GateContext): boolean {
+  const feature = FEATURES[slug]
+  if (!feature) return true // unknown feature: do not block
+  if (!isTierAtLeast(ctx.tier, feature.minTier)) return false
+  // A feature bound to certain organisation kinds is unavailable elsewhere,
+  // unless the company has been explicitly granted it.
+  const kinds = FEATURE_KINDS[slug]
+  if (kinds && ctx.companyKind && !kinds.includes(ctx.companyKind as CompanyKind)) {
+    if (!(ctx.overrides && ctx.overrides[slug])) return false
+  }
+  if (ctx.overrides && slug in ctx.overrides) return ctx.overrides[slug]
+  if (ctx.isAdminRole) return true
+  if (ctx.roleGrants && slug in ctx.roleGrants) return ctx.roleGrants[slug]
+  // Non-admin roles get the core/basic surface unless explicitly granted.
+  return feature.minTier === 'basic'
+}
+
+/** The lowest tier that unlocks a feature, for upgrade prompts. */
+export function requiredTier(slug: string): Tier {
+  return FEATURES[slug]?.minTier ?? 'basic'
+}

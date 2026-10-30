@@ -1,21 +1,32 @@
 'use client'
 
-import { useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useState, useEffect, Suspense } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Spinner } from '@/components/ui/spinner'
+import { ContinueWithJackisa } from '@/components/continue-with-jackisa'
 import { AlertCircle, Building2, Lock, Mail, User } from 'lucide-react'
 
 const TIERS = [
-  { value: 'basic', label: 'Basic - $5/mo' },
-  { value: 'pro', label: 'Pro - $15/mo' },
-  { value: 'platinum', label: 'Platinum - $25/mo' },
+  { value: 'basic', label: 'Basic - UGX 25,000/mo' },
+  { value: 'pro', label: 'Pro - UGX 75,000/mo' },
+  { value: 'platinum', label: 'Platinum - UGX 150,000/mo' },
 ]
 
-export default function RegisterPage() {
+/** plan code (e.g. pro_12m) -> tier + interval */
+function parsePlan(code: string | null): { tier: 'basic' | 'pro' | 'platinum'; months: number } | null {
+  if (!code) return null
+  const m = code.match(/^(basic|pro|platinum)_(\d+)m$/)
+  if (!m) return null
+  return { tier: m[1] as any, months: Number(m[2]) }
+}
+
+function RegisterInner() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const [step, setStep] = useState<'company' | 'account'>('company')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -31,7 +42,41 @@ export default function RegisterPage() {
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
   const [packageTier, setPackageTier] = useState<'basic' | 'pro' | 'platinum'>('basic')
+  const [planCode, setPlanCode] = useState<string>('basic_1m')
+  const [intervalMonths, setIntervalMonths] = useState<number>(1)
   const [couponCode, setCouponCode] = useState('')
+
+  // Remember the plan the visitor chose on the pricing page, so the choice
+  // survives the whole signup round-trip (including email verification).
+  useEffect(() => {
+    const fromUrl = searchParams.get('plan')
+    const remembered = (() => {
+      try {
+        const raw = localStorage.getItem('pendingRegistration')
+        return raw ? JSON.parse(raw)?.planCode : null
+      } catch {
+        return null
+      }
+    })()
+    const chosen = fromUrl || remembered
+    const parsed = parsePlan(chosen)
+    if (parsed) {
+      setPackageTier(parsed.tier)
+      setPlanCode(chosen as string)
+      setIntervalMonths(parsed.months)
+    }
+  }, [searchParams])
+
+  const selectPlan = (tier: 'basic' | 'pro' | 'platinum') => {
+    const code = `${tier}_${intervalMonths === 12 ? 12 : intervalMonths}m`
+    setPackageTier(tier)
+    setPlanCode(code)
+  }
+
+  const selectInterval = (months: number) => {
+    setIntervalMonths(months)
+    setPlanCode(`${packageTier}_${months}m`)
+  }
 
   const handleCompanySubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -101,9 +146,18 @@ export default function RegisterPage() {
           fullName,
           email,
           packageTier,
+          planCode,
+          intervalMonths,
           couponCode: couponCode.trim().toUpperCase() || null,
         }
         localStorage.setItem('pendingRegistration', JSON.stringify(pending))
+        // Persist the chosen plan on the server so it is remembered even if the
+        // visitor verifies email on another device.
+        fetch('/api/signup-intent', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, planCode, intervalMonths, tier: packageTier, companyName, companyEmail, industry, intent: 'create_company' }),
+        }).catch(() => {})
       } catch {}
 
       router.push('/auth/verify?mode=check-email')
@@ -146,12 +200,30 @@ export default function RegisterPage() {
             </div>
           )}
 
+          <div className="mb-6">
+            <ContinueWithJackisa />
+            <div className="flex items-center gap-3 my-5">
+              <div className="flex-1 h-px bg-border/60" />
+              <span className="text-[11px] text-muted-foreground/50 uppercase tracking-wide">or</span>
+              <div className="flex-1 h-px bg-border/60" />
+            </div>
+          </div>
+
           {step === 'company' ? (
             <form onSubmit={handleCompanySubmit} className="space-y-5">
               <div className="mb-2">
                 <h2 className="text-base font-semibold text-foreground">Company Information</h2>
                 <p className="text-sm text-muted-foreground/60 mt-1">Tell us about your company</p>
               </div>
+
+              {planCode && (
+                <div className="rounded-xl bg-primary/[0.06] border border-primary/15 px-4 py-3 text-sm">
+                  <span className="text-muted-foreground">Selected plan: </span>
+                  <span className="font-semibold text-foreground capitalize">{packageTier}</span>
+                  <span className="text-muted-foreground"> · {intervalMonths} month{intervalMonths === 1 ? '' : 's'}</span>
+                  <span className="text-muted-foreground/60"> — change it on the next step</span>
+                </div>
+              )}
 
               <div>
                 <label htmlFor="company" className="block text-sm font-semibold text-foreground mb-2">Company Name</label>
@@ -200,16 +272,45 @@ export default function RegisterPage() {
               </div>
 
               <div>
-                <label htmlFor="package" className="block text-sm font-semibold text-foreground mb-2">Choose Package</label>
-                <select
-                  id="package"
-                  value={packageTier}
-                  onChange={(e) => setPackageTier(e.target.value as 'basic' | 'pro' | 'platinum')}
-                  className="w-full h-10 rounded-xl border border-input bg-background px-3.5 text-sm transition-all duration-200 focus:ring-2 focus:ring-ring/30 focus:border-primary/40 outline-none"
-                  disabled={loading}
-                >
-                  {TIERS.map((tier) => <option key={tier.value} value={tier.value}>{tier.label}</option>)}
-                </select>
+                <label className="block text-sm font-semibold text-foreground mb-2">Choose Package</label>
+                <div className="grid grid-cols-3 gap-2 mb-3">
+                  {TIERS.map((tier) => (
+                    <button
+                      key={tier.value}
+                      type="button"
+                      onClick={() => selectPlan(tier.value as any)}
+                      disabled={loading}
+                      className={`rounded-xl border px-2 py-2.5 text-xs font-medium transition-all duration-200 ${
+                        packageTier === tier.value
+                          ? 'border-primary/50 bg-primary/10 text-foreground'
+                          : 'border-border/60 text-muted-foreground hover:border-border'
+                      }`}
+                    >
+                      <span className="block capitalize">{tier.value}</span>
+                      <span className="block text-[10px] text-muted-foreground/70 mt-0.5">{tier.label.split(' - ')[1]}</span>
+                    </button>
+                  ))}
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {[1, 3, 6, 12, 24, 36].map((months) => (
+                    <button
+                      key={months}
+                      type="button"
+                      onClick={() => selectInterval(months)}
+                      disabled={loading}
+                      className={`rounded-lg px-3 py-1.5 text-xs font-medium border transition-all duration-200 ${
+                        intervalMonths === months
+                          ? 'border-primary/50 bg-primary/10 text-foreground'
+                          : 'border-border/60 text-muted-foreground hover:border-border'
+                      }`}
+                    >
+                      {months === 12 ? '1 yr' : months === 24 ? '2 yrs' : months === 36 ? '3 yrs' : `${months} mo`}
+                    </button>
+                  ))}
+                </div>
+                <p className="text-[11px] text-muted-foreground/60 mt-2">
+                  Pay monthly, quarterly, biannually, annually, or up to 3 years upfront.
+                </p>
               </div>
 
               <div>
@@ -248,5 +349,13 @@ export default function RegisterPage() {
         </div>
       </div>
     </div>
+  )
+}
+
+export default function RegisterPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen flex items-center justify-center"><Spinner className="w-6 h-6 text-primary" /></div>}>
+      <RegisterInner />
+    </Suspense>
   )
 }

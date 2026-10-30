@@ -1,0 +1,4 @@
+config/config.local.php
+storage/logs/
+storage/cache/
+*.log

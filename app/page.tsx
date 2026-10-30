@@ -192,9 +192,11 @@ export default function HomePage() {
           {[
             {
               name: 'Basic',
-              price: '$5',
+              code: 'basic_1m',
+              annualCode: 'basic_12m',
+              price: 'UGX 25,000',
               period: 'per month',
-              yearlyPrice: '$45/year',
+              yearlyPrice: 'UGX 264,000/year',
               description: 'Perfect for small teams',
               features: [
                 'Up to 10 employees',
@@ -206,9 +208,11 @@ export default function HomePage() {
             },
             {
               name: 'Pro',
-              price: '$15',
+              code: 'pro_1m',
+              annualCode: 'pro_12m',
+              price: 'UGX 75,000',
               period: 'per month',
-              yearlyPrice: '$120/year',
+              yearlyPrice: 'UGX 792,000/year',
               description: 'For growing companies',
               features: [
                 'Up to 100 employees',
@@ -222,9 +226,11 @@ export default function HomePage() {
             },
             {
               name: 'Platinum',
-              price: '$25',
+              code: 'platinum_1m',
+              annualCode: 'platinum_12m',
+              price: 'UGX 150,000',
               period: 'per month',
-              yearlyPrice: '$200/year',
+              yearlyPrice: 'UGX 1,584,000/year',
               description: 'For enterprises',
               features: [
                 'Unlimited employees',
@@ -257,9 +263,14 @@ export default function HomePage() {
                 <span className="text-muted-foreground ml-1 text-sm">{plan.period}</span>
                 <p className="text-xs text-muted-foreground/60 mt-1.5">or {plan.yearlyPrice}</p>
               </div>
-              <Button className="w-full mb-8" asChild variant={plan.featured ? 'default' : 'outline'}>
-                <Link href="/auth/register">Get Started</Link>
-              </Button>
+              <div className="space-y-2 mb-8">
+                <Button className="w-full" asChild variant={plan.featured ? 'default' : 'outline'}>
+                  <Link href={`/auth/register?plan=${plan.code}`}>Choose monthly</Link>
+                </Button>
+                <Button className="w-full" asChild variant="ghost" size="sm">
+                  <Link href={`/auth/register?plan=${plan.annualCode}`}>Choose annual</Link>
+                </Button>
+              </div>
               <ul className="space-y-3">
                 {plan.features.map((feature) => (
                   <li key={feature} className="flex items-start gap-2.5 text-sm text-foreground">
