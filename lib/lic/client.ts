@@ -24,6 +24,17 @@ function sign(body: string): string {
 }
 
 async function call<T = any>(path: string, body: Record<string, any> = {}): Promise<LicResponse<T>> {
+  // Never sign with an empty secret: an empty-key HMAC is a silent
+  // misconfiguration that the hub will reject, so fail fast and loudly instead.
+  if (!SHARED_SECRET) {
+    return {
+      api_status: '500',
+      errors: {
+        error_id: 'config',
+        error_text: 'Licence service is not configured (LIC_OFFICE_SECRET is unset)',
+      },
+    }
+  }
   const raw = JSON.stringify(body)
   try {
     const res = await fetch(`${BASE_URL}${path}`, {
