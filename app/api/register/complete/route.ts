@@ -65,6 +65,9 @@ export async function POST(request: Request) {
     const industry = (typeof body?.industry === 'string' && body.industry.trim())
       ? body.industry.trim()
       : 'General'
+    const COMPANY_KINDS = ['company', 'institution', 'ngo', 'cooperative', 'individual']
+    const rawKind = typeof body?.companyKind === 'string' ? body.companyKind : (typeof body?.kind === 'string' ? body.kind : 'company')
+    const companyKind = COMPANY_KINDS.includes(rawKind) ? rawKind : 'company'
 
     if (!email) return new NextResponse('Missing user email', { status: 400 })
 
@@ -100,7 +103,7 @@ export async function POST(request: Request) {
 
     const { data: company, error: companyErr } = await supabase
       .from('companies')
-      .insert({ name: companyName, email: companyEmail, industry, created_by: authedUser.id })
+      .insert({ name: companyName, email: companyEmail, industry, kind: companyKind, created_by: authedUser.id })
       .select()
       .single()
 

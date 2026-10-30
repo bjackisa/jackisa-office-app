@@ -35,6 +35,7 @@ function RegisterInner() {
   const [companyName, setCompanyName] = useState('')
   const [companyEmail, setCompanyEmail] = useState('')
   const [industry, setIndustry] = useState('')
+  const [companyKind, setCompanyKind] = useState<'company' | 'institution' | 'ngo' | 'cooperative' | 'individual'>('company')
 
   // Account Form State
   const [fullName, setFullName] = useState('')
@@ -90,6 +91,7 @@ function RegisterInner() {
         companyName,
         companyEmail,
         industry,
+        companyKind,
       }
       localStorage.setItem('pendingRegistration', JSON.stringify(pending))
     } catch {}
@@ -148,6 +150,7 @@ function RegisterInner() {
           packageTier,
           planCode,
           intervalMonths,
+          companyKind,
           couponCode: couponCode.trim().toUpperCase() || null,
         }
         localStorage.setItem('pendingRegistration', JSON.stringify(pending))
@@ -156,7 +159,7 @@ function RegisterInner() {
         fetch('/api/signup-intent', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email, planCode, intervalMonths, tier: packageTier, companyName, companyEmail, industry, intent: 'create_company' }),
+          body: JSON.stringify({ email, planCode, intervalMonths, tier: packageTier, companyName, companyEmail, industry, companyKind, intent: companyKind === 'institution' ? 'create_institution' : 'create_company' }),
         }).catch(() => {})
       } catch {}
 
@@ -244,6 +247,25 @@ function RegisterInner() {
               <div>
                 <label htmlFor="industry" className="block text-sm font-semibold text-foreground mb-2">Industry</label>
                 <Input id="industry" placeholder="e.g., Technology, Finance, Education" value={industry} onChange={(e) => setIndustry(e.target.value)} required />
+              </div>
+
+              <div>
+                <label htmlFor="kind" className="block text-sm font-semibold text-foreground mb-2">What are you setting up?</label>
+                <select
+                  id="kind"
+                  value={companyKind}
+                  onChange={(e) => setCompanyKind(e.target.value as any)}
+                  className="w-full h-10 rounded-xl border border-border/60 bg-background px-3 text-sm text-foreground outline-none focus:border-primary/40"
+                >
+                  <option value="company">A business (company)</option>
+                  <option value="institution">A school or institution</option>
+                  <option value="ngo">An NGO or non-profit</option>
+                  <option value="cooperative">A cooperative or SACCO</option>
+                  <option value="individual">Just me (individual)</option>
+                </select>
+                <p className="text-xs text-muted-foreground/60 mt-1.5">
+                  This decides which modules your workspace starts with — you can change it later.
+                </p>
               </div>
 
               <Button type="submit" className="w-full h-11 text-sm font-semibold shadow-glow-primary">Continue</Button>

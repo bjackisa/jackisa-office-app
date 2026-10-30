@@ -61,6 +61,7 @@ export default function CompanySettings() {
           address: company.address,
           city: company.city,
           industry: company.industry,
+          kind: (company as any).kind,
         })
         .eq('id', company.id)
 
@@ -139,6 +140,26 @@ export default function CompanySettings() {
                     onChange={(e) => setCompany({ ...company, industry: e.target.value })}
                     placeholder="e.g. Technology, Finance"
                   />
+                </div>
+                <div>
+                  <label htmlFor="kind" className="block text-xs font-medium text-muted-foreground mb-1.5">
+                    Organisation type
+                  </label>
+                  <select
+                    id="kind"
+                    value={(company as any).kind || 'company'}
+                    onChange={(e) => setCompany({ ...company, kind: e.target.value } as any)}
+                    className="w-full h-10 rounded-xl border border-border/60 bg-background px-3 text-sm text-foreground outline-none focus:border-primary/40"
+                  >
+                    <option value="company">Business (company)</option>
+                    <option value="institution">School or institution</option>
+                    <option value="ngo">NGO or non-profit</option>
+                    <option value="cooperative">Cooperative or SACCO</option>
+                    <option value="individual">Individual</option>
+                  </select>
+                  <p className="text-[11px] text-muted-foreground/60 mt-1.5">
+                    Changing this changes which modules the workspace offers.
+                  </p>
                 </div>
               </div>
             </div>
