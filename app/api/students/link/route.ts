@@ -49,6 +49,28 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ ok: true, invite: data, url: `${new URL(req.url).origin}/auth/join?student=${token}` })
       }
 
+      case 'list_invites': {
+        const guard = await requireCompanyAdmin(req, companyId)
+        if ('error' in guard) return NextResponse.json({ ok: false, error: guard.error }, { status: guard.status })
+        const { data } = await db
+          .from('institution_invite_links')
+          .select('*')
+          .eq('company_id', companyId)
+          .order('created_at', { ascending: false })
+        return NextResponse.json({ ok: true, invites: data || [] })
+      }
+
+      case 'revoke_invite': {
+        const guard = await requireCompanyAdmin(req, companyId)
+        if ('error' in guard) return NextResponse.json({ ok: false, error: guard.error }, { status: guard.status })
+        await db
+          .from('institution_invite_links')
+          .update({ is_active: false })
+          .eq('id', body.inviteId)
+          .eq('company_id', companyId)
+        return NextResponse.json({ ok: true })
+      }
+
       case 'request_join': {
         const caller = await getCaller(req)
         if (!caller) return NextResponse.json({ ok: false, error: 'Not signed in' }, { status: 401 })

@@ -8,12 +8,26 @@ import { Badge } from '@/components/ui/badge'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Label } from '@/components/ui/label'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
-import { ChevronDown, Plus, Search, Zap } from 'lucide-react'
+import { ChevronDown, Plus, Search, Zap, Link2, Copy, CheckCircle, XCircle, GraduationCap } from 'lucide-react'
 import { getSessionContext } from '@/lib/company-context'
 import { supabase } from '@/lib/supabase'
 import { logEcosystemEvent } from '@/lib/ecosystem'
 
 const STATUS_OPTIONS = ['Pending', 'Active', 'Failed', 'Suspended', 'Deceased', 'Graduated']
+
+/** Attach the caller's token so the institution API can authorise the action. */
+async function studentApi(body: Record<string, unknown>) {
+  const { data: { session } } = await supabase.auth.getSession()
+  const res = await fetch('/api/students/link', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(session ? { Authorization: `Bearer ${session.access_token}` } : {}),
+    },
+    body: JSON.stringify(body),
+  })
+  return res.json()
+}
 
 export default function StudentsPage() {
   const [companyId, setCompanyId] = useState<string | null>(null)
@@ -24,25 +38,40 @@ export default function StudentsPage() {
   const [moduleSearch, setModuleSearch] = useState('')
   const [form, setForm] = useState({ full_name: '', email: '', module_ids: [] as string[] })
   const [ecosystemMsg, setEcosystemMsg] = useState<string | null>(null)
+  const [studentLinks, setStudentLinks] = useState<any[]>([])
+  const [studentRequests, setStudentRequests] = useState<any[]>([])
+  const [linkForm, setLinkForm] = useState({ label: '', programme: '', maxUses: '', requiresApproval: true })
+  const [copiedLink, setCopiedLink] = useState<string | null>(null)
+  const [busy, setBusy] = useState(false)
 
   const loadData = async () => {
     const ctx = await getSessionContext()
     if (!ctx?.companyId) return
     setCompanyId(ctx.companyId)
 
-    const [sRes, mRes, scopedEnrollmentsRes] = await Promise.all([
+    const [sRes, mRes] = await Promise.all([
       supabase.from('students').select('*').eq('company_id', ctx.companyId).order('created_at', { ascending: false }),
       supabase.from('education_modules').select('id, module_code, module_name').eq('company_id', ctx.companyId).order('module_code'),
-      supabase.from('student_enrollments').select('id, student_id, module_id, enrolled_at').eq('company_id', ctx.companyId),
     ])
 
-    const eRes = scopedEnrollmentsRes.error
-      ? await supabase.from('student_enrollments').select('id, student_id, module_id, enrolled_at')
-      : scopedEnrollmentsRes
+    // Enrollments have no company_id, so scope them through this company's
+    // students. Never fall back to an unscoped select — that would leak every
+    // tenant's rows to the client.
+    const studentIds = (sRes.data || []).map((s: any) => s.id)
+    const eRes = studentIds.length
+      ? await supabase.from('student_enrollments').select('id, student_id, module_id, enrolled_at').in('student_id', studentIds)
+      : { data: [] as any[] }
+
+    const [linksRes, reqRes] = await Promise.all([
+      studentApi({ action: 'list_invites', companyId: ctx.companyId }),
+      studentApi({ action: 'list_requests', companyId: ctx.companyId }),
+    ])
 
     setStudents(sRes.data || [])
     setModules(mRes.data || [])
     setEnrollments(eRes.data || [])
+    setStudentLinks(linksRes?.invites || [])
+    setStudentRequests(reqRes?.requests || [])
 
     const savedStatuses: Record<string, string> = {}
     ;(sRes.data || []).forEach((student: any) => {
@@ -128,6 +157,53 @@ export default function StudentsPage() {
     if (error) {
       await loadData()
     }
+  }
+
+  const createStudentLink = async () => {
+    if (!companyId) return
+    setBusy(true)
+    try {
+      const json = await studentApi({
+        action: 'create_invite',
+        companyId,
+        label: linkForm.label || null,
+        programme: linkForm.programme || null,
+        maxUses: linkForm.maxUses || null,
+        requiresApproval: linkForm.requiresApproval,
+      })
+      if (!json.ok) throw new Error(json.error || 'Could not create the link')
+      setEcosystemMsg('Student invite link created — copy it and share with your students.')
+      setLinkForm({ label: '', programme: '', maxUses: '', requiresApproval: true })
+      await loadData()
+    } catch (e: any) {
+      setEcosystemMsg(e?.message || 'Could not create the link')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const revokeStudentLink = async (inviteId: string) => {
+    const json = await studentApi({ action: 'revoke_invite', companyId, inviteId })
+    if (!json.ok) setEcosystemMsg(json.error)
+    await loadData()
+  }
+
+  const decideStudent = async (linkId: string, approve: boolean) => {
+    setBusy(true)
+    const json = await studentApi({ action: 'decide_request', companyId, linkId, approve })
+    if (!json.ok) setEcosystemMsg(json.error)
+    else setEcosystemMsg(approve ? 'Student admitted.' : 'Request rejected.')
+    await loadData()
+    setBusy(false)
+  }
+
+  const studentLinkUrl = (token: string) =>
+    `${typeof window !== 'undefined' ? window.location.origin : ''}/auth/join?student=${token}`
+
+  const copyLink = (text: string, key: string) => {
+    navigator.clipboard.writeText(text)
+    setCopiedLink(key)
+    setTimeout(() => setCopiedLink(null), 2000)
   }
 
   const moduleLabel = (studentId: string) => {
@@ -241,6 +317,67 @@ export default function StudentsPage() {
         </div>
 
         <Button onClick={addStudent}><Plus className="w-4 h-4 mr-2" />Enroll Student</Button>
+      </Card>
+
+      <Card className="p-5 space-y-4">
+        <div className="flex items-center gap-2.5">
+          <div className="w-8 h-8 rounded-xl bg-primary/10 flex items-center justify-center"><GraduationCap className="w-4 h-4 text-primary" /></div>
+          <div>
+            <h3 className="text-sm font-semibold text-foreground">Enrol students by link or request</h3>
+            <p className="text-[11px] text-muted-foreground/60">Share one link — students self-register and, if you require approval, you admit them here.</p>
+          </div>
+        </div>
+
+        <div className="grid md:grid-cols-4 gap-3">
+          <Input placeholder="Label (e.g. BSc CS intake)" value={linkForm.label} onChange={(e) => setLinkForm({ ...linkForm, label: e.target.value })} />
+          <Input placeholder="Programme" value={linkForm.programme} onChange={(e) => setLinkForm({ ...linkForm, programme: e.target.value })} />
+          <Input type="number" placeholder="Max uses (blank = unlimited)" value={linkForm.maxUses} onChange={(e) => setLinkForm({ ...linkForm, maxUses: e.target.value })} />
+          <label className="flex items-center gap-2 text-sm text-muted-foreground">
+            <input type="checkbox" checked={linkForm.requiresApproval} onChange={(e) => setLinkForm({ ...linkForm, requiresApproval: e.target.checked })} />
+            Require approval
+          </label>
+        </div>
+        <Button onClick={createStudentLink} disabled={busy}><Link2 className="w-4 h-4 mr-2" />{busy ? 'Creating…' : 'Create student link'}</Button>
+
+        {studentLinks.length > 0 && (
+          <div className="rounded-xl border divide-y">
+            {studentLinks.map((l) => (
+              <div key={l.id} className="flex items-center gap-3 px-3 py-2">
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-foreground truncate">{l.label || 'Student link'}{l.programme ? ` · ${l.programme}` : ''}</p>
+                  <p className="text-[11px] text-muted-foreground/50 font-mono truncate">{studentLinkUrl(l.token)}</p>
+                </div>
+                <span className="text-[11px] text-muted-foreground">{l.use_count}{l.max_uses ? ` / ${l.max_uses}` : ''}</span>
+                <span className={`badge ${l.requires_approval ? 'badge-warning' : 'badge-info'}`}>{l.requires_approval ? 'Approval' : 'Auto'}</span>
+                <span className={`badge ${l.is_active ? 'badge-success' : 'badge-neutral'}`}>{l.is_active ? 'Active' : 'Revoked'}</span>
+                <button onClick={() => copyLink(studentLinkUrl(l.token), l.id)} className="p-1.5 rounded-md text-muted-foreground/60 hover:text-primary hover:bg-primary/5" title="Copy link">
+                  {copiedLink === l.id ? <CheckCircle className="w-4 h-4 text-emerald-500" /> : <Copy className="w-4 h-4" />}
+                </button>
+                {l.is_active && (
+                  <button onClick={() => revokeStudentLink(l.id)} className="p-1.5 rounded-md text-muted-foreground/60 hover:text-red-500 hover:bg-red-50" title="Revoke">
+                    <XCircle className="w-4 h-4" />
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+
+        {studentRequests.length > 0 && (
+          <div className="rounded-xl border border-amber-200 bg-amber-50/50 divide-y divide-amber-100">
+            <div className="px-3 py-2"><p className="text-xs font-semibold text-amber-700">{studentRequests.length} pending student request{studentRequests.length > 1 ? 's' : ''}</p></div>
+            {studentRequests.map((r) => (
+              <div key={r.id} className="flex items-center gap-3 px-3 py-2">
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-foreground">{r.users?.full_name || r.students?.full_name || 'Applicant'}</p>
+                  <p className="text-[11px] text-muted-foreground/60">{r.users?.email || r.students?.email}{r.programme ? ` · ${r.programme}` : ''}</p>
+                </div>
+                <Button size="sm" disabled={busy} onClick={() => decideStudent(r.id, true)}><CheckCircle className="w-3.5 h-3.5 mr-1" />Admit</Button>
+                <Button size="sm" variant="outline" disabled={busy} onClick={() => decideStudent(r.id, false)}><XCircle className="w-3.5 h-3.5 mr-1" />Reject</Button>
+              </div>
+            ))}
+          </div>
+        )}
       </Card>
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 stagger-children">
