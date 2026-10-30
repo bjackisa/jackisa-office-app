@@ -69,7 +69,7 @@ export const lic = {
     return call('/api/v1/office-license/validate', { license_key: licenseKey, ...usage })
   },
 
-  startTrial(tenantId: string, fingerprint: string, opts: { user_id?: string; msisdn?: string; ip?: string } = {}) {
+  startTrial(tenantId: string, fingerprint: string, opts: { user_id?: string; msisdn?: string; ip?: string; plan_code?: string } = {}) {
     return call('/api/v1/office-license/trial', { tenant_id: tenantId, fingerprint, ...opts })
   },
 

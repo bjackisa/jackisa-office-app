@@ -103,10 +103,13 @@ export default function BillingPage() {
       const res = await fetch('/api/trial', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'start', companyId, msisdn: msisdn || undefined }),
+        body: JSON.stringify({ action: 'start', companyId, msisdn: msisdn || undefined, planCode: selectedPlan?.code, intervalMonths }),
       })
       const json = await res.json()
-      if (json.ok) {
+      if (json.ok && json.granted === false) {
+        setMessage({ kind: 'error', text: 'A free trial has already been used from this device or network. Please choose a plan to continue.' })
+        await license.refresh()
+      } else if (json.ok) {
         setMessage({ kind: 'ok', text: `Trial started — ${json.days} days. We will remind you 2 days before it ends.` })
         await license.refresh()
       } else {

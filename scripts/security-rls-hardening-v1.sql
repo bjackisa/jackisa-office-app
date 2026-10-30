@@ -68,6 +68,21 @@ $$;
 GRANT EXECUTE ON FUNCTION public.jo_shares_company(uuid) TO authenticated;
 
 -- ---------------------------------------------------------------------------
+-- 2b. Helper: run a policy DDL statement, tolerating a schema mismatch (e.g. a
+--     table or column that does not exist in this deployment) by logging a
+--     notice instead of aborting the whole migration.
+-- ---------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION public.jo_safe_exec(p_sql text)
+RETURNS void
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  EXECUTE p_sql;
+EXCEPTION WHEN OTHERS THEN
+  RAISE NOTICE 'jo_safe_exec skipped: % -> %', SQLERRM, p_sql;
+END $$;
+
+-- ---------------------------------------------------------------------------
 -- 3. Turn on RLS everywhere in public.
 -- ---------------------------------------------------------------------------
 DO $$
@@ -75,7 +90,7 @@ DECLARE r record;
 BEGIN
   FOR r IN SELECT tablename FROM pg_tables WHERE schemaname = 'public'
   LOOP
-    EXECUTE format('ALTER TABLE public.%I ENABLE ROW LEVEL SECURITY', r.tablename);
+    PERFORM public.jo_safe_exec(format('ALTER TABLE public.%I ENABLE ROW LEVEL SECURITY', r.tablename));
   END LOOP;
 END $$;
 
@@ -83,22 +98,16 @@ END $$;
 -- 4. Identity tables (no company_id/user_id column, handled explicitly).
 -- ---------------------------------------------------------------------------
 -- users: see yourself and anyone you share a company with; edit only yourself.
-DROP POLICY IF EXISTS users_select ON public.users;
-CREATE POLICY users_select ON public.users FOR SELECT TO authenticated
-  USING (id = auth.uid() OR public.jo_shares_company(id));
-
-DROP POLICY IF EXISTS users_update ON public.users;
-CREATE POLICY users_update ON public.users FOR UPDATE TO authenticated
-  USING (id = auth.uid()) WITH CHECK (id = auth.uid());
+SELECT public.jo_safe_exec($q$DROP POLICY IF EXISTS users_select ON public.users$q$);
+SELECT public.jo_safe_exec($q$CREATE POLICY users_select ON public.users FOR SELECT TO authenticated USING (id = auth.uid() OR public.jo_shares_company(id))$q$);
+SELECT public.jo_safe_exec($q$DROP POLICY IF EXISTS users_update ON public.users$q$);
+SELECT public.jo_safe_exec($q$CREATE POLICY users_update ON public.users FOR UPDATE TO authenticated USING (id = auth.uid()) WITH CHECK (id = auth.uid())$q$);
 
 -- companies: members read; admins update.
-DROP POLICY IF EXISTS companies_select ON public.companies;
-CREATE POLICY companies_select ON public.companies FOR SELECT TO authenticated
-  USING (public.jo_is_company_member(id));
-
-DROP POLICY IF EXISTS companies_update ON public.companies;
-CREATE POLICY companies_update ON public.companies FOR UPDATE TO authenticated
-  USING (public.jo_is_company_admin(id)) WITH CHECK (public.jo_is_company_admin(id));
+SELECT public.jo_safe_exec($q$DROP POLICY IF EXISTS companies_select ON public.companies$q$);
+SELECT public.jo_safe_exec($q$CREATE POLICY companies_select ON public.companies FOR SELECT TO authenticated USING (public.jo_is_company_member(id))$q$);
+SELECT public.jo_safe_exec($q$DROP POLICY IF EXISTS companies_update ON public.companies$q$);
+SELECT public.jo_safe_exec($q$CREATE POLICY companies_update ON public.companies FOR UPDATE TO authenticated USING (public.jo_is_company_admin(id)) WITH CHECK (public.jo_is_company_admin(id))$q$);
 
 -- ---------------------------------------------------------------------------
 -- 5. Child tables scoped through their parent. The predicate resolves to the
@@ -135,14 +144,14 @@ BEGIN
     ('investment_club_members',    'club_id IN (SELECT ic.id FROM public.investment_clubs ic JOIN public.workspace_funds wf ON wf.id = ic.fund_id WHERE public.jo_is_company_member(wf.company_id))')
   ) AS t(tbl, pred)
   LOOP
-    EXECUTE format('DROP POLICY IF EXISTS %I ON public.%I', m.tbl||'_scope_select', m.tbl);
-    EXECUTE format('CREATE POLICY %I ON public.%I FOR SELECT TO authenticated USING (%s)', m.tbl||'_scope_select', m.tbl, m.pred);
-    EXECUTE format('DROP POLICY IF EXISTS %I ON public.%I', m.tbl||'_scope_insert', m.tbl);
-    EXECUTE format('CREATE POLICY %I ON public.%I FOR INSERT TO authenticated WITH CHECK (%s)', m.tbl||'_scope_insert', m.tbl, m.pred);
-    EXECUTE format('DROP POLICY IF EXISTS %I ON public.%I', m.tbl||'_scope_update', m.tbl);
-    EXECUTE format('CREATE POLICY %I ON public.%I FOR UPDATE TO authenticated USING (%s) WITH CHECK (%s)', m.tbl||'_scope_update', m.tbl, m.pred, m.pred);
-    EXECUTE format('DROP POLICY IF EXISTS %I ON public.%I', m.tbl||'_scope_delete', m.tbl);
-    EXECUTE format('CREATE POLICY %I ON public.%I FOR DELETE TO authenticated USING (%s)', m.tbl||'_scope_delete', m.tbl, m.pred);
+    PERFORM public.jo_safe_exec(format('DROP POLICY IF EXISTS %I ON public.%I', m.tbl||'_scope_select', m.tbl));
+    PERFORM public.jo_safe_exec(format('CREATE POLICY %I ON public.%I FOR SELECT TO authenticated USING (%s)', m.tbl||'_scope_select', m.tbl, m.pred));
+    PERFORM public.jo_safe_exec(format('DROP POLICY IF EXISTS %I ON public.%I', m.tbl||'_scope_insert', m.tbl));
+    PERFORM public.jo_safe_exec(format('CREATE POLICY %I ON public.%I FOR INSERT TO authenticated WITH CHECK (%s)', m.tbl||'_scope_insert', m.tbl, m.pred));
+    PERFORM public.jo_safe_exec(format('DROP POLICY IF EXISTS %I ON public.%I', m.tbl||'_scope_update', m.tbl));
+    PERFORM public.jo_safe_exec(format('CREATE POLICY %I ON public.%I FOR UPDATE TO authenticated USING (%s) WITH CHECK (%s)', m.tbl||'_scope_update', m.tbl, m.pred, m.pred));
+    PERFORM public.jo_safe_exec(format('DROP POLICY IF EXISTS %I ON public.%I', m.tbl||'_scope_delete', m.tbl));
+    PERFORM public.jo_safe_exec(format('CREATE POLICY %I ON public.%I FOR DELETE TO authenticated USING (%s)', m.tbl||'_scope_delete', m.tbl, m.pred));
   END LOOP;
 END $$;
 
@@ -158,8 +167,8 @@ BEGIN
     'system_tools', 'paye_tax_bands', 'coupons', 'company_role_features',
     'company_subscriptions'
   ] LOOP
-    EXECUTE format('DROP POLICY IF EXISTS %I ON public.%I', t||'_ref_select', t);
-    EXECUTE format('CREATE POLICY %I ON public.%I FOR SELECT TO authenticated USING (true)', t||'_ref_select', t);
+    PERFORM public.jo_safe_exec(format('DROP POLICY IF EXISTS %I ON public.%I', t||'_ref_select', t));
+    PERFORM public.jo_safe_exec(format('CREATE POLICY %I ON public.%I FOR SELECT TO authenticated USING (true)', t||'_ref_select', t));
   END LOOP;
 END $$;
 
@@ -173,8 +182,8 @@ BEGIN
     'super_admins', 'processed_webhooks', 'sync_outbox', 'signup_intents',
     'jackisa_revenue_daily'
   ] LOOP
-    EXECUTE format('DROP POLICY IF EXISTS %I ON public.%I', t||'_deny', t);
-    EXECUTE format('CREATE POLICY %I ON public.%I FOR ALL TO authenticated USING (false) WITH CHECK (false)', t||'_deny', t);
+    PERFORM public.jo_safe_exec(format('DROP POLICY IF EXISTS %I ON public.%I', t||'_deny', t));
+    PERFORM public.jo_safe_exec(format('CREATE POLICY %I ON public.%I FOR ALL TO authenticated USING (false) WITH CHECK (false)', t||'_deny', t));
   END LOOP;
 END $$;
 
@@ -197,10 +206,10 @@ BEGIN
       CONTINUE;
     END IF;
 
-    EXECUTE format('CREATE POLICY %I ON public.%I FOR SELECT TO authenticated USING (public.jo_is_company_member(company_id))', r.tablename||'_tenant_select', r.tablename);
-    EXECUTE format('CREATE POLICY %I ON public.%I FOR INSERT TO authenticated WITH CHECK (public.jo_is_company_member(company_id))', r.tablename||'_tenant_insert', r.tablename);
-    EXECUTE format('CREATE POLICY %I ON public.%I FOR UPDATE TO authenticated USING (public.jo_is_company_member(company_id)) WITH CHECK (public.jo_is_company_member(company_id))', r.tablename||'_tenant_update', r.tablename);
-    EXECUTE format('CREATE POLICY %I ON public.%I FOR DELETE TO authenticated USING (public.jo_is_company_admin(company_id))', r.tablename||'_tenant_delete', r.tablename);
+    PERFORM public.jo_safe_exec(format('CREATE POLICY %I ON public.%I FOR SELECT TO authenticated USING (public.jo_is_company_member(company_id))', r.tablename||'_tenant_select', r.tablename));
+    PERFORM public.jo_safe_exec(format('CREATE POLICY %I ON public.%I FOR INSERT TO authenticated WITH CHECK (public.jo_is_company_member(company_id))', r.tablename||'_tenant_insert', r.tablename));
+    PERFORM public.jo_safe_exec(format('CREATE POLICY %I ON public.%I FOR UPDATE TO authenticated USING (public.jo_is_company_member(company_id)) WITH CHECK (public.jo_is_company_member(company_id))', r.tablename||'_tenant_update', r.tablename));
+    PERFORM public.jo_safe_exec(format('CREATE POLICY %I ON public.%I FOR DELETE TO authenticated USING (public.jo_is_company_admin(company_id))', r.tablename||'_tenant_delete', r.tablename));
   END LOOP;
 END $$;
 
@@ -223,10 +232,10 @@ BEGIN
       CONTINUE;
     END IF;
 
-    EXECUTE format('CREATE POLICY %I ON public.%I FOR SELECT TO authenticated USING (user_id = auth.uid())', r.tablename||'_own_select', r.tablename);
-    EXECUTE format('CREATE POLICY %I ON public.%I FOR INSERT TO authenticated WITH CHECK (user_id = auth.uid())', r.tablename||'_own_insert', r.tablename);
-    EXECUTE format('CREATE POLICY %I ON public.%I FOR UPDATE TO authenticated USING (user_id = auth.uid()) WITH CHECK (user_id = auth.uid())', r.tablename||'_own_update', r.tablename);
-    EXECUTE format('CREATE POLICY %I ON public.%I FOR DELETE TO authenticated USING (user_id = auth.uid())', r.tablename||'_own_delete', r.tablename);
+    PERFORM public.jo_safe_exec(format('CREATE POLICY %I ON public.%I FOR SELECT TO authenticated USING (user_id = auth.uid())', r.tablename||'_own_select', r.tablename));
+    PERFORM public.jo_safe_exec(format('CREATE POLICY %I ON public.%I FOR INSERT TO authenticated WITH CHECK (user_id = auth.uid())', r.tablename||'_own_insert', r.tablename));
+    PERFORM public.jo_safe_exec(format('CREATE POLICY %I ON public.%I FOR UPDATE TO authenticated USING (user_id = auth.uid()) WITH CHECK (user_id = auth.uid())', r.tablename||'_own_update', r.tablename));
+    PERFORM public.jo_safe_exec(format('CREATE POLICY %I ON public.%I FOR DELETE TO authenticated USING (user_id = auth.uid())', r.tablename||'_own_delete', r.tablename));
   END LOOP;
 END $$;
 

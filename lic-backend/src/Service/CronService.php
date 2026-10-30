@@ -116,17 +116,24 @@ final class CronService
         $expired = 0;
         foreach ($rows as $trial) {
             $app->run("UPDATE trials SET status = 'expired' WHERE id = ?", [$trial['id']]);
-            // If a payment number is on file, attempt the first real charge.
+            // If a payment number is on file, attempt the first real charge for
+            // the plan the visitor chose when they started the trial.
             if (!empty($trial['msisdn']) && !empty($trial['tenant_id'])) {
                 try {
+                    $planCode = (string) ($trial['plan_code'] ?? '') ?: 'pro_1m';
+                    $plan = $app->one('SELECT * FROM plans WHERE code = ? AND is_active = 1', [$planCode]);
+                    if ($plan === null) {
+                        $planCode = 'pro_1m';
+                        $plan = $app->one('SELECT * FROM plans WHERE code = ? AND is_active = 1', [$planCode]);
+                    }
                     PaymentService::initiate([
                         'tenant_id'       => $trial['tenant_id'],
                         'user_id'         => $trial['user_id'],
                         'purpose'         => 'license',
-                        'amount'          => 75000,
+                        'amount'          => (float) ($plan['price'] ?? 75000),
                         'msisdn'          => $trial['msisdn'],
-                        'interval_months' => 1,
-                        'plan_code'       => 'pro_1m',
+                        'interval_months' => (int) ($trial['interval_months'] ?? ($plan['interval_months'] ?? 1)),
+                        'plan_code'       => $planCode,
                         'description'     => 'Jackisa Office licence (trial conversion)',
                     ]);
                 } catch (\Throwable $e) {

@@ -136,9 +136,10 @@ final class LicenseController
             Response::error('422', 'tenant_id and fingerprint are required', 422);
         }
         $result = LicenseService::startTrial($tenantId, $fingerprint, [
-            'user_id' => $request->string('user_id') ?: null,
-            'msisdn'  => $request->string('msisdn') ?: null,
-            'ip'      => $request->ip(),
+            'user_id'   => $request->string('user_id') ?: null,
+            'msisdn'    => $request->string('msisdn') ?: null,
+            'ip'        => $request->ip(),
+            'plan_code' => $request->string('plan_code') ?: null,
         ]);
         Response::ok($result);
     }

@@ -50,6 +50,7 @@ export async function POST(req: NextRequest) {
     user_id: caller?.id,
     msisdn: body?.msisdn ? String(body.msisdn) : undefined,
     ip,
+    plan_code: body?.planCode ? String(body.planCode) : undefined,
   })
   if (res.api_status !== '200') {
     return NextResponse.json({ ok: false, error: res.errors?.error_text || 'Could not start a trial' }, { status: 400 })

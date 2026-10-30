@@ -354,24 +354,36 @@ final class LicenseService
         $end = $start->modify('+' . $days . ' days');
         $id = Ids::uuid();
 
+        // Remember the plan the visitor chose so the post-trial charge matches
+        // it. Default to the tier's monthly plan when none was supplied.
+        $planCode = (string) ($opts['plan_code'] ?? '');
+        $plan = $planCode !== ''
+            ? $app->one('SELECT * FROM plans WHERE code = ? AND is_active = 1', [$planCode])
+            : null;
+        if ($plan === null) {
+            $planCode = 'pro_1m';
+            $plan = $app->one('SELECT * FROM plans WHERE code = ? AND is_active = 1', [$planCode]);
+        }
+        $interval = $plan ? (int) $plan['interval_months'] : 1;
+
         $app->run(
-            'INSERT INTO trials (id, tenant_id, user_id, fingerprint, ip_address, msisdn, started_at, ends_at, status)
-             VALUES (?,?,?,?,?,?,?,?,?)',
+            'INSERT INTO trials (id, tenant_id, user_id, fingerprint, ip_address, msisdn, plan_code, interval_months, started_at, ends_at, status)
+             VALUES (?,?,?,?,?,?,?,?,?,?,?)',
             [
                 $id, $tenantId, $opts['user_id'] ?? null, $fingerprint,
-                $opts['ip'] ?? null, $opts['msisdn'] ?? null,
+                $opts['ip'] ?? null, $opts['msisdn'] ?? null, $planCode, $interval,
                 $start->format('Y-m-d H:i:s'), $end->format('Y-m-d H:i:s'), 'active',
             ]
         );
 
         // A trial is itself a licence, so the app uses one code path.
-        $license = self::issue($tenantId, 'pro_1m', [
+        $license = self::issue($tenantId, $planCode, [
             'status'     => 'trial',
             'starts_at'  => $start,
             'expires_at' => $end,
         ]);
 
-        self::audit('trial.started', 'tenant', $tenantId, ['days' => $days, 'fingerprint' => $fingerprint]);
+        self::audit('trial.started', 'tenant', $tenantId, ['days' => $days, 'fingerprint' => $fingerprint, 'plan' => $planCode]);
 
         return ['granted' => true, 'trial_id' => $id, 'ends_at' => $end->format('c'), 'license' => $license];
     }
