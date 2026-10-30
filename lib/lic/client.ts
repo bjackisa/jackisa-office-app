@@ -124,9 +124,13 @@ export const lic = {
   ssoJackisa(accessToken: string) {
     return call('/api/v1/auth/jackisa', { access_token: accessToken })
   },
-
   ssoExchange(ssoToken: string) {
     return call('/api/v1/auth/sso-exchange', { sso_token: ssoToken })
+  },
+
+  /** Ask the hub to run one scheduled job (or all of them). */
+  runCron(job?: string, all = false) {
+    return call('/api/v1/cron/run', all ? { all: true } : { job })
   },
 
   incomeTax(params: {

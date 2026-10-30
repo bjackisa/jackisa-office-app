@@ -11,6 +11,7 @@ require_once dirname(__DIR__) . '/src/bootstrap.php';
 use Jackisa\Lic\App;
 use Jackisa\Lic\Controller\AuthController;
 use Jackisa\Lic\Controller\CatalogController;
+use Jackisa\Lic\Controller\CronController;
 use Jackisa\Lic\Controller\KycController;
 use Jackisa\Lic\Controller\LicenseController;
 use Jackisa\Lic\Controller\MessagingController;
@@ -116,6 +117,9 @@ $router->post('/api/v1/kyc/auto',     fn(Request $r) => KycController::auto($r))
 // ---- Admin: package/feature catalogue (API-key protected) ------------------
 $router->post('/api/v1/admin/plans',    fn(Request $r) => CatalogController::plans($r));
 $router->post('/api/v1/admin/features', fn(Request $r) => CatalogController::features($r));
+
+// ---- Cron: scheduled maintenance, driven by a signed peer ------------------
+$router->post('/api/v1/cron/run', fn(Request $r) => CronController::run($r));
 
 // ---- Sync -----------------------------------------------------------------
 $router->post('/api/v1/sync/push',   fn(Request $r) => SyncController::push($r));
