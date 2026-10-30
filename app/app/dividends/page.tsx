@@ -5,18 +5,39 @@ import { supabase } from '@/lib/supabase'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Search } from 'lucide-react'
+import { Search, Users2 } from 'lucide-react'
 
 export default function DividendsPage() {
   const [companyId, setCompanyId] = useState<string | null>(null)
+  const [userId, setUserId] = useState<string | null>(null)
   const [dividends, setDividends] = useState<any[]>([])
   const [searchQuery, setSearchQuery] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
+  const [allocations, setAllocations] = useState<Record<string, any[]>>({})
+  const [distributing, setDistributing] = useState<string | null>(null)
+  const [message, setMessage] = useState<string | null>(null)
   const [form, setForm] = useState({ dividend_date: new Date().toISOString().split('T')[0], total_amount: '', status: 'pending' })
-  const loadData = async () => { const ctx = await getSessionContext(); if (!ctx?.companyId) return; setCompanyId(ctx.companyId); const { data } = await supabase.from('dividends').select('*').eq('company_id', ctx.companyId).order('created_at', { ascending: false }); setDividends(data || []) }
+  const loadData = async () => { const ctx = await getSessionContext(); if (!ctx?.companyId) return; setCompanyId(ctx.companyId); setUserId(ctx.userId || null); const { data } = await supabase.from('dividends').select('*').eq('company_id', ctx.companyId).order('created_at', { ascending: false }); setDividends(data || []); const { data: allocs } = await supabase.from('dividend_allocations').select('dividend_id, employee_id, allocated_amount').in('dividend_id', (data || []).map((d: any) => d.id)); const grouped: Record<string, any[]> = {}; for (const a of allocs || []) { (grouped[a.dividend_id] ||= []).push(a) }; setAllocations(grouped) }
   useEffect(()=>{loadData()},[])
   const filtered = dividends.filter((d)=>{const s=!searchQuery||d.dividend_date?.includes(searchQuery); const st=!statusFilter||d.status===statusFilter; return s&&st})
   const addDividend = async () => { if (!companyId || !form.total_amount) return; await supabase.from('dividends').insert({ company_id: companyId, dividend_date: form.dividend_date, total_amount: Number(form.total_amount), status: form.status }); setForm({ dividend_date: new Date().toISOString().split('T')[0], total_amount: '', status: 'pending' }); await loadData() }
+
+  const distribute = async (dividendId: string) => {
+    setDistributing(dividendId)
+    setMessage(null)
+    const { data, error } = await supabase.rpc('jo_distribute_dividend', {
+      p_dividend_id: dividendId,
+      p_recorded_by: userId,
+    })
+    if (error) {
+      setMessage(error.message)
+    } else {
+      setMessage(`Dividend distributed: ${Number(data || 0).toLocaleString()} allocated to unit holders pro-rata.`)
+      await loadData()
+    }
+    setDistributing(null)
+    setTimeout(() => setMessage(null), 8000)
+  }
   return (
     <div className="p-6 lg:p-8 max-w-[1100px] mx-auto animate-fade-in space-y-6">
       <div>
@@ -58,13 +79,19 @@ export default function DividendsPage() {
         </div>
       </Card>
 
+      {message && (
+        <Card className="p-3 border-primary/20 bg-primary/[0.04]">
+          <p className="text-xs font-medium text-primary">{message}</p>
+        </Card>
+      )}
+
       <Card className="overflow-hidden">
         <div className="overflow-x-auto">
           <table className="premium-table">
-            <thead><tr><th>Date</th><th className="text-right">Amount</th><th>Status</th></tr></thead>
+            <thead><tr><th>Date</th><th className="text-right">Amount</th><th>Status</th><th className="text-right">Holders</th><th></th></tr></thead>
             <tbody>
               {filtered.length === 0 ? (
-                <tr><td colSpan={3} className="!py-16 text-center">
+                <tr><td colSpan={5} className="!py-16 text-center">
                   <div className="w-14 h-14 rounded-2xl bg-muted/40 flex items-center justify-center mx-auto mb-4"><Search className="w-6 h-6 text-muted-foreground/25" /></div>
                   <p className="text-sm text-muted-foreground font-medium">No dividends found</p>
                 </td></tr>
@@ -73,6 +100,23 @@ export default function DividendsPage() {
                   <td className="text-xs text-muted-foreground whitespace-nowrap">{d.dividend_date}</td>
                   <td className="text-right font-mono font-bold tabular-nums text-foreground">{Number(d.total_amount || 0).toLocaleString()}</td>
                   <td><span className={`badge ${d.status === 'paid' ? 'badge-success' : d.status === 'approved' ? 'badge-info' : 'badge-warning'}`}>{d.status}</span></td>
+                  <td className="text-right text-xs text-muted-foreground">
+                    {allocations[d.id]?.length ? (
+                      <span className="inline-flex items-center gap-1"><Users2 className="w-3 h-3" />{allocations[d.id].length}</span>
+                    ) : '—'}
+                  </td>
+                  <td className="text-right">
+                    {d.status !== 'paid' && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={distributing === d.id}
+                        onClick={() => distribute(d.id)}
+                      >
+                        {distributing === d.id ? 'Distributing…' : 'Distribute'}
+                      </Button>
+                    )}
+                  </td>
                 </tr>
               ))}
             </tbody>

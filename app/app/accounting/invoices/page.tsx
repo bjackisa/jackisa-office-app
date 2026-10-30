@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Plus, Search, Download, Trash2, FileText, DollarSign, Clock, CheckCircle, AlertTriangle, Landmark, Banknote } from 'lucide-react'
 import { logEcosystemEvent, allocateToFund } from '@/lib/ecosystem'
+import { postEntry } from '@/lib/ledger'
 import PaymentModal from '@/components/payment-modal'
 
 const statusBadge: Record<string, { label: string; cls: string }> = {
@@ -99,6 +100,22 @@ export default function InvoicesPage() {
       notes: form.notes || null,
       created_by: userId,
     })
+
+    // Post to the double-entry ledger: debit receivable, credit revenue + VAT.
+    if (form.status !== 'draft') {
+      await postEntry({
+        companyId,
+        memo: `Invoice ${number} to ${form.customer_name}`,
+        reference: number,
+        sourceModule: 'invoice',
+        lines: [
+          { account_code: '1200', debit: total, memo: 'Accounts receivable' },
+          { account_code: '4000', credit: subtotal, memo: 'Sales revenue' },
+          ...(tax > 0 ? [{ account_code: '2100', credit: tax, memo: 'Output VAT' }] : []),
+        ],
+        createdBy: userId,
+      })
+    }
 
     setForm({ customer_name: '', customer_email: '', subtotal: '', tax_amount: '', due_date: '', status: 'draft', notes: '' })
     setShowForm(false)

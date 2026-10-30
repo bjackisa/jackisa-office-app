@@ -26,6 +26,7 @@ final class CronService
             'sync.pull'            => [self::class, 'syncPeers'],
             'tax.snapshot'         => [self::class, 'taxSnapshots'],
             'fund.snapshot'        => [self::class, 'fundSnapshots'],
+            'fund.daily'           => [self::class, 'runFundDaily'],
             'reminders.renewals'   => [self::class, 'renewalReminders'],
         ];
     }
@@ -335,6 +336,47 @@ final class CronService
             $written++;
         }
         return ['snapshots' => $written];
+    }
+
+    // -- Unit-trust daily automation ----------------------------------------
+    // Interest accrual, compounding, NAV recompute, member signals, snapshots
+    // and standing orders all live in the office database (run_daily_fund_automation).
+    // The office app has no scheduler, so lic pokes it once a day.
+
+    public static function runFundDaily(): array
+    {
+        $app = App::instance();
+
+        // run-all fires every 30 minutes; compounding and interest accrue once a
+        // day, so skip if this job already succeeded today.
+        $done = (int) $app->one(
+            "SELECT COUNT(*) AS c FROM cron_runs WHERE job = 'fund.daily' AND status = 'ok' AND DATE(finished_at) = CURDATE()"
+        )['c'];
+        if ($done > 0) { return ['skipped' => 'already ran today']; }
+
+        $base = (string) $app->config(['peers', 'office', 'base_url'], '');
+        if ($base === '') { return ['error' => 'office peer not configured']; }
+
+        $body = json_encode(['triggered_at' => date('c')]);
+        $ch = curl_init(rtrim($base, '/') . '/api/lic/fund-daily');
+        curl_setopt_array($ch, [
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_POST           => true,
+            CURLOPT_POSTFIELDS     => $body,
+            CURLOPT_HTTPHEADER     => [
+                'Content-Type: application/json',
+                'X-Lic-Signature: ' . Crypto::peerSignature('office', (string) $body),
+                'X-Lic-Peer: lic',
+            ],
+            CURLOPT_CONNECTTIMEOUT => 10,
+            CURLOPT_TIMEOUT        => 60,
+        ]);
+        $response = curl_exec($ch);
+        $err = curl_error($ch);
+        curl_close($ch);
+        if ($err) { return ['error' => $err]; }
+        $decoded = json_decode((string) $response, true);
+        return is_array($decoded) ? $decoded : ['error' => 'invalid response'];
     }
 
     // -- Renewal reminders (7 and 1 day before expiry) ----------------------

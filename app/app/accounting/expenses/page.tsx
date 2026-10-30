@@ -8,9 +8,15 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Plus, Search, Download, Trash2, Receipt, CheckCircle, Clock, Tag, TrendingUp, Landmark, Banknote } from 'lucide-react'
 import { logEcosystemEvent } from '@/lib/ecosystem'
+import { postEntry } from '@/lib/ledger'
 import PaymentModal from '@/components/payment-modal'
 
 const categories = ['utilities', 'salaries', 'rent', 'equipment', 'travel', 'supplies', 'marketing', 'maintenance', 'other']
+
+/** Maps an expense category to its ledger account code. */
+const EXPENSE_ACCOUNT: Record<string, string> = {
+  salaries: '6000', rent: '6100', utilities: '6200', marketing: '6300',
+}
 
 export default function ExpensesPage() {
   const [companyId, setCompanyId] = useState<string | null>(null)
@@ -86,6 +92,21 @@ export default function ExpensesPage() {
 
     if (newStatus === 'approved' && amount > 0) {
       await logEcosystemEvent({ companyId, eventType: 'expense_approved', sourceTable: 'expenses', sourceId: id, payload: { amount, status: newStatus } })
+
+      // Post to the double-entry ledger: debit the expense account, credit cash.
+      const { data: exp } = await supabase.from('expenses').select('category, description, expense_date').eq('id', id).maybeSingle()
+      await postEntry({
+        companyId,
+        entryDate: exp?.expense_date,
+        memo: `Expense: ${exp?.description || 'expense'}`,
+        sourceModule: 'expense',
+        sourceId: id,
+        lines: [
+          { account_code: EXPENSE_ACCOUNT[exp?.category || 'other'] || '6900', debit: amount, memo: exp?.description },
+          { account_code: '1000', credit: amount, memo: 'Cash paid' },
+        ],
+        createdBy: userId,
+      })
 
       // Deduct from fund total_assets if fund exists
       const { data: fund } = await supabase.from('workspace_funds').select('id, total_assets, currency').eq('company_id', companyId).maybeSingle()

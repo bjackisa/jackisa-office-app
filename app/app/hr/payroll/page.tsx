@@ -11,6 +11,7 @@ import {
 } from 'lucide-react'
 import Link from 'next/link'
 import { logEcosystemEvent, autoContributeFromPayroll } from '@/lib/ecosystem'
+import { createPayrollRun, approvePayrollRun, markPayslipPaidByEmployee } from '@/lib/payroll'
 import PaymentModal from '@/components/payment-modal'
 
 const NSSF_RATE = 0.05
@@ -105,6 +106,20 @@ export default function PayrollPage() {
     let totalContributed = 0
     let contributorCount = 0
 
+    // 1. Persist this month's payslips as a real payroll run.
+    const now = new Date()
+    const periodStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10)
+    const periodEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().slice(0, 10)
+    const run = await createPayrollRun({ companyId, periodStart, periodEnd, userId })
+    if (run.error) {
+      setEcosystemMsg(run.error)
+      setTimeout(() => setEcosystemMsg(null), 8000)
+      setProcessing(false)
+      return
+    }
+    // 2. Approve it, which posts the payroll journal to the ledger.
+    await approvePayrollRun(run.runId!, userId)
+
     for (const emp of payrollData) {
       const result = await autoContributeFromPayroll({
         companyId,
@@ -126,11 +141,7 @@ export default function PayrollPage() {
       payload: { employee_count: payrollData.length, total_gross: totals.gross, total_net: totals.net, fund_contributions: totalContributed },
     })
 
-    if (contributorCount > 0) {
-      setEcosystemMsg(`Payroll processed. ${contributorCount} employee(s) auto-contributed UGX ${totalContributed.toLocaleString()} to the fund from their net pay.`)
-    } else {
-      setEcosystemMsg(`Payroll processed for ${payrollData.length} employees. No auto-contributions configured yet — employees can opt-in via their investment portfolio.`)
-    }
+    setEcosystemMsg(`Payroll run created for ${run.count} employee(s) and posted to the ledger.${contributorCount > 0 ? ` ${contributorCount} auto-contributed UGX ${totalContributed.toLocaleString()} to the fund.` : ''}`)
     setTimeout(() => setEcosystemMsg(null), 8000)
     setProcessing(false)
   }
@@ -353,7 +364,17 @@ export default function PayrollPage() {
         <PaymentModal
           open={!!payEmployee}
           onClose={() => setPayEmployee(null)}
-          onSuccess={async () => { setPayEmployee(null) }}
+          onSuccess={async (paymentId?: string) => {
+            if (companyId && userId) {
+              await markPayslipPaidByEmployee({
+                companyId,
+                employeeId: payEmployee.id,
+                paymentId,
+                userId,
+              })
+            }
+            setPayEmployee(null)
+          }}
           companyId={companyId}
           userId={userId || undefined}
           direction="disbursement"
