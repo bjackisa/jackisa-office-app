@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { adminClient, adminAvailable } from '@/lib/lic/peer'
 import { getCaller, requireCompanyAdmin } from '@/lib/lic/serverAuth'
+import { checkStudentCap } from '@/lib/lic/caps'
 import crypto from 'crypto'
 
 export const dynamic = 'force-dynamic'
@@ -83,6 +84,9 @@ export async function POST(req: NextRequest) {
         }
         const targetCompany = invite?.company_id || companyId
         if (!targetCompany) return NextResponse.json({ ok: false, error: 'companyId or inviteToken is required' }, { status: 400 })
+
+        const cap = await checkStudentCap(db, targetCompany)
+        if (!cap.allowed) return NextResponse.json({ ok: false, error: cap.error, cap }, { status: 402 })
 
         // Find or create the student record for this user.
         let studentId = body.studentId ? String(body.studentId) : null

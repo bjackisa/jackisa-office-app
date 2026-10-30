@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { adminClient, adminAvailable } from '@/lib/lic/peer'
 import { getCaller, requireCompanyAdmin } from '@/lib/lic/serverAuth'
+import { checkEmployeeCap } from '@/lib/lic/caps'
 import crypto from 'crypto'
 
 export const dynamic = 'force-dynamic'
@@ -87,6 +88,10 @@ export async function POST(req: NextRequest) {
         if (!targetCompany) return NextResponse.json({ ok: false, error: 'companyId or inviteToken is required' }, { status: 400 })
 
         const autoApprove = invite && !invite.requires_approval
+        if (autoApprove) {
+          const cap = await checkEmployeeCap(db, targetCompany)
+          if (!cap.allowed) return NextResponse.json({ ok: false, error: cap.error, cap }, { status: 402 })
+        }
         const { data: request, error } = await db
           .from('company_join_requests')
           .upsert(
@@ -147,6 +152,11 @@ export async function POST(req: NextRequest) {
         const approve = body.approve === true
         const { data: request } = await db.from('company_join_requests').select('*').eq('id', requestId).eq('company_id', companyId).maybeSingle()
         if (!request) return NextResponse.json({ ok: false, error: 'Request not found' }, { status: 404 })
+
+        if (approve) {
+          const cap = await checkEmployeeCap(db, companyId)
+          if (!cap.allowed) return NextResponse.json({ ok: false, error: cap.error, cap }, { status: 402 })
+        }
 
         await db
           .from('company_join_requests')

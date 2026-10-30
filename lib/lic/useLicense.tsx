@@ -82,9 +82,11 @@ export function LicenseProvider({
     }
 
     try {
-      const [{ data: lic }, { data: trial }] = await Promise.all([
+      const [{ data: lic }, { data: trial }, { count: employeeCount }, { count: studentCount }] = await Promise.all([
         supabase.from('platform_licenses').select('*').eq('company_id', companyId).eq('is_current', true).maybeSingle(),
         supabase.from('trial_registrations').select('*').eq('company_id', companyId).order('created_at', { ascending: false }).limit(1).maybeSingle(),
+        supabase.from('company_employees').select('id', { count: 'exact', head: true }).eq('company_id', companyId).eq('status', 'active'),
+        supabase.from('students').select('id', { count: 'exact', head: true }).eq('company_id', companyId),
       ])
 
       let overrides: Record<string, boolean> = {}
@@ -100,6 +102,20 @@ export function LicenseProvider({
       const roleName = String(role?.name || employee?.position || '').toLowerCase()
       const isAdminRole = /admin|owner|director|manager|principal/.test(roleName)
 
+      // Local cap check so enforcement does not wait on the 12-hour heartbeat.
+      // A cap of 0 means unlimited; exceeding any active cap locks the app.
+      const capChecks: Array<[string, number, number]> = [
+        ['max_employees', employeeCount || 0, Number(lic?.max_employees ?? 0)],
+        ['max_students', studentCount || 0, Number(lic?.max_students ?? 0)],
+      ]
+      const capDetails: Record<string, any> = {}
+      let withinCaps = true
+      for (const [limit, used, cap] of capChecks) {
+        const exceeded = cap > 0 && used > cap
+        capDetails[limit] = { used, limit: cap, exceeded, unlimited: cap === 0 }
+        if (exceeded) withinCaps = false
+      }
+
       const trialEnds = trial?.ends_at ?? null
       setState({
         loading: false,
@@ -110,8 +126,8 @@ export function LicenseProvider({
         expiresAt: lic?.expires_at || null,
         daysRemaining: daysUntil(lic?.expires_at || null),
         valid: ['active', 'trial', 'grace'].includes(lic?.status || ''),
-        withinCaps: true,
-        capDetails: {},
+        withinCaps,
+        capDetails,
         overrides,
         roleGrants,
         isAdminRole,
