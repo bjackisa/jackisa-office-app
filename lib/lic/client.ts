@@ -8,8 +8,8 @@
 
 import crypto from 'crypto'
 
-const BASE_URL = (process.env.LIC_API_URL || 'https://lic.jackisa.com').replace(/\/$/, '')
-const SHARED_SECRET = process.env.LIC_OFFICE_SECRET || ''
+const BASE_URL = (process.env.LIC_API_URL || process.env.LIC_API_BASE || 'https://lic.jackisa.com').replace(/\/$/, '')
+const SHARED_SECRET = process.env.LIC_OFFICE_SECRET || process.env.LIC_API_KEY || ''
 const PEER = 'office'
 
 export interface LicResponse<T = any> {

@@ -21,10 +21,10 @@ export default function CompanySettings() {
         if (!session) return
 
         const { data: employeeData } = await supabase
-          .from('employees')
+          .from('company_employees')
           .select('company_id')
           .eq('user_id', session.user.id)
-          .single()
+          .maybeSingle()
 
         if (employeeData) {
           const { data: companyData } = await supabase
