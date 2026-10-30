@@ -5,21 +5,24 @@
 import crypto from 'crypto'
 import { createClient, SupabaseClient } from '@supabase/supabase-js'
 
-const OFFICE_SECRET = process.env.LIC_OFFICE_SECRET || ''
+const OFFICE_SECRET = process.env.LIC_OFFICE_SECRET || process.env.LIC_API_KEY || ''
 const JACKISA_SECRET = process.env.LIC_JACKISA_SECRET || ''
 
 /** Verify an inbound request signed by lic.jackisa.com. */
 export function verifyLicSignature(rawBody: string, signatureHeader: string | null, peer: 'office' | 'jackisa' = 'office'): boolean {
   if (!signatureHeader) return false
-  const secret = peer === 'office' ? OFFICE_SECRET : JACKISA_SECRET
-  if (!secret) return false
+  const preferred = peer === 'office' ? OFFICE_SECRET : JACKISA_SECRET
+  // Try the peer-specific secret first, then fall back to the other peer's
+  // secret so a single configured value can serve both directions.
+  const secrets = Array.from(new Set([preferred, OFFICE_SECRET, JACKISA_SECRET].filter(Boolean)))
+  if (secrets.length === 0) return false
   const provided = signatureHeader.replace(/^sha256=/i, '').trim()
-  const expected = crypto.createHmac('sha256', secret).update(rawBody).digest('hex')
-  try {
-    return crypto.timingSafeEqual(Buffer.from(provided, 'hex'), Buffer.from(expected, 'hex'))
-  } catch {
-    return false
-  }
+  if (!/^[0-9a-f]{64}$/i.test(provided)) return false
+  const expectedBuf = Buffer.from(provided, 'hex')
+  return secrets.some((secret) => {
+    const expected = crypto.createHmac('sha256', secret).update(rawBody).digest()
+    return expected.length === expectedBuf.length && crypto.timingSafeEqual(expectedBuf, expected)
+  })
 }
 
 let _admin: SupabaseClient | null = null

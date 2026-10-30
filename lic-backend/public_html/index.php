@@ -75,7 +75,7 @@ $router->post('/api/v1/office-license/renew',    fn(Request $r) => LicenseContro
 $router->post('/api/v1/office-license/revoke',   fn(Request $r) => LicenseController::revoke($r));
 $router->post('/api/v1/office-license/suspend',  fn(Request $r) => LicenseController::suspend($r));
 $router->post('/api/v1/office-license/trial',    fn(Request $r) => LicenseController::trial($r));
-$router->get('/api/v1/office-license/status',    fn(Request $r) => LicenseController::status($r));
+$router->any('/api/v1/office-license/status',    fn(Request $r) => LicenseController::status($r));
 $router->get('/api/v1/office-license/plans',     fn(Request $r) => LicenseController::plans($r));
 
 // ---- Payments -------------------------------------------------------------
