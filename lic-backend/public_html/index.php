@@ -10,6 +10,7 @@ require_once dirname(__DIR__) . '/src/bootstrap.php';
 
 use Jackisa\Lic\App;
 use Jackisa\Lic\Controller\AuthController;
+use Jackisa\Lic\Controller\CatalogController;
 use Jackisa\Lic\Controller\KycController;
 use Jackisa\Lic\Controller\LicenseController;
 use Jackisa\Lic\Controller\MessagingController;
@@ -111,6 +112,10 @@ $router->post('/api/v1/kyc/verify',   fn(Request $r) => KycController::verify($r
 $router->post('/api/v1/kyc/reject',   fn(Request $r) => KycController::reject($r));
 $router->get('/api/v1/kyc/badge',     fn(Request $r) => KycController::badge($r));
 $router->post('/api/v1/kyc/auto',     fn(Request $r) => KycController::auto($r));
+
+// ---- Admin: package/feature catalogue (API-key protected) ------------------
+$router->post('/api/v1/admin/plans',    fn(Request $r) => CatalogController::plans($r));
+$router->post('/api/v1/admin/features', fn(Request $r) => CatalogController::features($r));
 
 // ---- Sync -----------------------------------------------------------------
 $router->post('/api/v1/sync/push',   fn(Request $r) => SyncController::push($r));

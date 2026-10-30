@@ -66,13 +66,27 @@ final class Auth
         }
 
         App::instance()->run('UPDATE api_keys SET last_used_at = NOW() WHERE id = ?', [$row['id']]);
-        self::$caller = ['type' => 'api_key', 'id' => $row['id'], 'name' => $row['name']];
+        $scopes = json_decode((string) $row['scopes'], true);
+        self::$caller = [
+            'type'   => 'api_key',
+            'id'     => $row['id'],
+            'name'   => $row['name'],
+            'scopes' => is_array($scopes) ? $scopes : [],
+        ];
     }
 
     /** @return array<string,mixed>|null */
     public static function caller(): ?array
     {
         return self::$caller;
+    }
+
+    /** @return array<int,string> Scopes granted to the authenticated API key. */
+    public static function scopes(): array
+    {
+        $caller = self::$caller ?? [];
+        $scopes = $caller['scopes'] ?? [];
+        return is_array($scopes) ? $scopes : [];
     }
 
     private static function rawBody(): string
