@@ -321,13 +321,32 @@ final class LicenseService
     public static function startTrial(string $tenantId, string $fingerprint, array $opts = []): array
     {
         $app = App::instance();
+        $ip = $opts['ip'] ?? null;
+
+        // A trial is for a genuinely new device/network. Deny when the device
+        // fingerprint has been seen before, or when the same public IP already
+        // consumed a trial — otherwise a fresh account on a known device/IP
+        // would keep harvesting trials.
         $existing = $app->one(
-            "SELECT * FROM trials WHERE fingerprint = ?
-             AND status IN ('active','reminded','converted') LIMIT 1",
+            "SELECT * FROM trials
+             WHERE fingerprint = ?
+               AND status IN ('active','reminded','converted','expired') LIMIT 1",
             [$fingerprint]
         );
         if ($existing !== null) {
             return ['granted' => false, 'reason' => 'fingerprint_seen', 'trial' => $existing];
+        }
+
+        if ($ip !== null && $ip !== '' && $ip !== '0.0.0.0') {
+            $byIp = $app->one(
+                "SELECT * FROM trials
+                 WHERE ip_address = ?
+                   AND status IN ('active','reminded','converted','expired') LIMIT 1",
+                [$ip]
+            );
+            if ($byIp !== null) {
+                return ['granted' => false, 'reason' => 'ip_seen', 'trial' => $byIp];
+            }
         }
 
         $days = (int) ($opts['days'] ?? self::trialDays());

@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { ContinueWithJackisa } from '@/components/continue-with-jackisa'
 import { AlertCircle, Lock, Mail } from 'lucide-react'
 
 export default function LoginPage() {
@@ -236,6 +237,9 @@ export default function LoginPage() {
               <span className="px-3 bg-card text-muted-foreground/50 text-xs">or</span>
             </div>
           </div>
+
+          {/* Single sign-on with the Jackisa ecosystem */}
+          <ContinueWithJackisa redirect={`${typeof window !== 'undefined' ? window.location.origin : ''}/auth/callback`} />
 
           {/* Sign Up Link */}
           <p className="text-center text-sm text-muted-foreground">

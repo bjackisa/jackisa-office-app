@@ -25,7 +25,7 @@ export async function POST(req: NextRequest) {
 
   const caller = await getCaller(req)
   const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || req.headers.get('x-real-ip') || '0.0.0.0'
-  const fingerprint = String(body?.fingerprint || deriveFingerprint(req, caller?.id))
+  const fingerprint = String(body?.fingerprint || deriveFingerprint(req))
 
   if (action === 'cancel') {
     if (!adminAvailable()) return NextResponse.json({ ok: false, error: 'Not configured' }, { status: 500 })
@@ -49,6 +49,7 @@ export async function POST(req: NextRequest) {
   const res = await lic.startTrial(companyId, fingerprint, {
     user_id: caller?.id,
     msisdn: body?.msisdn ? String(body.msisdn) : undefined,
+    ip,
   })
   if (res.api_status !== '200') {
     return NextResponse.json({ ok: false, error: res.errors?.error_text || 'Could not start a trial' }, { status: 400 })
@@ -77,8 +78,12 @@ export async function POST(req: NextRequest) {
   return NextResponse.json({ ok: true, granted, endsAt, days: TRIAL_DAYS })
 }
 
-function deriveFingerprint(req: NextRequest, userId?: string): string {
+function deriveFingerprint(req: NextRequest): string {
+  // Device/browser based, deliberately NOT keyed on the user id: a brand-new
+  // account on a device that already consumed a trial must not look new.
   const ua = req.headers.get('user-agent') || ''
   const lang = req.headers.get('accept-language') || ''
-  return crypto.createHash('sha256').update(`${ua}|${lang}|${userId || 'anon'}`).digest('hex')
+  const enc = req.headers.get('accept-encoding') || ''
+  const ch = req.headers.get('sec-ch-ua') || ''
+  return crypto.createHash('sha256').update(`${ua}|${lang}|${enc}|${ch}`).digest('hex')
 }
