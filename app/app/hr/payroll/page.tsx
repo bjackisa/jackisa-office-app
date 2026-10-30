@@ -48,6 +48,7 @@ const statusCfg: Record<string, { label: string; bg: string; text: string; borde
 
 export default function PayrollPage() {
   const [employees, setEmployees] = useState<any[]>([])
+  const [structures, setStructures] = useState<Record<string, number>>({})
   const [loading, setLoading] = useState(true)
   const [companyId, setCompanyId] = useState<string | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
@@ -75,6 +76,23 @@ export default function PayrollPage() {
           .eq('status', 'active')
 
       setEmployees(emps || [])
+
+      // The salary structure is the source of truth; the static `salary` column
+      // is only a legacy fallback. Build a gross-pay map from current structures.
+      const { data: structs } = await supabase
+        .from('salary_structures')
+        .select('employee_id, basic_salary, housing_allowance, transport_allowance, medical_allowance, other_allowances')
+        .eq('company_id', context.companyId)
+        .eq('is_current', true)
+      const map: Record<string, number> = {}
+      for (const s of structs || []) {
+        const other = s.other_allowances && typeof s.other_allowances === 'object'
+          ? Object.values(s.other_allowances as Record<string, number>).reduce((sum, v) => sum + Number(v || 0), 0)
+          : 0
+        map[s.employee_id] = Number(s.basic_salary || 0) + Number(s.housing_allowance || 0) +
+          Number(s.transport_allowance || 0) + Number(s.medical_allowance || 0) + other
+      }
+      setStructures(map)
     } catch (err) {
       console.error('Failed to load payroll data:', err)
     } finally {
@@ -83,7 +101,7 @@ export default function PayrollPage() {
   }
 
   const payrollData = employees.map(emp => {
-    const gross = emp.salary || 0
+    const gross = structures[emp.id] ?? Number(emp.salary || 0)
     const { nssf, paye, net } = calcPAYE(gross)
     return { ...emp, gross, nssf, paye, net }
   })
@@ -151,8 +169,8 @@ export default function PayrollPage() {
 
   const departments = [...new Set(employees.map(emp => emp.department).filter(Boolean))]
   const filteredPayrollData = payrollData.filter((emp) => {
-    const matchSearch = !searchQuery || emp.employee?.users?.full_name?.toLowerCase().includes(searchQuery.toLowerCase())
-    const matchDept = !departmentFilter || emp.employee?.department === departmentFilter
+    const matchSearch = !searchQuery || emp.users?.full_name?.toLowerCase().includes(searchQuery.toLowerCase())
+    const matchDept = !departmentFilter || emp.department === departmentFilter
     return matchSearch && matchDept
   })
 
