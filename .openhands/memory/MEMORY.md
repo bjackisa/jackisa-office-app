@@ -38,6 +38,25 @@
   also `document_deliveries`). Deploy lic by SFTP to `~/domains/lic.jackisa.com/app/`
   with `~/ops/upload.py`; run `php bin/migrate.php`. See `2026-10-30.md` for detail.
 
+## Jackisa One — cross-platform benefits (Oct 2026)
+- **One entitlement engine lives on jackisa.com**: `public_html/office_entitlements.php`
+  (matrix basic/pro/platinum) + table `office_entitlements`. lic is the single
+  writer: every licence mutation pushes the tenant's tier to jackisa.com
+  (`LicenseController::pushEntitlements` -> `JackisaBridgeService::syncEntitlements`).
+  Office never talks to jackisa.com directly — it goes through lic
+  (`app/api/jackisa/route.ts` -> `lib/lic/client.ts` `jackisa*` -> lic `/api/v1/jackisa/*`).
+  Benefits: channels, live minutes, store + course publishing, verified badge,
+  meeting seats. `publish_course` turns an office school course into a jackisa.com
+  store product; `schedule_meeting` -> a jackisa live session.
+- **"Continue with Jackisa" must verify a token, not rely on the magic-link flow.**
+  `/api/auth/jackisa/exchange` returns `tokenHash` and the callback calls
+  `supabase.auth.verifyOtp({ token_hash, type:'email' })` — flow-independent.
+  Verified live. Full chain: jackisa session -> `office_sso.php` -> lic
+  `/api/v1/auth/jackisa` (profile+avatar) -> `/api/v1/auth/sso-exchange`.
+- jackisa.com bridge secret is `office_bridge_secret.php` (**gitignored**); lic's
+  copy is `peers.jackisa.shared_secret`. `office_bridge.php` requires the engine file.
+- See `.openhands/memory/2026-10-30.md` (session 2) for gotchas.
+
 ## Articles (Oct 2026)
 - Articles broke three ways (list 500, read 500, no mobile articles). Full detail
   in `.openhands/memory/2026-10-27.md`. Key points:
