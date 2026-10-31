@@ -32,7 +32,7 @@ export async function POST(req: NextRequest) {
 
   const db = adminClient()
   const [{ data: company }, ctx] = await Promise.all([
-    db.from('companies').select('id, name, logo_url, lic_tenant_id').eq('id', companyId).maybeSingle(),
+    db.from('companies').select('id, name, logo_url, lic_tenant_id, phone').eq('id', companyId).maybeSingle(),
     loadStudentContext(db, companyId, studentId),
   ])
   if (!ctx.student) return NextResponse.json({ ok: false, error: 'Student not found' }, { status: 404 })
@@ -70,6 +70,7 @@ export async function POST(req: NextRequest) {
       ? await lic.transcript({
           tenant_id: tenantId,
           company_name: company?.name || 'Jackisa Office',
+          company_phone: company?.phone || undefined,
           company_logo_url: company?.logo_url || undefined,
           student: studentPayload,
           modules: ctx.standing.modules.map((m) => ({ code: m.code, name: m.name, coursework: m.coursework, exam: m.exam, total: m.total, grade: m.grade })),
@@ -79,6 +80,7 @@ export async function POST(req: NextRequest) {
       : await lic.notifyMarks({
           tenant_id: tenantId,
           company_name: company?.name || 'Jackisa Office',
+          company_phone: company?.phone || undefined,
           company_logo_url: company?.logo_url || undefined,
           student: studentPayload,
           module: body?.module || {},
@@ -89,7 +91,20 @@ export async function POST(req: NextRequest) {
 
   const doc = (result as any)?.data?.document || null
   const delivery = (result as any)?.data?.delivery || null
-  const ok = result.api_status === '200'
+  const waResults: any[] = Array.isArray(delivery?.whatsapp) ? delivery.whatsapp : []
+  const emailResults: any[] = Array.isArray(delivery?.email) ? delivery.email : []
+  const waUndeliverable = waResults.filter((w) => w?.status === 'undeliverable')
+  const emailSent = emailResults.some((e) => e?.status === 'sent')
+  // A clean send is one the hub accepted where something actually reached someone.
+  // If every WhatsApp number bounced and no email went out, this is a failure;
+  // otherwise it went through, with a note about the unreachable WhatsApp number.
+  const waAllBounced = waResults.length > 0 && waUndeliverable.length === waResults.length
+  const ok = result.api_status === '200' && !(waAllBounced && !emailSent)
+  const deliveryError = waAllBounced && !emailSent
+    ? 'No WhatsApp number or email on record could be reached'
+    : waUndeliverable.length
+      ? `${waUndeliverable.length} WhatsApp number(s) not on WhatsApp; relayed to the school`
+      : (result as any)?.errors?.error_text || 'Delivery failed'
 
   // Record what happened so the school can see (and re-send) it later.
   try {
@@ -103,8 +118,8 @@ export async function POST(req: NextRequest) {
       document_ref: doc?.id || null,
       storage_path: doc?.path || null,
       status: ok ? 'sent' : 'failed',
-      error: ok ? null : (result as any)?.errors?.error_text || 'Delivery failed',
-      payload: { standing: standingPayload, module: body?.module || {}, assessment: body?.assessment || {} },
+      error: ok ? null : deliveryError,
+      payload: { standing: standingPayload, module: body?.module || {}, assessment: body?.assessment || {}, whatsapp: waResults },
     })
   } catch (e) {
     console.error('[education] delivery log failed', e)
@@ -115,7 +130,7 @@ export async function POST(req: NextRequest) {
     documentUrl: doc?.url || null,
     delivery,
     standing: standingPayload,
-    error: ok ? undefined : (result as any)?.errors?.error_text,
+    error: ok ? undefined : deliveryError,
   })
 }
 

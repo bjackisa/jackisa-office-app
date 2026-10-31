@@ -344,6 +344,7 @@ export const lic = {
   notifyMarks(params: {
     tenant_id: string
     company_name?: string
+    company_phone?: string
     company_logo_url?: string
     student: { id?: string; student_no?: string; name: string; phone?: string; email?: string; guardian_phone?: string; guardian_email?: string }
     module?: { code?: string; name?: string }
@@ -358,6 +359,7 @@ export const lic = {
   transcript(params: {
     tenant_id: string
     company_name?: string
+    company_phone?: string
     company_logo_url?: string
     student: { id?: string; student_no?: string; name: string; phone?: string; email?: string; guardian_phone?: string; guardian_email?: string }
     modules: Array<{ code?: string; name?: string; coursework?: number | null; exam?: number | null; total?: number | null; grade?: string }>
