@@ -19,6 +19,16 @@
 - Hub deploy = `scp` file to `~/domains/lic.jackisa.com/app/src/…` + `php -l` on the
   server (no local php). A standalone hub script needs `App::boot()` after
   `require bootstrap.php`.
+- **Documents use one design system** (ink spine + brass hairline full-bleed on every
+  page, Source Serif 4 display over Public Sans, hairline tables, dark summary strip,
+  status = text + colour). Dompdf traps learned the hard way: a `* { margin:0 }` reset
+  **silently wipes the `@page` margin** (scope the reset to content elements);
+  `position:fixed` repeats per page but anchors to the content box, so full-bleed needs
+  negative offsets matching the `@page` margins; no flex/grid/pseudo-elements; gradients
+  don't paint. Fonts need a **writable** font dir — `PdfService::prepareFontDir()` points
+  Dompdf at `storage/fonts` (seeded from the package metrics) and registers the brand
+  TTFs; a family with no 400 face makes 400 text fall back to Times. Preview gallery:
+  https://lic.jackisa.com/preview/index.html (harness `/tmp/preview.php` on the host).
 
 ## Jackisa Office — account-targeted coupons (Oct 30) — see `.openhands/memory/2026-10-30.md`
 - **Coupons are hub-authoritative.** Operator mints a coupon (percent / flat amount / full
