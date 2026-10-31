@@ -57,6 +57,7 @@ export async function POST(req: NextRequest) {
 
   const studentPayload = {
     id: student.id,
+    student_no: student.student_id,
     name: student.full_name || 'Student',
     phone: student.phone,
     email: student.email,

@@ -1,5 +1,25 @@
 # Jackisa Stream — project memory
 
+## Jackisa Office — notification engine (Oct 31) — see `.openhands/memory/2026-10-31.md`
+- **The hub `/api/v1/notify` rail is the one place every office module sends through.**
+  The app posts *facts* (tenant, event, dedupe_key, recipients, optional `document`),
+  the hub renders an HTML→PDF via Dompdf, stores it, attaches it to email + WhatsApp
+  and de-duplicates. Office entry point: `POST /api/notify/event` → `lib/notify/events.ts`.
+  Always call it with `apiJson()` (the route needs the Supabase bearer).
+- **Every module now auto-notifies** (no manual "send"): HR points, payroll payslips,
+  invoices, dividends, payments webhook, sales receipts, leave requested/decided,
+  helpdesk tickets, education marks. Recipients resolve server-side — a caller may only
+  notify within a company they belong to; `notifyCompanyAdmins` fans out to admins.
+- **PDFs: never use a remote logo.** `DocumentService::shell()` always draws a monogram
+  of the workspace initials. Footer reads "Generated in Jackisa Office" + a package badge
+  resolved by `DocumentService::packageName($tenantId)` (joins `licenses`→`plans`).
+- **Dompdf IS installed on lic** (`vendor/dompdf`, `pdf.dompdf_autoload` in
+  `config/config.local.php`) → full CSS renders. Verify a PDF by downloading it and
+  rasterising with PyMuPDF, not by reading bytes.
+- Hub deploy = `scp` file to `~/domains/lic.jackisa.com/app/src/…` + `php -l` on the
+  server (no local php). A standalone hub script needs `App::boot()` after
+  `require bootstrap.php`.
+
 ## Jackisa Office — account-targeted coupons (Oct 30) — see `.openhands/memory/2026-10-30.md`
 - **Coupons are hub-authoritative.** Operator mints a coupon (percent / flat amount / full
   waiver / bonus days) scoped to one account, a list, or a group (new, legacy, country,

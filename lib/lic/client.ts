@@ -345,7 +345,7 @@ export const lic = {
     tenant_id: string
     company_name?: string
     company_logo_url?: string
-    student: { id?: string; name: string; phone?: string; email?: string; guardian_phone?: string; guardian_email?: string }
+    student: { id?: string; student_no?: string; name: string; phone?: string; email?: string; guardian_phone?: string; guardian_email?: string }
     module?: { code?: string; name?: string }
     assessment: { kind?: string; day_number?: number | string; title?: string; marks_obtained?: number; max_marks?: number; grade?: string }
     standing?: Record<string, any>
@@ -359,7 +359,7 @@ export const lic = {
     tenant_id: string
     company_name?: string
     company_logo_url?: string
-    student: { id?: string; name: string; phone?: string; email?: string; guardian_phone?: string; guardian_email?: string }
+    student: { id?: string; student_no?: string; name: string; phone?: string; email?: string; guardian_phone?: string; guardian_email?: string }
     modules: Array<{ code?: string; name?: string; coursework?: number | null; exam?: number | null; total?: number | null; grade?: string }>
     summary?: Record<string, any>
     recipients?: { phones?: string[]; emails?: string[] }
