@@ -2,17 +2,23 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { Card } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
 import { getSessionContext } from '@/lib/company-context'
 import { supabase } from '@/lib/supabase'
+import { notifyStudent } from '@/lib/education/notify-client'
 
 const STATUS_OPTIONS = ['Pending', 'Active', 'Failed', 'Suspended', 'Deceased', 'Graduated']
 
 export default function GradesPage() {
   const [rows, setRows] = useState<any[]>([])
+  const [companyId, setCompanyId] = useState<string | null>(null)
+  const [sending, setSending] = useState<string | null>(null)
+  const [message, setMessage] = useState<string | null>(null)
 
   const load = async () => {
     const ctx = await getSessionContext()
     if (!ctx?.companyId) return
+    setCompanyId(ctx.companyId)
 
     const [studentsRes, modulesRes, daysRes, cwGradesRes, examsRes, examGradesRes] = await Promise.all([
       supabase.from('students').select('id, student_id, full_name').eq('company_id', ctx.companyId),
@@ -105,6 +111,22 @@ export default function GradesPage() {
     setRows((prev) => prev.map((row) => row.studentPk === studentId ? { ...row, status } : row))
   }
 
+  const releaseReportCard = async (studentId: string, studentName: string) => {
+    if (!companyId) return
+    setSending(studentId)
+    setMessage(null)
+    try {
+      const res = await notifyStudent({ companyId, studentId, kind: 'transcript' })
+      setMessage(
+        res.ok
+          ? `Report card sent to ${studentName}'s guardians.${res.documentUrl ? ' Document stored.' : ''}`
+          : res.error || 'Could not send the report card.'
+      )
+    } finally {
+      setSending(null)
+    }
+  }
+
   const sortedRows = useMemo(() => {
     return [...rows].sort((a, b) => {
       if (a.moduleCode === b.moduleCode) {
@@ -122,6 +144,8 @@ export default function GradesPage() {
         <p className="text-sm text-muted-foreground mt-0.5">50% coursework + 50% exam</p>
       </div>
 
+      {message && <div className="rounded-xl p-4 text-sm bg-primary/[0.06] border border-primary/15 text-foreground">{message}</div>}
+
       <Card className="overflow-hidden">
         <div className="overflow-x-auto">
         <table className="premium-table">
@@ -135,6 +159,7 @@ export default function GradesPage() {
               <th className="text-center">Exam (50%)</th>
               <th className="text-center">Overall Grade</th>
               <th>Status</th>
+              <th className="text-right">Report Card</th>
             </tr>
           </thead>
           <tbody>
@@ -155,9 +180,19 @@ export default function GradesPage() {
                     {STATUS_OPTIONS.map((status) => <option key={status} value={status}>{status}</option>)}
                   </select>
                 </td>
+                <td className="text-right">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={sending === row.studentPk}
+                    onClick={() => releaseReportCard(row.studentPk, row.studentName)}
+                  >
+                    {sending === row.studentPk ? 'Sending…' : 'Send'}
+                  </Button>
+                </td>
               </tr>
             ))}
-            {sortedRows.length === 0 && <tr><td className="!py-12 text-center text-muted-foreground/60" colSpan={8}>No enrolled students found.</td></tr>}
+            {sortedRows.length === 0 && <tr><td className="!py-12 text-center text-muted-foreground/60" colSpan={9}>No enrolled students found.</td></tr>}
           </tbody>
         </table>
         </div>

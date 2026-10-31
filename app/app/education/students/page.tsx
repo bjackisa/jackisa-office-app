@@ -36,7 +36,7 @@ export default function StudentsPage() {
   const [enrollments, setEnrollments] = useState<any[]>([])
   const [statuses, setStatuses] = useState<Record<string, string>>({})
   const [moduleSearch, setModuleSearch] = useState('')
-  const [form, setForm] = useState({ full_name: '', email: '', module_ids: [] as string[] })
+  const [form, setForm] = useState({ full_name: '', email: '', phone: '', guardian_name: '', guardian_phone: '', guardian_email: '', module_ids: [] as string[] })
   const [ecosystemMsg, setEcosystemMsg] = useState<string | null>(null)
   const [studentLinks, setStudentLinks] = useState<any[]>([])
   const [studentRequests, setStudentRequests] = useState<any[]>([])
@@ -118,19 +118,41 @@ export default function StudentsPage() {
 
     const createWithStatus = await supabase
       .from('students')
-      .insert({ company_id: companyId, student_id: studentNumber, full_name: form.full_name, email: form.email || null, status: 'Active' })
+      .insert({ company_id: companyId, student_id: studentNumber, full_name: form.full_name, email: form.email || null, phone: form.phone || null, guardian_name: form.guardian_name || null, guardian_phone: form.guardian_phone || null, guardian_email: form.guardian_email || null, status: 'Active' })
       .select('id')
       .single()
 
     const createWithoutStatus = createWithStatus.error
       ? await supabase
           .from('students')
-          .insert({ company_id: companyId, student_id: studentNumber, full_name: form.full_name, email: form.email || null })
+          .insert({ company_id: companyId, student_id: studentNumber, full_name: form.full_name, email: form.email || null, phone: form.phone || null, guardian_name: form.guardian_name || null, guardian_phone: form.guardian_phone || null, guardian_email: form.guardian_email || null })
           .select('id')
           .single()
       : createWithStatus
 
     const created = createWithoutStatus.data
+
+    // Publish the contact details to the licence hub so it can reach the
+    // guardian directly when it sends marks and report cards.
+    if (created?.id) {
+      fetch('/api/education/student', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          companyId,
+          student: {
+            id: created.id,
+            name: form.full_name,
+            student_no: studentNumber,
+            phone: form.phone,
+            email: form.email,
+            guardian_name: form.guardian_name,
+            guardian_phone: form.guardian_phone,
+            guardian_email: form.guardian_email,
+          },
+        }),
+      }).catch(() => {})
+    }
 
     if (created?.id && form.module_ids.length > 0) {
       const enrollmentsWithCompany = form.module_ids.map((moduleId) => ({ student_id: created.id, module_id: moduleId, company_id: companyId }))
@@ -147,7 +169,7 @@ export default function StudentsPage() {
       setTimeout(() => setEcosystemMsg(null), 5000)
     }
 
-    setForm({ full_name: '', email: '', module_ids: [] })
+    setForm({ full_name: '', email: '', phone: '', guardian_name: '', guardian_phone: '', guardian_email: '', module_ids: [] })
     await loadData()
   }
 
@@ -256,7 +278,12 @@ export default function StudentsPage() {
         <div className="grid md:grid-cols-2 gap-3">
           <Input placeholder="Student full name" value={form.full_name} onChange={(e) => setForm({ ...form, full_name: e.target.value })} />
           <Input placeholder="Student email (optional)" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
+          <Input placeholder="Student phone (for WhatsApp, optional)" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} />
+          <Input placeholder="Guardian name (optional)" value={form.guardian_name} onChange={(e) => setForm({ ...form, guardian_name: e.target.value })} />
+          <Input placeholder="Guardian phone (for WhatsApp, optional)" value={form.guardian_phone} onChange={(e) => setForm({ ...form, guardian_phone: e.target.value })} />
+          <Input placeholder="Guardian email (optional)" value={form.guardian_email} onChange={(e) => setForm({ ...form, guardian_email: e.target.value })} />
         </div>
+        <p className="text-xs text-muted-foreground">Add a guardian phone or email and marks, report cards and receipts are sent to them automatically over WhatsApp and email.</p>
 
         <div className="rounded-xl border p-3 space-y-3">
           <div>

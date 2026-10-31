@@ -65,6 +65,9 @@ export async function POST(request: Request) {
     const industry = (typeof body?.industry === 'string' && body.industry.trim())
       ? body.industry.trim()
       : 'General'
+    const INDUSTRY_SLUGS = ['retail','services','manufacturing','education','healthcare','finance','hospitality','technology','agriculture','ngo','logistics','other']
+    const rawSlug = typeof body?.industrySlug === 'string' ? body.industrySlug.trim().toLowerCase() : ''
+    const industrySlug = INDUSTRY_SLUGS.includes(rawSlug) ? rawSlug : null
     const COMPANY_KINDS = ['company', 'institution', 'ngo', 'cooperative', 'individual']
     const rawKind = typeof body?.companyKind === 'string' ? body.companyKind : (typeof body?.kind === 'string' ? body.kind : 'company')
     const companyKind = COMPANY_KINDS.includes(rawKind) ? rawKind : 'company'
@@ -103,7 +106,7 @@ export async function POST(request: Request) {
 
     const { data: company, error: companyErr } = await supabase
       .from('companies')
-      .insert({ name: companyName, email: companyEmail, industry, kind: companyKind, created_by: authedUser.id })
+      .insert({ name: companyName, email: companyEmail, industry, industry_slug: industrySlug, kind: companyKind, created_by: authedUser.id })
       .select()
       .single()
 
@@ -113,7 +116,7 @@ export async function POST(request: Request) {
       .from('company_roles')
       .insert({
         company_id: company.id,
-        name: 'Admin',
+        name: 'Administrator',
         description: 'Company administrator with full access',
         is_default: true,
       })
@@ -121,6 +124,20 @@ export async function POST(request: Request) {
       .single()
 
     if (roleErr) return new NextResponse(`Role creation failed: ${roleErr.message}`, { status: 400 })
+
+    // Grant the administrator role every feature in the catalogue. Without this
+    // the role has no explicit grants and a strict (non-admin) role matcher
+    // would leave the owner with only the basic surface. Non-admin roles get
+    // their grants set explicitly from the Roles screen.
+    try {
+      const { data: catalogue } = await supabase.from('platform_features').select('slug')
+      const grants = (catalogue || [])
+        .filter((f: any) => f?.slug)
+        .map((f: any) => ({ company_role_id: role.id, feature_slug: f.slug, enabled: true }))
+      if (grants.length) await supabase.from('company_role_features').upsert(grants, { onConflict: 'company_role_id,feature_slug' })
+    } catch (e) {
+      console.error('[register] role feature grant failed', e)
+    }
 
     const { error: employeeErr } = await supabase
       .from('company_employees')

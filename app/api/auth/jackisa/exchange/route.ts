@@ -44,10 +44,23 @@ export async function POST(req: NextRequest) {
 
   const db = adminClient()
   const redirectTo = `${process.env.NEXT_PUBLIC_APP_URL || new URL(req.url).origin}/auth/callback`
+  const email = profile.email.toLowerCase()
 
   try {
-    const { data: list } = await db.auth.admin.listUsers({ page: 1, perPage: 200 })
-    let user = list?.users?.find((u) => (u.email || '').toLowerCase() === profile.email.toLowerCase())
+    // Look the user up by email. listUsers is paged and only scans a window, so
+    // page through until the address is found (or the list is exhausted) rather
+    // than trusting the first page.
+    let user: { id: string; email?: string } | undefined
+    for (let page = 1; page <= 20; page++) {
+      const { data: list, error: listErr } = await db.auth.admin.listUsers({ page, perPage: 1000 })
+      if (listErr) break
+      const found = list?.users?.find((u) => (u.email || '').toLowerCase() === email)
+      if (found) {
+        user = found
+        break
+      }
+      if (!list?.users || list.users.length < 1000) break
+    }
 
     if (!user) {
       const created = await db.auth.admin.createUser({
@@ -60,9 +73,16 @@ export async function POST(req: NextRequest) {
         },
       })
       if (created.error) {
-        return NextResponse.json({ ok: false, error: created.error.message }, { status: 400 })
+        // The user may have been created between the scan and this call.
+        const retry = await db.auth.admin.listUsers({ page: 1, perPage: 1000 })
+        const existing = retry.data?.users?.find((u) => (u.email || '').toLowerCase() === email)
+        if (!existing) {
+          return NextResponse.json({ ok: false, error: created.error.message }, { status: 400 })
+        }
+        user = existing
+      } else {
+        user = created.data.user
       }
-      user = created.data.user
     }
 
     await db.from('users').upsert(
@@ -74,19 +94,31 @@ export async function POST(req: NextRequest) {
         jackisa_user_id: String(profile.jackisa_user_id || ''),
         kyc_status: profile.verified ? 'verified' : 'unverified',
         kyc_level: profile.verified ? 'individual' : 'none',
+        kyc_verified_at: profile.verified ? new Date().toISOString() : null,
       },
       { onConflict: 'id' }
     )
 
-    const link = await db.auth.admin.generateLink({ type: 'magiclink', email: profile.email, options: { redirectTo } })
+    // Mint a one-time email OTP the client verifies with verifyOtp(). This is
+    // flow-independent: unlike the magic link (which relies on the project's
+    // PKCE/implicit setting and detectSessionInUrl racing the page), the token
+    // hash verifies the same way on any Supabase project.
+    const link = await db.auth.admin.generateLink({
+      type: 'magiclink',
+      email: profile.email,
+      options: { redirectTo },
+    })
     if (link.error) {
       return NextResponse.json({ ok: false, error: link.error.message }, { status: 400 })
     }
 
+    const props: any = link.data?.properties || {}
     return NextResponse.json({
       ok: true,
       email: profile.email,
-      magicLink: link.data?.properties?.action_link || null,
+      tokenHash: props.hashed_token || null,
+      otpType: 'email',
+      magicLink: props.action_link || null,
     })
   } catch (err: any) {
     return NextResponse.json({ ok: false, error: err?.message || 'Sign-in failed' }, { status: 500 })

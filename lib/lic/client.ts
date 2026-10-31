@@ -128,6 +128,59 @@ export const lic = {
     return call('/api/v1/auth/sso-exchange', { sso_token: ssoToken })
   },
 
+  // ---- Jackisa One: cross-platform benefits --------------------------------
+  /** What this plan unlocks on jackisa.com. */
+  jackisaBenefits(params: { tenantId?: string; email?: string }) {
+    return call('/api/v1/jackisa/benefits', { tenant_id: params.tenantId, email: params.email })
+  },
+  /** Push a tenant's tier to jackisa.com (usually automatic on licence change). */
+  jackisaSync(tenantId: string) {
+    return call('/api/v1/jackisa/sync', { tenant_id: tenantId })
+  },
+  /** Publish an office course as a jackisa.com store product. */
+  jackisaPublishCourse(params: { tenantId?: string; email?: string; title: string; description?: string; price?: string; categoryId?: number; storeName?: string }) {
+    return call('/api/v1/jackisa/publish-course', {
+      tenant_id: params.tenantId,
+      email: params.email,
+      title: params.title,
+      description: params.description,
+      price: params.price,
+      category_id: params.categoryId,
+      store_name: params.storeName,
+    })
+  },
+  /** Schedule a live meeting on jackisa.com. */
+  jackisaMeeting(params: { tenantId?: string; email?: string; title?: string; meetingId?: string }) {
+    return call('/api/v1/jackisa/meeting', {
+      tenant_id: params.tenantId,
+      email: params.email,
+      title: params.title,
+      meeting_id: params.meetingId,
+    })
+  },
+  /** Seat a team member on one of the plan's jackisa.com channels. */
+  jackisaMemberChannel(params: { tenantId?: string; email?: string; memberEmail: string; memberName?: string }) {
+    return call('/api/v1/jackisa/member-channel', {
+      tenant_id: params.tenantId,
+      email: params.email,
+      member_email: params.memberEmail,
+      member_name: params.memberName,
+    })
+  },
+  /** Pull store earnings earned on jackisa.com. */
+  jackisaStoreEarnings(params: { tenantId?: string; email?: string; limit?: number }) {
+    return call('/api/v1/jackisa/store-earnings', { tenant_id: params.tenantId, email: params.email, limit: params.limit })
+  },
+  /** Mirror a verification badge onto jackisa.com. */
+  jackisaVerification(params: { tenantId?: string; email?: string; badge: string; verified: boolean }) {
+    return call('/api/v1/jackisa/verification', {
+      tenant_id: params.tenantId,
+      email: params.email,
+      badge: params.badge,
+      verified: params.verified,
+    })
+  },
+
   /** Ask the hub to run one scheduled job (or all of them). */
   runCron(job?: string, all = false) {
     return call('/api/v1/cron/run', all ? { all: true } : { job })
@@ -175,6 +228,41 @@ export const lic = {
 
   kycAuto(params: { user_id: string; verified: boolean }) {
     return call('/api/v1/kyc/auto', params)
+  },
+
+  /** Notify guardians of a new mark: renders a PDF and sends it over WA/email. */
+  notifyMarks(params: {
+    tenant_id: string
+    company_name?: string
+    company_logo_url?: string
+    student: { id?: string; name: string; phone?: string; email?: string; guardian_phone?: string; guardian_email?: string }
+    module?: { code?: string; name?: string }
+    assessment: { kind?: string; day_number?: number | string; title?: string; marks_obtained?: number; max_marks?: number; grade?: string }
+    standing?: Record<string, any>
+    recipients?: { phones?: string[]; emails?: string[] }
+  }) {
+    return call('/api/v1/education/notify-marks', params)
+  },
+
+  /** Issue a full report card / transcript and deliver it. */
+  transcript(params: {
+    tenant_id: string
+    company_name?: string
+    company_logo_url?: string
+    student: { id?: string; name: string; phone?: string; email?: string; guardian_phone?: string; guardian_email?: string }
+    modules: Array<{ code?: string; name?: string; coursework?: number | null; exam?: number | null; total?: number | null; grade?: string }>
+    summary?: Record<string, any>
+    recipients?: { phones?: string[]; emails?: string[] }
+  }) {
+    return call('/api/v1/education/transcript', params)
+  },
+
+  /** Publish a student's contact details to the hub so documents can be sent. */
+  syncStudent(params: {
+    tenant_id: string
+    student: { id?: string; name: string; student_no?: string; phone?: string; email?: string; guardian_name?: string; guardian_phone?: string; guardian_email?: string }
+  }) {
+    return call('/api/v1/sync/student', params)
   },
 
   sendMail(params: { to: string | string[]; subject: string; html: string; template?: string; raw?: boolean }) {

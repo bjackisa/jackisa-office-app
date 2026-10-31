@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { getSessionContext } from '@/lib/company-context'
 import { supabase } from '@/lib/supabase'
+import { notifyStudent } from '@/lib/education/notify-client'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -68,6 +69,27 @@ export default function CourseworkPage() {
       marks_obtained: marks,
       recorded_by: userId,
     })
+
+    // Fire-and-forget: let the hub compute the standing and send the guardian a
+    // PDF over WhatsApp/email. A failure here must never block recording marks.
+    const ctx = await getSessionContext()
+    if (ctx?.companyId) {
+      const mod = modules.find((m) => m.id === form.module_id)
+      const day = days.find((d) => d.id === courseworkDayId)
+      notifyStudent({
+        companyId: ctx.companyId,
+        studentId: form.student_id,
+        kind: 'marks',
+        module: { code: mod?.module_code, name: mod?.module_name },
+        assessment: {
+          kind: 'coursework',
+          day_number: dayNumber,
+          title: day?.title || `Day ${dayNumber}`,
+          marks_obtained: marks,
+          max_marks: Number(day?.max_marks || 20),
+        },
+      })
+    }
 
     setForm({ module_id: '', student_id: '', day_number: '', marks_obtained: '' })
     await loadData()

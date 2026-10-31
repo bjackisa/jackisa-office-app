@@ -7,6 +7,7 @@ use Jackisa\Lic\App;
 use Jackisa\Lic\Http\Request;
 use Jackisa\Lic\Http\Response;
 use Jackisa\Lic\Middleware\Auth;
+use Jackisa\Lic\Service\JackisaBridgeService;
 use Jackisa\Lic\Service\LicenseService;
 use Jackisa\Lic\Service\TenantService;
 
@@ -15,6 +16,32 @@ use Jackisa\Lic\Service\TenantService;
  */
 final class LicenseController
 {
+    /**
+     * Push a tenant's resulting tier to jackisa.com so the plan's benefits apply
+     * on both platforms. Best-effort: a jackisa.com outage must never break a
+     * licence operation, so failures are logged and swallowed.
+     */
+    private static function pushEntitlements(?string $tenantId): void
+    {
+        if ($tenantId === null || $tenantId === '') {
+            return;
+        }
+        try {
+            JackisaBridgeService::syncEntitlements($tenantId);
+        } catch (\Throwable $e) {
+            App::instance()->log('warn', 'jackisa: entitlement push failed', [
+                'tenant' => $tenantId, 'error' => $e->getMessage(),
+            ]);
+        }
+    }
+
+    /** Resolve a licence key to its tenant id. */
+    private static function tenantForLicense(string $licenseKey): ?string
+    {
+        $row = App::instance()->one('SELECT tenant_id FROM licenses WHERE license_key = ?', [$licenseKey]);
+        return $row['tenant_id'] ?? null;
+    }
+
     /** POST /api/v1/office-license/issue */
     public static function issue(Request $request): void
     {
@@ -29,6 +56,7 @@ final class LicenseController
                 'interval_months' => $request->int('interval_months') ?: null,
                 'status'          => $request->string('status', 'active'),
             ]);
+            self::pushEntitlements($tenantId);
             Response::ok(['certificate' => $certificate]);
         } catch (\InvalidArgumentException $e) {
             Response::error('422', $e->getMessage(), 422);
@@ -75,6 +103,8 @@ final class LicenseController
 
         $result = LicenseService::validate($key, $usage, $request->ip());
         $result['badge'] = self::badgeFor($result['tenant_id'] ?? null);
+        // Keep jackisa.com's view of the plan current on every heartbeat.
+        self::pushEntitlements($result['tenant_id'] ?? null);
         Response::ok($result);
     }
 
@@ -82,7 +112,12 @@ final class LicenseController
     public static function revoke(Request $request): void
     {
         Auth::requireApiKey($request);
-        $ok = LicenseService::revoke($request->string('license_key'), $request->string('reason', 'Revoked by operator'));
+        $key = $request->string('license_key');
+        $tenantId = self::tenantForLicense($key);
+        $ok = LicenseService::revoke($key, $request->string('reason', 'Revoked by operator'));
+        if ($ok) {
+            self::pushEntitlements($tenantId);
+        }
         $ok ? Response::ok(['revoked' => true]) : Response::error('404', 'Licence not found', 404);
     }
 
@@ -90,7 +125,12 @@ final class LicenseController
     public static function suspend(Request $request): void
     {
         Auth::requireApiKey($request);
-        $ok = LicenseService::suspend($request->string('license_key'), $request->string('reason', 'Suspended'));
+        $key = $request->string('license_key');
+        $tenantId = self::tenantForLicense($key);
+        $ok = LicenseService::suspend($key, $request->string('reason', 'Suspended'));
+        if ($ok) {
+            self::pushEntitlements($tenantId);
+        }
         $ok ? Response::ok(['suspended' => true]) : Response::error('404', 'Licence not found', 404);
     }
 
@@ -106,6 +146,7 @@ final class LicenseController
             Response::error('404', 'Licence not found', 404);
         }
         $certificate = LicenseService::extend($lic['id'], $months, $request->string('plan_code') ?: null);
+        self::pushEntitlements($lic['tenant_id'] ?? null);
         Response::ok(['certificate' => $certificate]);
     }
 
@@ -141,6 +182,7 @@ final class LicenseController
             'ip'        => $request->ip(),
             'plan_code' => $request->string('plan_code') ?: null,
         ]);
+        self::pushEntitlements($tenantId);
         Response::ok($result);
     }
 

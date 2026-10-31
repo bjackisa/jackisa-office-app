@@ -64,11 +64,25 @@ function CallbackInner() {
           throw new Error(exJson.error || 'Could not complete sign-in')
         }
 
+        // Preferred: verify the one-time email token in place. This works on any
+        // Supabase project regardless of the magic-link/PKCE setting.
+        if (exJson.tokenHash && exJson.email) {
+          const { error: otpErr } = await supabase.auth.verifyOtp({
+            token_hash: exJson.tokenHash,
+            type: (exJson.otpType || 'email') as any,
+          })
+          if (!otpErr) {
+            await finalize()
+            return
+          }
+          // Fall through to the magic link if the token could not be verified.
+        }
+
         if (exJson.magicLink) {
           window.location.href = exJson.magicLink
           return
         }
-        await finalize()
+        throw new Error('Could not complete sign-in')
       } catch (err: any) {
         setError(err?.message || 'Sign-in failed')
       }

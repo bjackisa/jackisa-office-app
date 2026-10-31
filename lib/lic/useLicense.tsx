@@ -20,6 +20,9 @@ export interface LicenseState {
   isAdminRole: boolean
   trial: { active: boolean; endsAt: string | null; daysLeft: number | null } | null
   badge: { type: string; color: string; label: string } | null
+  companyVerified: boolean
+  userVerified: boolean
+  industry: string | null
   companyId: string | null
   refresh: () => Promise<void>
   can: (slug: string) => boolean
@@ -41,6 +44,9 @@ const defaultState: LicenseState = {
   isAdminRole: false,
   trial: null,
   badge: null,
+  companyVerified: false,
+  userVerified: false,
+  industry: null,
   companyId: null,
   refresh: async () => {},
   can: () => true,
@@ -60,6 +66,9 @@ function daysUntil(iso: string | null): number | null {
 export function LicenseProvider({
   companyId,
   companyKind,
+  industry,
+  companyVerified,
+  userKycStatus,
   employee,
   role,
   userId,
@@ -67,6 +76,9 @@ export function LicenseProvider({
 }: {
   companyId: string | null
   companyKind?: string | null
+  industry?: string | null
+  companyVerified?: boolean
+  userKycStatus?: string | null
   employee: any
   role: any
   userId: string | null
@@ -138,7 +150,14 @@ export function LicenseProvider({
               daysLeft: daysUntil(trialEnds),
             }
           : null,
-        badge: null,
+        badge: companyVerified
+          ? { type: 'company', color: 'gold', label: 'Verified company' }
+          : userKycStatus === 'verified'
+          ? { type: 'individual', color: 'blue', label: 'Verified' }
+          : null,
+        companyVerified: Boolean(companyVerified),
+        userVerified: userKycStatus === 'verified',
+        industry: industry || null,
         companyId,
         refresh: load,
         can: () => true,
@@ -147,7 +166,7 @@ export function LicenseProvider({
       console.error('[license] load failed', err)
       setState((s) => ({ ...s, loading: false, companyId }))
     }
-  }, [companyId, role?.id, employee?.position])
+  }, [companyId, role?.id, employee?.position, companyVerified, userKycStatus, industry])
 
   useEffect(() => {
     load()

@@ -191,55 +191,57 @@ export default function HomePage() {
         <div className="grid md:grid-cols-3 gap-5 max-w-5xl mx-auto stagger-children">
           {[
             {
-              name: 'Basic',
+              name: 'Starter',
               code: 'basic_1m',
               annualCode: 'basic_12m',
               price: 'UGX 25,000',
               period: 'per month',
               yearlyPrice: 'UGX 264,000/year',
-              description: 'Perfect for small teams',
+              description: 'Get organised and in control',
               features: [
-                'Up to 10 employees',
-                '5 GB storage',
-                'Basic accounting tools',
-                'HR management',
-                'Email support'
+                'Invoicing, expenses & receipts',
+                'Bookkeeping with a real ledger',
+                'Staff records & attendance',
+                'PAYE and VAT tracking',
+                'Mobile money collections',
+                'Email support',
               ]
             },
             {
-              name: 'Pro',
+              name: 'Growth',
               code: 'pro_1m',
               annualCode: 'pro_12m',
               price: 'UGX 75,000',
               period: 'per month',
               yearlyPrice: 'UGX 792,000/year',
-              description: 'For growing companies',
+              description: 'Run the whole business, not just the books',
               features: [
-                'Up to 100 employees',
-                '50 GB storage',
-                'All accounting tools',
-                'Advanced HR & Payroll',
-                'Education module',
-                'Priority support'
+                'Everything in Starter, plus:',
+                'Payroll that pays straight from your account',
+                'Performance & HR points',
+                'Sales, commissions & affiliates',
+                'School & education module',
+                'WhatsApp alerts and PDF reports',
+                'Priority support',
               ],
               featured: true
             },
             {
-              name: 'Platinum',
+              name: 'Enterprise',
               code: 'platinum_1m',
               annualCode: 'platinum_12m',
               price: 'UGX 150,000',
               period: 'per month',
               yearlyPrice: 'UGX 1,584,000/year',
-              description: 'For enterprises',
+              description: 'For funds, groups and serious scale',
               features: [
-                'Unlimited employees',
-                '500 GB storage',
-                'All features included',
-                'Advanced analytics',
-                'API access',
+                'Everything in Growth, plus:',
+                'Unit trusts, NAV & dividends',
+                'Income tax evaluator (URA-ready CSV)',
+                'KYC & gold verification badge',
+                'API access and custom integrations',
+                'Legal documents & CMS',
                 '24/7 dedicated support',
-                'Custom integrations'
               ]
             }
           ].map((plan) => (

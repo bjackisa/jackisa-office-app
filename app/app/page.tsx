@@ -3,6 +3,8 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/lib/hooks/useAuth'
+import { useLicense } from '@/lib/lic/useLicense'
+import { profileFor } from '@/lib/industries'
 import type { DashboardStats, ActivityLog } from '@/types'
 import { Card } from '@/components/ui/card'
 import Link from 'next/link'
@@ -29,6 +31,8 @@ import {
 
 export default function DashboardPage() {
   const { user, company } = useAuth()
+  const { industry, badge } = useLicense()
+  const profile = profileFor(industry)
   const [stats, setStats] = useState<DashboardStats>({
     totalEmployees: 0,
     activeSubscription: false,
@@ -191,6 +195,13 @@ export default function DashboardPage() {
     { label: 'Help Desk', desc: 'Support tickets', icon: Headphones, href: '/app/helpdesk', color: 'bg-rose-500' },
   ]
 
+  // Lead the quick-action strip with the actions this industry actually uses,
+  // then fall back to the generic set so the strip is never short.
+  const industryActions = profile.quickActions
+    .map((a, i) => ({ label: a.label, desc: 'Recommended', icon: [UserPlus, FileText, BarChart3][i % 3], href: a.href, color: ['bg-primary', 'bg-emerald-500', 'bg-amber-500'][i % 3] }))
+    .slice(0, 3)
+  const shownActions = [...industryActions, ...quickActions].slice(0, 6)
+
   const formatTimeAgo = (dateStr: string) => {
     const diff = Date.now() - new Date(dateStr).getTime()
     const mins = Math.floor(diff / 60000)
@@ -215,15 +226,15 @@ export default function DashboardPage() {
                 {greeting}, {userName || 'there'}
               </h1>
               <p className="text-muted-foreground text-sm mt-1.5">
-                Here&apos;s an overview of your business today.
+                {profile.tagline}
               </p>
             </div>
             <Link
-              href="/app/hr/employees"
+              href={profile.quickActions[0]?.href || '/app/hr/employees'}
               className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-primary text-white text-sm font-semibold hover:bg-primary/90 transition-all duration-200 shadow-glow-primary whitespace-nowrap self-start"
             >
               <UserPlus className="w-4 h-4" />
-              Add Team Member
+              {profile.quickActions[0]?.label || 'Add Team Member'}
             </Link>
           </div>
         </div>
@@ -261,7 +272,7 @@ export default function DashboardPage() {
           <h2 className="text-sm font-semibold text-foreground">Quick Actions</h2>
         </div>
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 stagger-children">
-          {quickActions.map((action) => (
+          {shownActions.map((action) => (
             <Link key={action.label} href={action.href}>
               <div className="relative p-4 rounded-2xl border border-border/40 hover:border-primary/20 hover:shadow-soft bg-card transition-all duration-300 cursor-pointer group text-center">
                 <div className={`w-10 h-10 rounded-xl ${action.color} flex items-center justify-center mx-auto mb-2.5 shadow-sm group-hover:scale-105 transition-transform duration-300`}>

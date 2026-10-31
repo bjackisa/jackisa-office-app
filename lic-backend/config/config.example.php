@@ -90,6 +90,14 @@ return [
         'binary'           => '',
     ],
 
+    // Generated documents (report cards, receipts, tax packs). Files live
+    // outside the web root and are served from documents_url, which the web
+    // server maps onto storage/documents.
+    'storage' => [
+        'documents_path' => '',
+        'documents_url'  => 'https://lic.jackisa.com/documents',
+    ],
+
     // CORS origins allowed to call this API from a browser.
     'cors' => [
         'allowed_origins' => [

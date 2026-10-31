@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { getSessionContext } from '@/lib/company-context'
 import { supabase } from '@/lib/supabase'
+import { notifyStudent } from '@/lib/education/notify-client'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -58,6 +59,23 @@ export default function ExamsPage() {
       marks_obtained: Number(form.marks_obtained),
       recorded_by: userId,
     })
+
+    const ctx = await getSessionContext()
+    if (ctx?.companyId) {
+      const mod = modules.find((m) => m.id === form.module_id)
+      notifyStudent({
+        companyId: ctx.companyId,
+        studentId: form.student_id,
+        kind: 'marks',
+        module: { code: mod?.module_code, name: mod?.module_name },
+        assessment: {
+          kind: 'exam',
+          title: 'Final exam',
+          marks_obtained: Number(form.marks_obtained),
+          max_marks: 100,
+        },
+      })
+    }
 
     setForm({ module_id: '', student_id: '', exam_date: '', marks_obtained: '' })
     await loadData()

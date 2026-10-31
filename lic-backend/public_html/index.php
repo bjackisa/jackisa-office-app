@@ -12,6 +12,8 @@ use Jackisa\Lic\App;
 use Jackisa\Lic\Controller\AuthController;
 use Jackisa\Lic\Controller\CatalogController;
 use Jackisa\Lic\Controller\CronController;
+use Jackisa\Lic\Controller\EducationController;
+use Jackisa\Lic\Controller\JackisaController;
 use Jackisa\Lic\Controller\KycController;
 use Jackisa\Lic\Controller\LicenseController;
 use Jackisa\Lic\Controller\MessagingController;
@@ -101,6 +103,15 @@ $router->post('/api/v1/otp/verify',   fn(Request $r) => MessagingController::otp
 $router->post('/api/v1/auth/jackisa',      fn(Request $r) => AuthController::jackisa($r));
 $router->post('/api/v1/auth/sso-exchange', fn(Request $r) => AuthController::ssoExchange($r));
 
+// ---- Jackisa One: cross-platform benefits (office <-> jackisa.com) ---------
+$router->any('/api/v1/jackisa/benefits',       fn(Request $r) => JackisaController::benefits($r));
+$router->post('/api/v1/jackisa/sync',          fn(Request $r) => JackisaController::sync($r));
+$router->post('/api/v1/jackisa/publish-course', fn(Request $r) => JackisaController::publishCourse($r));
+$router->post('/api/v1/jackisa/meeting',       fn(Request $r) => JackisaController::meeting($r));
+$router->post('/api/v1/jackisa/member-channel', fn(Request $r) => JackisaController::memberChannel($r));
+$router->post('/api/v1/jackisa/store-earnings', fn(Request $r) => JackisaController::storeEarnings($r));
+$router->post('/api/v1/jackisa/verification',  fn(Request $r) => JackisaController::verification($r));
+
 // ---- Reports (compute + PDF delivery) -------------------------------------
 $router->post('/api/v1/reports/income-tax',     fn(Request $r) => ReportController::incomeTax($r));
 $router->post('/api/v1/reports/income-tax/csv', fn(Request $r) => ReportController::incomeTaxCsv($r));
@@ -114,6 +125,10 @@ $router->post('/api/v1/kyc/reject',   fn(Request $r) => KycController::reject($r
 $router->get('/api/v1/kyc/badge',     fn(Request $r) => KycController::badge($r));
 $router->post('/api/v1/kyc/auto',     fn(Request $r) => KycController::auto($r));
 
+// ---- Education: marks + transcript documents, delivered over WA/email -------
+$router->post('/api/v1/education/notify-marks', fn(Request $r) => EducationController::notifyMarks($r));
+$router->post('/api/v1/education/transcript',   fn(Request $r) => EducationController::transcript($r));
+
 // ---- Admin: package/feature catalogue (API-key protected) ------------------
 $router->post('/api/v1/admin/plans',    fn(Request $r) => CatalogController::plans($r));
 $router->post('/api/v1/admin/features', fn(Request $r) => CatalogController::features($r));
@@ -122,8 +137,9 @@ $router->post('/api/v1/admin/features', fn(Request $r) => CatalogController::fea
 $router->post('/api/v1/cron/run', fn(Request $r) => CronController::run($r));
 
 // ---- Sync -----------------------------------------------------------------
-$router->post('/api/v1/sync/push',   fn(Request $r) => SyncController::push($r));
-$router->post('/api/v1/sync/pull',   fn(Request $r) => SyncController::pull($r));
-$router->get('/api/v1/sync/health',  fn(Request $r) => SyncController::health($r));
+$router->post('/api/v1/sync/push',    fn(Request $r) => SyncController::push($r));
+$router->post('/api/v1/sync/pull',    fn(Request $r) => SyncController::pull($r));
+$router->post('/api/v1/sync/student', fn(Request $r) => SyncController::student($r));
+$router->get('/api/v1/sync/health',   fn(Request $r) => SyncController::health($r));
 
 $router->dispatch($request);

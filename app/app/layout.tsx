@@ -50,6 +50,9 @@ export default function AppLayout({
     <LicenseProvider
       companyId={company?.id ?? null}
       companyKind={(company as any)?.kind ?? null}
+      industry={(company as any)?.industry ?? null}
+      companyVerified={Boolean((company as any)?.verified)}
+      userKycStatus={(user as any)?.kyc_status ?? null}
       employee={employee}
       role={role}
       userId={user?.id ?? null}

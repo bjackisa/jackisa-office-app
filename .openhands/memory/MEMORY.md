@@ -27,6 +27,16 @@
   else office signs office→lic with an empty secret. Only the user can set it.
 - Join/invite flow is already implemented: `/auth/join`, `app/api/companies/members`,
   `app/api/students/link`.
+- **Education documents run on lic, not in the app.** The office app is serverless
+  (no headless browser, no writable FS), so marks/report cards are rendered and sent
+  by lic: `POST /api/v1/education/{notify-marks,transcript}` + `POST /api/v1/sync/student`.
+  lic `Service/DocumentService.php` renders HTML→PDF (`PdfService::fromHtml`), stores
+  under `app/storage/documents`, registers in `documents`, and serves it via the
+  `public_html/documents` symlink. Office side: `lib/education/standings.ts`
+  (50/50 coursework/exam, matches Grades), `app/api/education/{notify,student}`.
+  Guardian phone/email on `students` (additive `scripts/education-documents-v1.sql`,
+  also `document_deliveries`). Deploy lic by SFTP to `~/domains/lic.jackisa.com/app/`
+  with `~/ops/upload.py`; run `php bin/migrate.php`. See `2026-10-30.md` for detail.
 
 ## Articles (Oct 2026)
 - Articles broke three ways (list 500, read 500, no mobile articles). Full detail

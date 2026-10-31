@@ -8,12 +8,13 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Spinner } from '@/components/ui/spinner'
 import { ContinueWithJackisa } from '@/components/continue-with-jackisa'
+import { INDUSTRIES } from '@/lib/industries'
 import { AlertCircle, Building2, Lock, Mail, User } from 'lucide-react'
 
 const TIERS = [
-  { value: 'basic', label: 'Basic - UGX 25,000/mo' },
-  { value: 'pro', label: 'Pro - UGX 75,000/mo' },
-  { value: 'platinum', label: 'Platinum - UGX 150,000/mo' },
+  { value: 'basic', label: 'Starter', price: 'UGX 25,000/mo', hint: 'Books, staff & invoicing' },
+  { value: 'pro', label: 'Growth', price: 'UGX 75,000/mo', hint: 'Payroll, sales & school' },
+  { value: 'platinum', label: 'Enterprise', price: 'UGX 150,000/mo', hint: 'Funds, tax & API' },
 ]
 
 /** plan code (e.g. pro_12m) -> tier + interval */
@@ -143,6 +144,7 @@ function RegisterInner() {
       try {
         const existing = localStorage.getItem('pendingRegistration')
         const base = existing ? JSON.parse(existing) : {}
+        const industryLabel = INDUSTRIES.find((i) => i.slug === industry)?.label || industry
         const pending = {
           ...base,
           fullName,
@@ -151,6 +153,8 @@ function RegisterInner() {
           planCode,
           intervalMonths,
           companyKind,
+          industry,
+          industryLabel,
           couponCode: couponCode.trim().toUpperCase() || null,
         }
         localStorage.setItem('pendingRegistration', JSON.stringify(pending))
@@ -159,7 +163,7 @@ function RegisterInner() {
         fetch('/api/signup-intent', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email, planCode, intervalMonths, tier: packageTier, companyName, companyEmail, industry, companyKind, intent: companyKind === 'institution' ? 'create_institution' : 'create_company' }),
+          body: JSON.stringify({ email, planCode, intervalMonths, tier: packageTier, companyName, companyEmail, industry: industryLabel, industrySlug: industry, companyKind, intent: companyKind === 'institution' ? 'create_institution' : 'create_company' }),
         }).catch(() => {})
       } catch {}
 
@@ -246,7 +250,26 @@ function RegisterInner() {
 
               <div>
                 <label htmlFor="industry" className="block text-sm font-semibold text-foreground mb-2">Industry</label>
-                <Input id="industry" placeholder="e.g., Technology, Finance, Education" value={industry} onChange={(e) => setIndustry(e.target.value)} required />
+                <select
+                  id="industry"
+                  value={industry}
+                  onChange={(e) => {
+                    const slug = e.target.value
+                    setIndustry(slug)
+                    const profile = INDUSTRIES.find((i) => i.slug === slug)
+                    if (profile) setCompanyKind(profile.kind)
+                  }}
+                  required
+                  className="w-full h-10 rounded-xl border border-border/60 bg-background px-3 text-sm text-foreground outline-none focus:border-primary/40"
+                >
+                  <option value="">Select your industry</option>
+                  {INDUSTRIES.map((i) => (
+                    <option key={i.slug} value={i.slug}>{i.label}</option>
+                  ))}
+                </select>
+                <p className="text-xs text-muted-foreground/60 mt-1.5">
+                  {INDUSTRIES.find((i) => i.slug === industry)?.tagline || 'We tailor your workspace to how you work.'}
+                </p>
               </div>
 
               <div>
@@ -308,8 +331,9 @@ function RegisterInner() {
                           : 'border-border/60 text-muted-foreground hover:border-border'
                       }`}
                     >
-                      <span className="block capitalize">{tier.value}</span>
-                      <span className="block text-[10px] text-muted-foreground/70 mt-0.5">{tier.label.split(' - ')[1]}</span>
+                      <span className="block font-semibold">{tier.label}</span>
+                      <span className="block text-[10px] text-muted-foreground/70 mt-0.5">{tier.price}</span>
+                      <span className="block text-[9px] text-muted-foreground/50 mt-0.5 leading-tight">{tier.hint}</span>
                     </button>
                   ))}
                 </div>

@@ -16,6 +16,7 @@ export default function LicensePage() {
   const [company, setCompany] = useState<any | null>(null)
   const [validations, setValidations] = useState<any[]>([])
   const [kyc, setKyc] = useState<any | null>(null)
+  const [jackisa, setJackisa] = useState<any | null>(null)
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
 
@@ -25,14 +26,24 @@ export default function LicensePage() {
       if (!ctx?.companyId) return
       setCompanyId(ctx.companyId)
 
-      const [{ data: co }, { data: vals }, { data: kycRow }] = await Promise.all([
+      const [{ data: co }, { data: vals }, kycJson] = await Promise.all([
         supabase.from('companies').select('*').eq('id', ctx.companyId).maybeSingle(),
         supabase.from('license_validations').select('*').eq('company_id', ctx.companyId).order('checked_at', { ascending: false }).limit(10),
-        supabase.from('kyc_verifications').select('*').eq('subject_type', 'company').eq('subject_id', ctx.companyId).maybeSingle(),
+        // KYC state is read through the server so the browser never touches the
+        // verification table directly.
+        fetch(`/api/kyc?companyId=${encodeURIComponent(ctx.companyId)}&userId=${encodeURIComponent(ctx.userId)}`)
+          .then((r) => r.json())
+          .catch(() => null),
       ])
       setCompany(co)
       setValidations(vals || [])
-      setKyc(kycRow)
+      setKyc(kycJson?.company || null)
+
+      // Jackisa One: what this plan unlocks on jackisa.com.
+      fetch(`/api/jackisa?companyId=${encodeURIComponent(ctx.companyId)}`)
+        .then((r) => r.json())
+        .then((j) => { if (j?.ok) setJackisa(j.data) })
+        .catch(() => {})
     }
     load()
   }, [])
@@ -64,11 +75,14 @@ export default function LicensePage() {
     setBusy(true)
     setMessage(null)
     try {
-      const { error } = await supabase.from('kyc_verifications').upsert(
-        { subject_type: 'company', subject_id: companyId, level: 'company', status: 'pending', source: 'office' },
-        { onConflict: 'subject_type,subject_id' }
-      )
-      if (error) throw error
+      const res = await fetch('/api/kyc', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'request_company', companyId }),
+      })
+      const json = await res.json()
+      if (!json.ok) throw new Error(json.error || 'Could not request verification')
+      setKyc({ status: 'pending', verified: false })
       setMessage('Company verification requested. We will email you when it is reviewed.')
     } catch (e: any) {
       setMessage(e?.message || 'Could not request verification')
@@ -147,6 +161,34 @@ export default function LicensePage() {
           )}
         </Card>
       </div>
+
+      {/* Jackisa One — cross-platform benefits */}
+      <Card className="overflow-hidden">
+        <div className="px-5 py-4 border-b border-border/30 flex items-center justify-between">
+          <div>
+            <h2 className="text-sm font-semibold text-foreground">Jackisa One benefits</h2>
+            <p className="text-xs text-muted-foreground mt-0.5">What your plan unlocks on jackisa.com — your courses, store, and live minutes carry across.</p>
+          </div>
+          {jackisa?.entitlement?.tier && (
+            <span className="text-xs font-semibold capitalize px-2.5 py-1 rounded-full bg-primary/10 text-primary">{jackisa.entitlement.tier}</span>
+          )}
+        </div>
+        <div className="p-5">
+          {jackisa?.benefits?.length ? (
+            <ul className="grid sm:grid-cols-2 gap-2.5">
+              {jackisa.benefits.map((b: string) => (
+                <li key={b} className="flex items-center gap-2 text-sm text-foreground">
+                  <BadgeCheck className="w-4 h-4 text-emerald-500 shrink-0" /> {b}
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="text-sm text-muted-foreground">
+              Link your Jackisa account to carry this plan's benefits to jackisa.com. Courses you publish here appear in your Jackisa store.
+            </p>
+          )}
+        </div>
+      </Card>
 
       {/* Certificate */}
       <Card className="overflow-hidden">

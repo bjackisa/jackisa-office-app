@@ -64,6 +64,9 @@ final class SyncController
                     case 'kyc_verified_tenant':
                         TenantService::markCompanyVerified((string) $payload['tenant_id'], $payload);
                         break;
+                    case 'student':
+                        self::upsertStudent($payload);
+                        break;
                     case 'subscription':
                         self::applySubscription($payload);
                         break;
@@ -81,6 +84,19 @@ final class SyncController
         }
 
         Response::ok(['applied' => $applied, 'skipped' => $skipped, 'errors' => $errors]);
+    }
+
+    /** POST /api/v1/sync/student — publish one student's contact details. */
+    public static function student(Request $request): void
+    {
+        Auth::requirePeer($request);
+        $student = $request->input('student');
+        if (!is_array($student)) {
+            Response::error('422', 'student is required', 422);
+        }
+        $student['tenant_id'] = $request->string('tenant_id');
+        self::upsertStudent($student);
+        Response::ok(['ok' => true]);
     }
 
     /** POST /api/v1/sync/pull — entities changed since `since` (ISO time). */
@@ -142,6 +158,45 @@ final class SyncController
                 $payload['current_period_end'] ?? date('Y-m-d H:i:s', strtotime('+1 month')),
                 (int) ($payload['cancel_at_period_end'] ?? 0),
             ]
+        );
+    }
+
+    /** @param array<string,mixed> $payload */
+    private static function upsertStudent(array $payload): void
+    {
+        $app = App::instance();
+        $externalId = (string) ($payload['external_id'] ?? $payload['id'] ?? '');
+        $tenantId = (string) ($payload['tenant_id'] ?? '');
+        if ($externalId === '') {
+            throw new \InvalidArgumentException('student needs an external_id');
+        }
+        $existing = $app->one(
+            'SELECT id FROM students WHERE tenant_id = ? AND external_id = ? LIMIT 1',
+            [$tenantId, $externalId]
+        );
+        $params = [
+            $tenantId,
+            $externalId,
+            $payload['name'] ?? null,
+            $payload['student_no'] ?? null,
+            $payload['phone'] ?? null,
+            $payload['email'] ?? null,
+            $payload['guardian_name'] ?? null,
+            $payload['guardian_phone'] ?? null,
+            $payload['guardian_email'] ?? null,
+        ];
+        if ($existing !== null) {
+            $app->run(
+                'UPDATE students SET tenant_id=?, external_id=?, name=?, student_no=?, phone=?, email=?,
+                   guardian_name=?, guardian_phone=?, guardian_email=?, updated_at=NOW() WHERE id=?',
+                array_merge($params, [$existing['id']])
+            );
+            return;
+        }
+        $app->run(
+            'INSERT INTO students (id, tenant_id, external_id, name, student_no, phone, email, guardian_name, guardian_phone, guardian_email)
+             VALUES (?,?,?,?,?,?,?,?,?,?)',
+            array_merge([\Jackisa\Lic\Support\Ids::uuid()], $params)
         );
     }
 
