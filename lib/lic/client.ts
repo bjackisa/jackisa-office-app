@@ -172,6 +172,35 @@ export const lic = {
     return call('/api/v1/jpesa-payments/history', { tenant_id: tenantId, limit })
   },
 
+  /** Start a payout (money OUT: salary, vendor, refund) via the JPesa rail. */
+  payout(params: {
+    tenant_id: string
+    user_id?: string
+    amount: number
+    msisdn: string
+    module?: string
+    module_ref_id?: string
+    payee_type?: string
+    payee?: Record<string, any>
+    payee_name?: string
+    idempotency_key?: string
+    description?: string
+  }) {
+    return call('/api/v1/jpesa-payments/payout', params)
+  },
+
+  payoutStatus(params: { payout_id?: string; payment_id?: string }) {
+    return call('/api/v1/jpesa-payments/payout-status', params)
+  },
+
+  payoutHistory(tenantId: string, limit = 20) {
+    return call('/api/v1/jpesa-payments/payout-history', { tenant_id: tenantId, limit })
+  },
+
+  paymentChannels() {
+    return call('/api/v1/jpesa-payments/channels', {})
+  },
+
   ssoJackisa(accessToken: string) {
     return call('/api/v1/auth/jackisa', { access_token: accessToken })
   },

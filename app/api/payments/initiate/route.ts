@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { initiatePayment } from '@/lib/payment-gateway'
 import { collectViaJpesa } from '@/lib/lic/collections'
+import { payoutViaJpesa } from '@/lib/lic/payouts'
 import { getCaller } from '@/lib/lic/serverAuth'
 import { hitIp } from '@/lib/security/rate-limit'
 
@@ -13,8 +14,10 @@ export const dynamic = 'force-dynamic'
  *   * direction = 'collection'  -> JPesa only (lic /api/v1/jpesa-payments). No
  *     other rail is offered for money coming in, so subscription, invoice,
  *     sales, unit-trust and fee collections all settle through JPesa.
- *   * direction = 'disbursement' -> the office payout rail (mobile money /
- *     cash). Payouts are a separate concern from collections.
+ *   * direction = 'disbursement' -> the JPesa payout rail (lic
+ *     /api/v1/jpesa-payments/payout). Salaries, vendor payments and refunds all
+ *     leave the company account through the hub, which verifies every debit
+ *     with JPesa before it settles.
  */
 export async function POST(req: NextRequest) {
   const limited = hitIp(req, 'payments-initiate', { windowSeconds: 60, max: 60 })
@@ -28,9 +31,9 @@ export async function POST(req: NextRequest) {
   try {
     const body = await req.json()
     const direction = String(body?.direction || 'collection')
+    const caller = await getCaller(req)
 
     if (direction === 'collection') {
-      const caller = await getCaller(req)
       const result = await collectViaJpesa({
         companyId: String(body?.companyId || ''),
         userId: caller?.id || body?.initiatedBy,
@@ -62,9 +65,43 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    // Disbursements keep the office payout rail.
-    const result = await initiatePayment(body)
-    return NextResponse.json(result, { status: result.success ? 200 : 400 })
+    // Disbursements: money out. Cash / internal transfers are recorded locally;
+    // every mobile-money payout leaves through the JPesa debit rail.
+    const method = String(body?.paymentMethod || 'jackisa_pay')
+    if (method === 'cash' || method === 'internal_transfer') {
+      const result = await initiatePayment(body)
+      return NextResponse.json(result, { status: result.success ? 200 : 400 })
+    }
+
+    const result = await payoutViaJpesa({
+      companyId: String(body?.companyId || ''),
+      userId: caller?.id || body?.initiatedBy,
+      module: String(body?.module || 'payroll'),
+      moduleReferenceId: body?.moduleReferenceId,
+      moduleReferenceType: body?.moduleReferenceType,
+      amount: Number(body?.amount || 0),
+      msisdn: String(body?.msisdn || body?.recipientPhone || ''),
+      currency: body?.currency,
+      description: body?.description,
+      payee: body?.payee || body?.metadata,
+      payeeType: body?.payeeType,
+      idempotencyKey: body?.idempotencyKey,
+      metadata: body?.metadata,
+    })
+    return NextResponse.json(
+      {
+        success: result.success,
+        paymentId: result.paymentId,
+        payoutId: result.payoutId,
+        ourReference: result.merchantRef,
+        merchantRef: result.merchantRef,
+        status: result.status,
+        message: result.message,
+        provider: 'jpesa',
+        direction: 'disbursement',
+      },
+      { status: result.success ? 200 : 400 }
+    )
   } catch (err: any) {
     return NextResponse.json(
       { success: false, message: err?.message || 'Failed to initiate payment' },

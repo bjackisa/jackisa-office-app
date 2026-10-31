@@ -141,6 +141,75 @@ final class PaymentController
                 ['code' => 'mtn_mobile_money', 'label' => 'MTN Mobile Money', 'currencies' => ['UGX'], 'enabled' => true, 'rail' => 'jpesa'],
                 ['code' => 'airtel_money', 'label' => 'Airtel Money', 'currencies' => ['UGX'], 'enabled' => true, 'rail' => 'jpesa'],
             ],
+            'directions' => [
+                ['code' => 'credit', 'label' => 'Collect (money in)'],
+                ['code' => 'debit', 'label' => 'Payout (money out)'],
+            ],
         ]);
+    }
+
+    /** POST /api/v1/jpesa-payments/payout — pay a salary/vendor/refund out. */
+    public static function payout(Request $request): void
+    {
+        Auth::requirePeer($request);
+        try {
+            $result = PaymentService::initiatePayout([
+                'tenant_id'       => $request->string('tenant_id'),
+                'user_id'         => $request->string('user_id') ?: null,
+                'amount'          => $request->float('amount'),
+                'msisdn'          => $request->string('msisdn'),
+                'module'          => $request->string('module', 'payslip'),
+                'module_ref_id'   => $request->string('module_ref_id') ?: null,
+                'payee_type'      => $request->string('payee_type', 'employee'),
+                'payee'           => $request->array('payee'),
+                'payee_name'      => $request->string('payee_name') ?: null,
+                'idempotency_key' => $request->string('idempotency_key') ?: null,
+                'description'     => $request->string('description', 'Jackisa Office payout'),
+            ]);
+            Response::ok($result, $result['success'] ? '200' : '400');
+        } catch (\InvalidArgumentException $e) {
+            Response::error('422', $e->getMessage(), 422);
+        }
+    }
+
+    /** POST /api/v1/jpesa-payments/payout-status */
+    public static function payoutStatus(Request $request): void
+    {
+        Auth::requirePeer($request);
+        $app = App::instance();
+        $payoutId = $request->string('payout_id');
+        $paymentId = $request->string('payment_id');
+        $payout = $payoutId !== ''
+            ? $app->one('SELECT * FROM payout_requests WHERE id = ?', [$payoutId])
+            : ($paymentId !== '' ? $app->one('SELECT * FROM payout_requests WHERE payment_id = ?', [$paymentId]) : null);
+        if ($payout === null) {
+            Response::error('404', 'Payout not found', 404);
+        }
+
+        $payment = $app->one('SELECT * FROM payments WHERE id = ?', [$payout['payment_id']]);
+        if ($payment !== null && in_array($payment['status'], ['pending', 'processing'], true)) {
+            $payment = PaymentService::reconcilePayout($payment);
+            $payout = $app->one('SELECT * FROM payout_requests WHERE id = ?', [$payout['id']]);
+        }
+
+        Response::ok([
+            'payout_id'      => $payout['id'],
+            'payment_id'     => $payout['payment_id'],
+            'status'         => $payout['status'],
+            'amount'         => (float) $payout['amount'],
+            'currency'       => $payout['currency'],
+            'provider_tid'   => $payout['provider_tid'],
+            'provider_message' => $payout['provider_message'],
+            'module'         => $payout['module'],
+            'module_ref_id'  => $payout['module_ref_id'],
+        ]);
+    }
+
+    /** POST /api/v1/jpesa-payments/payout-history */
+    public static function payoutHistory(Request $request): void
+    {
+        Auth::requirePeer($request);
+        $tenantId = $request->string('tenant_id') ?: null;
+        Response::ok(['payouts' => PaymentService::payoutHistory($tenantId, $request->int('limit', 20))]);
     }
 }

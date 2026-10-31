@@ -303,6 +303,202 @@ final class PaymentService
     }
 
     /**
+     * Start a payout (money OUT: salaries, refunds, vendor payments).
+     *
+     * A payout is a JPesa DEBIT. Like a collection it is a two-step handshake:
+     * JPesa confirms the debit, then we settle. The idempotency key makes a
+     * retried request safe — an employee is never paid twice for one payslip.
+     *
+     * @return array<string,mixed>
+     */
+    public static function initiatePayout(array $params): array
+    {
+        $app = App::instance();
+        $currency = (string) $app->config('jpesa.currency', 'UGX');
+        $amount = round((float) ($params['amount'] ?? 0), 2);
+        if ($amount <= 0 || $amount > 10000000) {
+            throw new \InvalidArgumentException('Enter a valid amount.');
+        }
+
+        $tenantId = (string) ($params['tenant_id'] ?? '');
+        if ($tenantId === '') {
+            throw new \InvalidArgumentException('tenant_id is required.');
+        }
+
+        $msisdn = self::normalizeMsisdn((string) ($params['msisdn'] ?? ''));
+        if ($msisdn === null) {
+            throw new \InvalidArgumentException('Enter a valid Uganda or Kenya mobile number.');
+        }
+
+        $idem = (string) ($params['idempotency_key'] ?? '');
+        if ($idem === '') {
+            $idem = 'po-' . $tenantId . '-' . ($params['module_ref_id'] ?? '') . '-' . date('Ymd');
+        }
+
+        // Idempotency: return the existing payout rather than starting a second.
+        $existing = $app->one(
+            'SELECT * FROM payout_requests WHERE tenant_id = ? AND idempotency_key = ?',
+            [$tenantId, $idem]
+        );
+        if ($existing !== null) {
+            return [
+                'success'      => in_array($existing['status'], ['pending', 'processing', 'paid'], true),
+                'duplicate'    => true,
+                'payout_id'    => $existing['id'],
+                'payment_id'   => $existing['payment_id'],
+                'status'       => $existing['status'],
+                'provider_tid' => $existing['provider_tid'],
+                'message'      => 'This payout was already requested.',
+            ];
+        }
+
+        $merchantRef = 'PAY-' . strtoupper(bin2hex(random_bytes(6)));
+        $paymentId = Ids::uuid();
+        $payoutId = Ids::uuid();
+        $payee = is_array($params['payee'] ?? null) ? $params['payee'] : ['name' => (string) ($params['payee_name'] ?? '')];
+
+        $app->run(
+            'INSERT INTO payments
+              (id, tenant_id, user_id, purpose, channel, direction, provider, amount, charged_amount, fee,
+               currency, msisdn, plan_code, merchant_ref, status, raw_request, payee)
+             VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
+            [
+                $paymentId, $tenantId, $params['user_id'] ?? null, 'payout',
+                'jpesa', 'debit', 'jpesa',
+                $amount, $amount, 0,
+                $currency, $msisdn, null, $merchantRef, 'pending',
+                json_encode(['module' => $params['module'] ?? 'payslip', 'module_ref_id' => $params['module_ref_id'] ?? null]),
+                json_encode($payee),
+            ]
+        );
+
+        $app->run(
+            'INSERT INTO payout_requests
+              (id, tenant_id, payment_id, idempotency_key, module, module_ref_id, payee_type, payee, amount, currency, status, provider, created_by)
+             VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)',
+            [
+                $payoutId, $tenantId, $paymentId, $idem,
+                (string) ($params['module'] ?? 'payslip'),
+                $params['module_ref_id'] ?? null,
+                in_array($params['payee_type'] ?? 'employee', ['employee', 'vendor', 'refund', 'other'], true) ? $params['payee_type'] : 'employee',
+                json_encode($payee), $amount, $currency, 'pending', 'jpesa',
+                $params['user_id'] ?? null,
+            ]
+        );
+
+        $callbackUrl = rtrim((string) $app->config('app.base_url', 'https://lic.jackisa.com'), '/')
+            . '/api/v1/jpesa-payments/callback';
+
+        $result = self::jpesaRequest('debit', [
+            'mobile'      => $msisdn,
+            'amount'      => number_format($amount, 2, '.', ''),
+            'callback'    => $callbackUrl,
+            'tx'          => $merchantRef,
+            'description' => $params['description'] ?? 'Jackisa Office payout',
+        ]);
+
+        if (empty($result['tid']) || strtolower((string) ($result['api_status'] ?? '')) !== 'success') {
+            $msg = substr((string) ($result['msg'] ?? 'JPesa rejected the payout request'), 0, 500);
+            $app->run("UPDATE payments SET status = 'failed', provider_message = ?, raw_response = ?, updated_at = NOW() WHERE id = ?", [$msg, json_encode($result), $paymentId]);
+            $app->run("UPDATE payout_requests SET status = 'failed', provider_message = ?, updated_at = NOW() WHERE id = ?", [$msg, $payoutId]);
+            return [
+                'success' => false,
+                'payout_id' => $payoutId,
+                'payment_id' => $paymentId,
+                'merchant_ref' => $merchantRef,
+                'message' => (string) ($result['msg'] ?? 'JPesa rejected the payout request.'),
+            ];
+        }
+
+        $app->run("UPDATE payments SET status = 'processing', provider_tid = ?, provider_status = ?, raw_response = ?, updated_at = NOW() WHERE id = ?", [(string) $result['tid'], (string) ($result['api_status'] ?? 'pending'), json_encode($result), $paymentId]);
+        $app->run("UPDATE payout_requests SET status = 'processing', provider_tid = ?, updated_at = NOW() WHERE id = ?", [(string) $result['tid'], $payoutId]);
+
+        return [
+            'success'      => true,
+            'payout_id'    => $payoutId,
+            'payment_id'   => $paymentId,
+            'merchant_ref' => $merchantRef,
+            'transaction_id' => (string) $result['tid'],
+            'amount'       => $amount,
+            'currency'     => $currency,
+            'status'       => 'processing',
+            'message'      => 'Payout submitted. The recipient will receive it once JPesa confirms.',
+        ];
+    }
+
+    /**
+     * Verify one payout with JPesa and settle it if paid. Mirrors reconcile().
+     *
+     * @return array<string,mixed>
+     */
+    public static function reconcilePayout(array $payment, bool $force = false): array
+    {
+        $app = App::instance();
+        if (in_array($payment['status'], ['paid', 'failed', 'cancelled', 'expired'], true)) {
+            return $payment;
+        }
+
+        $now = time();
+        $attempts = (int) $payment['reconcile_attempts'];
+        $maxAttempts = 7;
+        $lastChecked = $payment['last_checked_at'] ? strtotime((string) $payment['last_checked_at']) : 0;
+        $retryAfter = min(900, 60 * (1 << min($attempts, 20)));
+        if (!$force && $lastChecked > 0 && $lastChecked + $retryAfter > $now) {
+            return $payment;
+        }
+        if ($attempts >= $maxAttempts) {
+            return $payment;
+        }
+        $app->run('UPDATE payments SET last_checked_at = NOW(), reconcile_attempts = reconcile_attempts + 1 WHERE id = ?', [$payment['id']]);
+        if (empty($payment['provider_tid'])) {
+            return $payment;
+        }
+
+        $result = self::jpesaRequest('info', ['tid' => (string) $payment['provider_tid']]);
+        $apiStatus = strtolower(trim((string) ($result['api_status'] ?? $result['APIStatus'] ?? '')));
+        $providerStatus = strtolower(trim((string) ($result['status'] ?? $result['transaction_status'] ?? '')));
+
+        $app->run(
+            'UPDATE payments SET provider_status = ?, provider_message = ?, raw_response = ?, updated_at = NOW() WHERE id = ?',
+            [substr($providerStatus, 0, 60), substr((string) ($result['msg'] ?? $result['message'] ?? ''), 0, 500), json_encode($result), $payment['id']]
+        );
+
+        if (in_array($providerStatus, self::FAILED_STATUSES, true)) {
+            $app->run("UPDATE payments SET status = 'failed', completed_at = NOW() WHERE id = ? AND status IN ('pending','processing')", [$payment['id']]);
+            $app->run("UPDATE payout_requests SET status = 'failed', provider_message = ?, updated_at = NOW() WHERE payment_id = ?", [substr($providerStatus, 0, 500), $payment['id']]);
+            $payment['status'] = 'failed';
+            return $payment;
+        }
+
+        if ($apiStatus === 'success' && in_array($providerStatus, self::SUCCESS_STATUSES, true)) {
+            $app->run("UPDATE payments SET status = 'paid', completed_at = NOW() WHERE id = ? AND status IN ('pending','processing')", [$payment['id']]);
+            $app->run("UPDATE payout_requests SET status = 'paid', updated_at = NOW() WHERE payment_id = ?", [$payment['id']]);
+            $payment['status'] = 'paid';
+            $app->run(
+                'INSERT INTO audit_log (actor_type, action, entity_type, entity_id, details) VALUES (?,?,?,?,?)',
+                ['system', 'payout.paid', 'payment', $payment['id'], json_encode(['tid' => $payment['provider_tid']])]
+            );
+            return $payment;
+        }
+
+        return $payment;
+    }
+
+    /** Payout history for a tenant. @return array<int,array<string,mixed>> */
+    public static function payoutHistory(?string $tenantId, int $limit = 20): array
+    {
+        if ($tenantId === null || $tenantId === '') {
+            return App::instance()->all(
+                'SELECT * FROM payout_requests ORDER BY created_at DESC LIMIT ' . max(1, min(200, $limit))
+            );
+        }
+        return App::instance()->all(
+            'SELECT * FROM payout_requests WHERE tenant_id = ? ORDER BY created_at DESC LIMIT ' . max(1, min(200, $limit)),
+            [$tenantId]
+        );
+    }
+
+    /**
      * Ask JPesa to credit (collect) or query (info) a transaction.
      * @return array<string,mixed>
      */

@@ -51,6 +51,35 @@ export async function GET(req: NextRequest) {
 
   const meta = (payment.metadata || {}) as Record<string, any>
 
+  // ── JPesa payouts (money out): ask the hub to reconcile the debit ──
+  if (meta.rail === 'payout' || payment.direction === 'disbursement') {
+    const res = await lic.payoutStatus({
+      payout_id: meta.payout_id || undefined,
+      payment_id: meta.lic_payment_id || undefined,
+    })
+    const data = res.data || {}
+    const mapped = res.api_status === '200' ? mapJpesaStatus(data.status) : 'processing'
+
+    if (mapped !== payment.status) {
+      await supabaseAdmin
+        .from('payments')
+        .update({
+          status: mapped,
+          status_message: data.provider_message || mapped,
+          completed_at: mapped === 'success' ? (data.completed_at || new Date().toISOString()) : payment.completed_at,
+          failure_reason: mapped === 'failed' ? (data.provider_message || 'Payout failed') : null,
+        })
+        .eq('id', paymentId)
+    }
+
+    return NextResponse.json({
+      status: mapped,
+      message: mapped === 'success' ? 'Payout confirmed' : (data.provider_message || 'Waiting for payout confirmation...'),
+      completed_at: data.completed_at,
+      provider_tid: data.provider_tid,
+    })
+  }
+
   // ── JPesa collections: ask the licence hub to reconcile ──
   if (meta.provider === 'jpesa' || meta.lic_payment_id || meta.merchant_ref) {
     const res = await lic.paymentStatus({

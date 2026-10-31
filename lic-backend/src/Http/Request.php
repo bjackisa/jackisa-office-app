@@ -121,6 +121,13 @@ final class Request
         return filter_var($value, FILTER_VALIDATE_BOOLEAN);
     }
 
+    /** @return array<string,mixed> */
+    public function array(string $key, array $default = []): array
+    {
+        $value = $this->input($key, $default);
+        return is_array($value) ? $value : $default;
+    }
+
     public function ip(): string
     {
         foreach (['HTTP_CF_CONNECTING_IP', 'HTTP_X_FORWARDED_FOR', 'REMOTE_ADDR'] as $key) {

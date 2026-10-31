@@ -91,6 +91,9 @@ $router->post('/api/v1/jpesa-payments/history',  fn(Request $r) => PaymentContro
 $router->post('/api/v1/jpesa-payments/fee',      fn(Request $r) => PaymentController::fee($r));
 $router->any('/api/v1/jpesa-payments/callback',  fn(Request $r) => PaymentController::callback($r));
 $router->get('/api/v1/jpesa-payments/channels',  fn(Request $r) => PaymentController::channels($r));
+$router->post('/api/v1/jpesa-payments/payout',   fn(Request $r) => PaymentController::payout($r));
+$router->post('/api/v1/jpesa-payments/payout-status',  fn(Request $r) => PaymentController::payoutStatus($r));
+$router->post('/api/v1/jpesa-payments/payout-history', fn(Request $r) => PaymentController::payoutHistory($r));
 
 // ---- Messaging / OTP ------------------------------------------------------
 $router->post('/api/v1/mail/send',    fn(Request $r) => MessagingController::mail($r));
