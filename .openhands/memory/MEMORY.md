@@ -300,3 +300,30 @@ See `.openhands/memory/2026-10-30.md`. Headlines:
   /api/v1/kyc/{verify,reject,badge,auto}. PdfService is dependency-free (valid %PDF-1.4).
 - `VerificationBadge` (blue individual / gold company) is in components/verification-badge.tsx
   and wired into app/app/layout.tsx header.
+
+### Oct 2026, sixth session (legacy record editing + WhatsApp routing)
+- **Legacy records were un-editable, not just incomplete.** `students` never had the
+  `status` column the students + grades screens have always written to, so every
+  status change failed silently; there was no `updated_at` either. Fixed by
+  `scripts/office-legacy-record-editing-v1.sql` (adds both + a `jo_touch_updated_at`
+  BEFORE UPDATE trigger, and replaces the world-writable `students_authenticated_*`
+  RLS policies with `jo_is_company_member`-scoped ones).
+- **Student edit dialog** (app/app/education/students/page.tsx) edits name, student
+  number, email, WhatsApp, guardian name/phone/email, tuition, status; on save it
+  re-publishes to the hub via `POST /api/education/student` (that route already took
+  this exact payload). A "No contact" badge flags records a transcript can't reach.
+- **Employee edit dialog** (app/app/hr/employees/page.tsx) edits name/email/phone
+  (on `users`) plus id number, dept, position, role, salary (on `company_employees`);
+  `loadEmployees` now also selects `users(phone)` and flags "No phone on record".
+  Employees always have a `user_id`, so the name/phone live on `users`.
+- **WhatsApp recipient routing, not suppression.** 0752567374 (Jolis's old
+  `companies.phone` / hub `tenants.phone`) is remapped to 256742459007 — in office
+  `lib/lic/notify.ts` (`resolveWhatsAppNumber`) and in hub
+  `src/Service/WhatsAppService.php` (`resolveRecipient`, applied to `$to` at the top
+  of `send`). Match on the last 9 digits so +256…/0…/256… all hit. The hub copy is the
+  real chokepoint: every hub sender goes through `WhatsAppService::send`.
+- Deploying the hub = `scp` the file to `~/domains/lic.jackisa.com/app/src/...`; test
+  with `php -r 'require "src/bootstrap.php"; …'` on the server. Hub tenant phone is in
+  MySQL `tenants.phone` (db `u388105230_jackisasynccp`), office company phone in
+  Supabase `companies.phone`.
+
