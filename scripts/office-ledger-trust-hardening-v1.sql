@@ -219,6 +219,17 @@ BEGIN
 END;
 $$;
 
+-- ---------------------------------------------------------------------------
+-- 5. Columns the newer sync/UI code expects on `dividends`.
+--    sync_dividend_financials writes updated_at, but the original table
+--    (full-schema.sql) never declared it, so every dividend payment insert
+--    failed. paid_amount / outstanding_amount are added here too for safety.
+-- ---------------------------------------------------------------------------
+ALTER TABLE public.dividends
+  ADD COLUMN IF NOT EXISTS paid_amount        DECIMAL(20, 2) NOT NULL DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS outstanding_amount DECIMAL(20, 2) NOT NULL DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS updated_at         timestamptz NOT NULL DEFAULT now();
+
 GRANT EXECUTE ON FUNCTION public.jo_distribute_dividend(uuid, uuid) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.calculate_fund_nav(uuid) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.jo_ledger_account(uuid, varchar, varchar, varchar, varchar) TO authenticated;
