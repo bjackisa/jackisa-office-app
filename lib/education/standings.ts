@@ -4,20 +4,28 @@ import type { SupabaseClient } from '@supabase/supabase-js'
  * Student standings.
  *
  * Pure computation over the education tables — no I/O beyond the reads the
- * caller passes in — so the same numbers drive the dashboard, the marks
- * notification and the transcript. Coursework and the final exam each carry 50%,
- * matching the Grades screen; if only one side exists the other is ignored.
+ * caller passes in — so the same numbers drive the Grades screen, the marks
+ * notification and the report card. Coursework and the final exam each carry 50%
+ * of a module and the module total is their sum. Keep this in step with the
+ * Grades screen (app/app/education/grades/page.tsx), which is the reference.
  */
 
 export const COURSEWORK_WEIGHT = 0.5
 export const EXAM_WEIGHT = 0.5
 
+/** Points each half contributes to a module total (0–50 apiece). */
+const COURSEWORK_POINTS = COURSEWORK_WEIGHT * 100
+const EXAM_POINTS = EXAM_WEIGHT * 100
+
 export interface ModuleStanding {
   module_id: string
   code: string
   name: string
+  /** The coursework half's contribution to the module total (0–50). */
   coursework: number | null
+  /** The exam half's contribution (0–50), or null when the paper was not sat. */
   exam: number | null
+  /** Module total out of 100 — coursework + exam. */
   total: number | null
   grade: string
   missed_days: number
@@ -38,18 +46,15 @@ export function gradeFor(pct: number | null): string {
   if (pct >= 70) return 'B'
   if (pct >= 60) return 'C'
   if (pct >= 50) return 'D'
-  return 'E'
+  if (pct >= 40) return 'E'
+  return 'F'
 }
 
-function pct(sum: number, max: number): number | null {
-  return max > 0 ? Math.round((sum / max) * 1000) / 10 : null
-}
+const round1 = (n: number): number => Math.round(n * 10) / 10
 
 export function totalFor(coursework: number | null, exam: number | null): number | null {
-  if (coursework !== null && exam !== null) {
-    return Math.round((coursework * COURSEWORK_WEIGHT + exam * EXAM_WEIGHT) * 10) / 10
-  }
-  return coursework ?? exam ?? null
+  if (coursework === null && exam === null) return null
+  return round1((coursework ?? 0) + (exam ?? 0))
 }
 
 /** Compute a student's standing across every module they are enrolled in. */
@@ -98,8 +103,15 @@ export function computeStanding(input: {
       if (grade) exSum += Number(grade.marks_obtained)
     }
 
-    const coursework = cwMax > 0 ? pct(cwSum, cwMax) : null
-    const exam = exMax > 0 && examGrades.some((g) => modExams.some((e) => e.id === g.final_exam_id)) ? pct(exSum, exMax) : null
+    // Coursework half: raw marks scaled to 50 points; 0 when nothing is
+    // recorded, matching the Grades screen.
+    const coursework = cwMax > 0
+      ? round1(Math.min((cwSum / cwMax) * COURSEWORK_POINTS, COURSEWORK_POINTS))
+      : 0
+    // Exam half: out of 50, or null when the paper was not sat (a paper sat but
+    // scored zero still counts as 0).
+    const examSat = examGrades.some((g) => modExams.some((e) => e.id === g.final_exam_id))
+    const exam = exMax > 0 && examSat ? round1((exSum / exMax) * EXAM_POINTS) : null
     const total = totalFor(coursework, exam)
 
     rows.push({
@@ -115,7 +127,7 @@ export function computeStanding(input: {
   }
 
   const scored = rows.filter((r) => r.total !== null)
-  const average = scored.length ? Math.round((scored.reduce((s, r) => s + (r.total as number), 0) / scored.length) * 10) / 10 : 0
+  const average = scored.length ? round1(scored.reduce((s, r) => s + (r.total as number), 0) / scored.length) : 0
   const points = scored.reduce((s, r) => s + Math.round((r.total as number) / 10), 0)
 
   // Trend: the most recent scored module against the running average.
