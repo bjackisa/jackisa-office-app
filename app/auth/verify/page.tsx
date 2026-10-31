@@ -79,10 +79,20 @@ function VerifyInner() {
           throw new Error(t || 'Failed to complete registration')
         }
 
+        const json = await res.json().catch(() => ({}))
+
         try { localStorage.removeItem('pendingRegistration') } catch {}
         setStatus('done')
-        setMessage('All set! Redirecting to dashboard...')
-        router.replace('/app')
+
+        // No trial (this device/network has had one before): the workspace is
+        // unlicensed, so the very next step is paying for the licence.
+        if (json?.trialGranted === false) {
+          setMessage('Your account is ready. Choose a plan to activate your licence...')
+          router.replace('/app/settings/billing?firstRun=1')
+        } else {
+          setMessage('All set! Redirecting to dashboard...')
+          router.replace('/app')
+        }
       } catch (err: any) {
         console.error(err)
         setStatus('error')

@@ -213,22 +213,34 @@ export async function POST(request: Request) {
       .from('user_active_company')
       .upsert({ user_id: authedUser.id, company_id: company.id }, { onConflict: 'user_id' })
 
-    // Issue a licence on the hub for the chosen plan and mirror it locally.
-    // Non-fatal: if the hub is unreachable the workspace is still created and
-    // the licence can be issued from the billing page afterwards.
+    // Licensing: a new workspace gets a 7-day trial, never a free paid licence.
+    // The trial endpoint gates eligibility on device fingerprint + IP, so a
+    // repeat signup from a known device/network gets no trial and the workspace
+    // stays unlicensed until the first payment settles on the billing page.
+    let trialGranted = false
     try {
       const origin = new URL(request.url).origin
-      const licRes = await fetch(`${origin}/api/lic/license`, {
+      const trialRes = await fetch(`${origin}/api/trial`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'issue', companyId: company.id, planCode, intervalMonths }),
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: auth || '',
+        },
+        body: JSON.stringify({
+          action: 'start',
+          companyId: company.id,
+          fingerprint: typeof body?.fingerprint === 'string' ? body.fingerprint : undefined,
+          msisdn: typeof body?.msisdn === 'string' ? body.msisdn : undefined,
+          planCode,
+        }),
       }).then((r) => r.json())
-      if (!licRes?.ok) console.error('[register] licence issue failed', licRes?.error)
+      trialGranted = Boolean(trialRes?.ok && trialRes?.granted !== false)
+      if (!trialRes?.ok) console.error('[register] trial start failed', trialRes?.error)
     } catch (e) {
-      console.error('[register] licence issue error', e)
+      console.error('[register] trial start error', e)
     }
 
-    return NextResponse.json({ ok: true, companyId: company.id, planCode, intervalMonths })
+    return NextResponse.json({ ok: true, companyId: company.id, planCode, intervalMonths, trialGranted })
   } catch (err: any) {
     return new NextResponse(err?.message || 'Server error', { status: 500 })
   }

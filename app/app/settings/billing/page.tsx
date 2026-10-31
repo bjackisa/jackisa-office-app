@@ -1,9 +1,11 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
+import { useSearchParams } from 'next/navigation'
 import { getSessionContext } from '@/lib/company-context'
 import { supabase } from '@/lib/supabase'
 import { useLicense } from '@/lib/lic/useLicense'
+import { recallPlan, clearPlan } from '@/lib/lic/planMemory'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -84,6 +86,13 @@ export default function BillingPage() {
       const plansRes = await fetch('/api/lic/plans').then((r) => r.json()).catch(() => null)
       if (plansRes?.plans) setPlans(plansRes.plans)
 
+      // Pre-select the plan the visitor chose on the landing/register page.
+      const remembered = recallPlan()
+      if (remembered) {
+        setTier(remembered.tier)
+        setIntervalMonths(remembered.intervalMonths)
+      }
+
       const { data: history } = await supabase
         .from('license_payments')
         .select('*')
@@ -94,6 +103,11 @@ export default function BillingPage() {
     }
     load()
   }, [])
+
+  // Once a licence is live the remembered choice has done its job.
+  useEffect(() => {
+    if (license.valid && license.status !== 'trial') clearPlan()
+  }, [license.valid, license.status])
 
   // Pick the plan row that matches tier + interval, falling back to a derived
   // price when a longer interval has no explicit row.

@@ -90,9 +90,13 @@ export async function POST(req: NextRequest) {
 function deriveFingerprint(req: NextRequest): string {
   // Device/browser based, deliberately NOT keyed on the user id: a brand-new
   // account on a device that already consumed a trial must not look new.
+  // Include a client-supplied `fingerprint` header when present (the app sets a
+  // persisted device id) so the same physical device is recognised even if its
+  // user-agent string is later updated by a browser release.
   const ua = req.headers.get('user-agent') || ''
   const lang = req.headers.get('accept-language') || ''
   const enc = req.headers.get('accept-encoding') || ''
   const ch = req.headers.get('sec-ch-ua') || ''
-  return crypto.createHash('sha256').update(`${ua}|${lang}|${enc}|${ch}`).digest('hex')
+  const device = req.headers.get('x-device-id') || ''
+  return crypto.createHash('sha256').update(`${device}|${ua}|${lang}|${enc}|${ch}`).digest('hex')
 }

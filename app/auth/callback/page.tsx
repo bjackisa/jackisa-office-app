@@ -91,6 +91,7 @@ function CallbackInner() {
     const finalize = async () => {
       // Apply any remembered plan, then head to the app.
       let completedCompany = false
+      let trialGranted: boolean | null = null
       try {
         const raw = localStorage.getItem('pendingRegistration')
         if (raw) {
@@ -103,6 +104,10 @@ function CallbackInner() {
             })
             if (res.ok) {
               completedCompany = true
+              try {
+                const json = await res.clone().json()
+                if (json?.trialGranted === false) trialGranted = false
+              } catch {}
               try { localStorage.removeItem('pendingRegistration') } catch {}
             }
           }
@@ -118,7 +123,10 @@ function CallbackInner() {
         .eq('status', 'active')
         .maybeSingle()
 
-      if (completedCompany || employee) {
+      if (trialGranted === false) {
+        // Workspace created but unlicensed: the next step is paying for it.
+        router.replace('/app/settings/billing?firstRun=1')
+      } else if (completedCompany || employee) {
         router.replace('/app')
       } else {
         router.replace('/auth/verify?mode=complete-profile')

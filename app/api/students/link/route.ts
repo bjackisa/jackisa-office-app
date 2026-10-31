@@ -172,3 +172,24 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: false, error: err?.message || 'Request failed' }, { status: 500 })
   }
 }
+
+/**
+ * GET /api/students/link?invite=<token>
+ * Resolves an institution invite link so the join page can show the
+ * institution's name before the student submits anything.
+ */
+export async function GET(req: NextRequest) {
+  if (!adminAvailable()) return NextResponse.json({ ok: false, error: 'Not configured' }, { status: 500 })
+  const url = new URL(req.url)
+  const invite = url.searchParams.get('invite') || url.searchParams.get('student')
+  if (!invite) return NextResponse.json({ ok: false, error: 'invite token required' }, { status: 400 })
+  const db = adminClient()
+  const { data } = await db
+    .from('institution_invite_links')
+    .select('id, company_id, label, programme, requires_approval, is_active, expires_at, companies(name, logo_url)')
+    .eq('token', invite)
+    .eq('is_active', true)
+    .maybeSingle()
+  if (!data) return NextResponse.json({ ok: false, error: 'This student link is no longer valid' }, { status: 404 })
+  return NextResponse.json({ ok: true, invite: data })
+}

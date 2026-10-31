@@ -71,7 +71,7 @@ export default function PayrollPage() {
 
       const { data: emps } = await supabase
           .from('company_employees')
-          .select('id, salary, users(full_name), company_roles(name)')
+          .select('id, salary, users(full_name, phone), company_roles(name)')
           .eq('company_id', context.companyId)
           .eq('status', 'active')
 
@@ -400,6 +400,7 @@ export default function PayrollPage() {
           moduleReferenceId={payEmployee.id}
           moduleReferenceType="company_employees"
           amount={payEmployee.net}
+          recipientPhone={payEmployee.users?.phone || undefined}
           title={`Pay Salary — ${payEmployee.users?.full_name || 'Employee'}`}
           description={`Net salary for ${new Date().toLocaleString('default', { month: 'long', year: 'numeric' })}`}
           metadata={{ employee: payEmployee.users?.full_name, gross: payEmployee.gross, nssf: payEmployee.nssf, paye: payEmployee.paye, net: payEmployee.net }}

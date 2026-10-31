@@ -49,7 +49,8 @@ function JoinInner() {
         return
       }
       try {
-        const res = await fetch(`/api/companies/members?invite=${token}`)
+        const endpoint = isStudent ? '/api/students/link' : '/api/companies/members'
+        const res = await fetch(`${endpoint}?invite=${encodeURIComponent(token)}`)
         const json = await res.json()
         if (json.ok) setInvite(json.invite)
         else setError(json.error || 'This invite is not valid')

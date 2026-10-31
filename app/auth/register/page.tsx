@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input'
 import { Spinner } from '@/components/ui/spinner'
 import { ContinueWithJackisa } from '@/components/continue-with-jackisa'
 import { INDUSTRIES } from '@/lib/industries'
+import { rememberPlan, parsePlanCode } from '@/lib/lic/planMemory'
 import { AlertCircle, Building2, Lock, Mail, User } from 'lucide-react'
 
 const TIERS = [
@@ -19,10 +20,9 @@ const TIERS = [
 
 /** plan code (e.g. pro_12m) -> tier + interval */
 function parsePlan(code: string | null): { tier: 'basic' | 'pro' | 'platinum'; months: number } | null {
-  if (!code) return null
-  const m = code.match(/^(basic|pro|platinum)_(\d+)m$/)
-  if (!m) return null
-  return { tier: m[1] as any, months: Number(m[2]) }
+  const parsed = parsePlanCode(code)
+  if (!parsed) return null
+  return { tier: parsed.tier, months: parsed.intervalMonths }
 }
 
 function RegisterInner() {
@@ -66,6 +66,7 @@ function RegisterInner() {
       setPackageTier(parsed.tier)
       setPlanCode(chosen as string)
       setIntervalMonths(parsed.months)
+      rememberPlan(chosen)
     }
   }, [searchParams])
 
@@ -73,11 +74,14 @@ function RegisterInner() {
     const code = `${tier}_${intervalMonths === 12 ? 12 : intervalMonths}m`
     setPackageTier(tier)
     setPlanCode(code)
+    rememberPlan(code)
   }
 
   const selectInterval = (months: number) => {
     setIntervalMonths(months)
-    setPlanCode(`${packageTier}_${months}m`)
+    const code = `${packageTier}_${months}m`
+    setPlanCode(code)
+    rememberPlan(code)
   }
 
   const handleCompanySubmit = async (e: React.FormEvent) => {
