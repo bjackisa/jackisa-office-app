@@ -54,17 +54,32 @@ export async function getMembership(userId: string, companyId: string): Promise<
     .eq('company_id', companyId)
     .eq('status', 'active')
     .maybeSingle()
-  if (!data) return null
-  const roleName = (data as any).company_roles?.name ?? null
-  const haystack = `${roleName || ''} ${data.position || ''}`.toLowerCase()
-  const isAdmin = /admin|owner|director|principal|manager/.test(haystack)
-  return {
-    companyId,
-    roleId: data.company_role_id,
-    roleName,
-    position: data.position,
-    isAdmin,
+  if (data) {
+    const roleName = (data as any).company_roles?.name ?? null
+    const haystack = `${roleName || ''} ${data.position || ''}`.toLowerCase()
+    const isAdmin = /admin|owner|director|principal|manager/.test(haystack)
+    return {
+      companyId,
+      roleId: data.company_role_id,
+      roleName,
+      position: data.position,
+      isAdmin,
+    }
   }
+
+  // Fallback for the company owner. Accounts created before the employee-status
+  // flow (or where the membership row is missing / not yet 'active') would
+  // otherwise be locked out of their own company's billing. The company's
+  // creator is the owner and is always treated as an admin member.
+  const { data: company } = await db
+    .from('companies')
+    .select('id, created_by, owner_user_id')
+    .eq('id', companyId)
+    .maybeSingle()
+  if (company && ((company as any).created_by === userId || (company as any).owner_user_id === userId)) {
+    return { companyId, roleId: null, roleName: 'Owner', position: 'Owner', isAdmin: true }
+  }
+  return null
 }
 
 export async function requireCompanyAdmin(req: NextRequest, companyId: string): Promise<{ caller: Caller; membership: Membership } | { error: string; status: number }> {

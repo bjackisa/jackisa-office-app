@@ -3,6 +3,7 @@ import { lic } from '@/lib/lic/client'
 import { adminClient, adminAvailable } from '@/lib/lic/peer'
 import { mirrorLicenseFromHub } from '@/lib/lic/mirror'
 import { getCaller, getMembership } from '@/lib/lic/serverAuth'
+import { ensureLicTenant } from '@/lib/lic/provision'
 import { hitIp } from '@/lib/security/rate-limit'
 
 export const dynamic = 'force-dynamic'
@@ -40,6 +41,9 @@ export async function POST(req: NextRequest) {
         if (!companyId) return NextResponse.json({ ok: false, error: 'companyId is required' }, { status: 400 })
         const membership = await getMembership(caller.id, companyId)
         if (!membership?.isAdmin) return NextResponse.json({ ok: false, error: 'Only a company admin can pay for a licence' }, { status: 403 })
+        // Ensure the tenant exists on the hub before we ask it to record a
+        // payment against it.
+        await ensureLicTenant(companyId, { id: caller.id, email: caller.email })
         const res = await lic.initiatePayment({
           tenant_id: companyId,
           user_id: caller.id,

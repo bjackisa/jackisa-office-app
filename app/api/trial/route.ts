@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { lic } from '@/lib/lic/client'
 import { adminClient, adminAvailable } from '@/lib/lic/peer'
 import { getCaller, requireMember } from '@/lib/lic/serverAuth'
+import { ensureLicTenant } from '@/lib/lic/provision'
 import { hitIp } from '@/lib/security/rate-limit'
 import crypto from 'crypto'
 
@@ -60,6 +61,10 @@ export async function POST(req: NextRequest) {
   }
 
   // action === 'start'
+  // Guarantee the hub knows this tenant before we reference it, otherwise the
+  // trial insert fails the tenant foreign key (the bug that returned a 500).
+  await ensureLicTenant(companyId, { id: caller?.id || '', email: caller?.email || null })
+
   const res = await lic.startTrial(companyId, fingerprint, {
     user_id: caller?.id,
     msisdn: body?.msisdn ? String(body.msisdn) : undefined,

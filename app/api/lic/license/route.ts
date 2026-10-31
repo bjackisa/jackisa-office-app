@@ -3,6 +3,7 @@ import { lic } from '@/lib/lic/client'
 import { adminClient, adminAvailable } from '@/lib/lic/peer'
 import { mirrorLicenseFromHub } from '@/lib/lic/mirror'
 import { requireCompanyAdmin, requireMember } from '@/lib/lic/serverAuth'
+import { ensureLicTenant } from '@/lib/lic/provision'
 
 export const dynamic = 'force-dynamic'
 
@@ -59,6 +60,7 @@ export async function POST(req: NextRequest) {
         if ('error' in guard) return NextResponse.json({ ok: false, error: guard.error }, { status: guard.status })
         const fingerprint = String(body.fingerprint || '')
         if (!fingerprint) return NextResponse.json({ ok: false, error: 'fingerprint is required' }, { status: 400 })
+        await ensureLicTenant(companyId, { id: guard.caller.id, email: guard.caller.email })
         const res = await lic.startTrial(companyId, fingerprint, { user_id: guard.caller.id, msisdn: body.msisdn })
         if (res.api_status === '200' && res.data?.license) {
           await mirrorLicenseFromHub(companyId, { license: res.data.license })
