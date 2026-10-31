@@ -6,6 +6,7 @@ import { getSessionContext } from '@/lib/company-context'
 import { supabase } from '@/lib/supabase'
 import { useLicense } from '@/lib/lic/useLicense'
 import { recallPlan, clearPlan } from '@/lib/lic/planMemory'
+import { apiFetch } from '@/lib/api'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -126,9 +127,8 @@ export default function BillingPage() {
   useEffect(() => {
     if (!companyId || !selectedPlan?.code) return
     let active = true
-    fetch('/api/lic/license', {
+    apiFetch('/api/lic/license', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ action: 'change-quote', companyId, planCode: selectedPlan.code }),
     })
       .then((r) => r.json())
@@ -140,10 +140,9 @@ export default function BillingPage() {
   const pollStatus = async (ref: string) => {
     for (let i = 0; i < 40; i++) {
       await new Promise((r) => setTimeout(r, 6000))
-      const res = await fetch('/api/lic/payments', {
+      const res = await apiFetch('/api/lic/payments', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'status', paymentId: ref }),
+        body: JSON.stringify({ action: 'status', companyId, paymentId: ref }),
       }).then((r) => r.json()).catch(() => null)
       if (res?.data?.status === 'paid') {
         setMessage({ kind: 'ok', text: 'Payment confirmed. Your licence is now active.' })
@@ -162,9 +161,8 @@ export default function BillingPage() {
     setBusy(true)
     setMessage(null)
     try {
-      const res = await fetch('/api/trial', {
+      const res = await apiFetch('/api/trial', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'start', companyId, msisdn: msisdn || undefined, planCode: selectedPlan?.code, intervalMonths }),
       })
       const json = await res.json()
@@ -195,9 +193,8 @@ export default function BillingPage() {
       setBusy(true)
       setMessage(null)
       try {
-        const res = await fetch('/api/lic/license', {
+        const res = await apiFetch('/api/lic/license', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ action: 'change', companyId, planCode: selectedPlan.code, paid: true }),
         })
         const json = await res.json()
@@ -213,9 +210,8 @@ export default function BillingPage() {
     setBusy(true)
     setMessage(null)
     try {
-      const res = await fetch('/api/lic/payments', {
+      const res = await apiFetch('/api/lic/payments', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           action: 'initiate',
           companyId,
@@ -243,9 +239,8 @@ export default function BillingPage() {
   const cancelTrial = async () => {
     if (!companyId) return
     setBusy(true)
-    const res = await fetch('/api/trial', {
+    const res = await apiFetch('/api/trial', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ action: 'cancel', companyId }),
     }).then((r) => r.json()).catch(() => null)
     setBusy(false)

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { lic } from '@/lib/lic/client'
 import { adminClient, adminAvailable } from '@/lib/lic/peer'
 import { requireCompanyAdmin } from '@/lib/lic/serverAuth'
+import { requireFeature } from '@/lib/lic/guard'
 
 export const dynamic = 'force-dynamic'
 
@@ -20,6 +21,8 @@ export async function POST(req: NextRequest) {
 
   const gate = await requireCompanyAdmin(req, companyId)
   if ('error' in gate) return NextResponse.json({ ok: false, error: gate.error }, { status: gate.status })
+  const featureGate = await requireFeature(req, companyId, 'income_tax')
+  if ('error' in featureGate) return NextResponse.json({ ok: false, error: featureGate.error }, { status: featureGate.status })
   if (!adminAvailable()) return NextResponse.json({ ok: false, error: 'Not configured' }, { status: 500 })
 
   const db = adminClient()

@@ -107,7 +107,18 @@ export async function POST(req: NextRequest) {
   return NextResponse.json({ ok: true, applied })
 }
 
-export async function GET() {
+export async function GET(req: NextRequest) {
+  // Draining the outbox pushes tenant data to the hub, so it must be
+  // authenticated: either the licence hub (signed) or the platform cron with
+  // the shared cron secret. An anonymous caller may not trigger a drain.
+  const raw = await req.text().catch(() => '')
+  const signature = req.headers.get('x-lic-signature')
+  const cronSecret = req.headers.get('x-cron-secret') || new URL(req.url).searchParams.get('secret')
+  const expectedCron = process.env.CRON_SECRET || ''
+  const authorized = verifyLicSignature(raw, signature, 'office') || (expectedCron !== '' && cronSecret === expectedCron)
+  if (!authorized) {
+    return NextResponse.json({ ok: false, error: 'Unauthorized' }, { status: 401 })
+  }
   if (!adminAvailable()) return NextResponse.json({ ok: false, error: 'Not configured' }, { status: 500 })
   const db = adminClient()
   const { data: pending } = await db.from('sync_outbox').select('*').eq('status', 'pending').order('created_at', { ascending: true }).limit(100)

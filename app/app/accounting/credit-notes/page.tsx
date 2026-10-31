@@ -7,6 +7,7 @@ import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Search } from 'lucide-react'
+import { apiFetch } from '@/lib/api'
 
 export default function CreditNotesPage() {
   const [companyId, setCompanyId] = useState<string | null>(null)
@@ -102,7 +103,7 @@ export default function CreditNotesPage() {
 
     setError(null)
 
-    const response = await fetch('/api/payments/initiate', {
+    const response = await apiFetch('/api/payments/initiate', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({

@@ -12,6 +12,7 @@ import { ChevronDown, Plus, Search, Zap, Link2, Copy, CheckCircle, XCircle, Grad
 import { getSessionContext } from '@/lib/company-context'
 import { supabase } from '@/lib/supabase'
 import { logEcosystemEvent } from '@/lib/ecosystem'
+import { apiFetch } from '@/lib/api'
 
 const STATUS_OPTIONS = ['Pending', 'Active', 'Failed', 'Suspended', 'Deceased', 'Graduated']
 
@@ -135,9 +136,8 @@ export default function StudentsPage() {
     // Publish the contact details to the licence hub so it can reach the
     // guardian directly when it sends marks and report cards.
     if (created?.id) {
-      fetch('/api/education/student', {
+      apiFetch('/api/education/student', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           companyId,
           student: {

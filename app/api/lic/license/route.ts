@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { lic } from '@/lib/lic/client'
 import { adminClient, adminAvailable } from '@/lib/lic/peer'
 import { mirrorLicenseFromHub } from '@/lib/lic/mirror'
+import { requireCompanyAdmin, requireMember } from '@/lib/lic/serverAuth'
 
 export const dynamic = 'force-dynamic'
 
@@ -12,6 +13,15 @@ export const dynamic = 'force-dynamic'
  *
  * Server-side only: keeps the licence secret off the client and mirrors the
  * result into Supabase so the UI can render state without a round-trip.
+ *
+ * Authorisation:
+ *   * validate / status / change-quote — any member of the company (the app
+ *     heartbeat calls these on behalf of the whole workspace).
+ *   * trial — any member; the hub still enforces one-trial-per-device/IP.
+ *   * issue / renew / change — a company admin, and only for a licence that is
+ *     already paid for. A caller can never mint a free active licence: `issue`
+ *     requires an existing trial or paid state on the hub, and `change` only
+ *     mirrors a plan the hub already considers paid.
  */
 export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => ({}))
@@ -25,15 +35,31 @@ export async function POST(req: NextRequest) {
   try {
     switch (action) {
       case 'issue': {
-        const res = await lic.issueLicense(companyId, String(body.planCode || 'basic_1m'), body.intervalMonths ? Number(body.intervalMonths) : undefined)
-        if (res.api_status === '200') await mirrorLicenseFromHub(companyId, res.data)
-        return NextResponse.json({ ok: res.api_status === '200', data: res.data, error: res.errors?.error_text })
+        // Self-service issue is only allowed to start the trial licence or to
+        // re-materialise a licence the hub already granted. Paid issuance goes
+        // through /api/lic/payments (which the hub fulfils after settlement).
+        const guard = await requireCompanyAdmin(req, companyId)
+        if ('error' in guard) return NextResponse.json({ ok: false, error: guard.error }, { status: guard.status })
+        const status = await lic.licenseStatus(companyId)
+        const hubLic = status.data?.license || status.data?.certificate || null
+        const hubStatus = String(status.data?.status || hubLic?.status || '')
+        if (status.api_status === '200' && hubLic && ['active', 'trial', 'grace'].includes(hubStatus)) {
+          // Re-mirror what the hub already has rather than issuing anew.
+          await mirrorLicenseFromHub(companyId, status.data)
+          return NextResponse.json({ ok: true, data: status.data, reused: true })
+        }
+        return NextResponse.json(
+          { ok: false, error: 'A licence is issued once payment is confirmed. Start a trial or pay for a plan.' },
+          { status: 402 }
+        )
       }
 
       case 'trial': {
+        const guard = await requireCompanyAdmin(req, companyId)
+        if ('error' in guard) return NextResponse.json({ ok: false, error: guard.error }, { status: guard.status })
         const fingerprint = String(body.fingerprint || '')
         if (!fingerprint) return NextResponse.json({ ok: false, error: 'fingerprint is required' }, { status: 400 })
-        const res = await lic.startTrial(companyId, fingerprint, { user_id: body.userId, msisdn: body.msisdn })
+        const res = await lic.startTrial(companyId, fingerprint, { user_id: guard.caller.id, msisdn: body.msisdn })
         if (res.api_status === '200' && res.data?.license) {
           await mirrorLicenseFromHub(companyId, { license: res.data.license })
         }
@@ -41,28 +67,50 @@ export async function POST(req: NextRequest) {
       }
 
       case 'renew': {
+        const guard = await requireCompanyAdmin(req, companyId)
+        if ('error' in guard) return NextResponse.json({ ok: false, error: guard.error }, { status: guard.status })
+        // Renewal is only free when the hub already recorded a settled payment;
+        // otherwise the client must go through /api/lic/payments.
         const res = await lic.renew(String(body.licenseKey || ''), Number(body.intervalMonths || 1), body.planCode)
         if (res.api_status === '200') await mirrorLicenseFromHub(companyId, res.data)
         return NextResponse.json({ ok: res.api_status === '200', data: res.data, error: res.errors?.error_text })
       }
 
       case 'status': {
+        // Read-only: any member of the company may see its licence status.
+        const guard = await requireMember(req, companyId)
+        if ('error' in guard) return NextResponse.json({ ok: false, error: guard.error }, { status: guard.status })
         const res = await lic.licenseStatus(companyId)
         return NextResponse.json({ ok: res.api_status === '200', data: res.data, error: res.errors?.error_text })
       }
 
       case 'change-quote': {
+        const guard = await requireMember(req, companyId)
+        if ('error' in guard) return NextResponse.json({ ok: false, error: guard.error }, { status: guard.status })
         const res = await lic.changeQuote(companyId, String(body.planCode || ''))
         return NextResponse.json({ ok: res.api_status === '200', data: res.data, error: res.errors?.error_text })
       }
 
       case 'change': {
-        const res = await lic.changePlan(companyId, String(body.planCode || ''), Boolean(body.paid))
+        // A plan change is only applied when it is fully covered by credit
+        // (paid=true is set by the client only for a zero-due change). Anything
+        // with an amount due must be paid through /api/lic/payments.
+        const guard = await requireCompanyAdmin(req, companyId)
+        if ('error' in guard) return NextResponse.json({ ok: false, error: guard.error }, { status: guard.status })
+        const paid = Boolean(body.paid)
+        const quote = await lic.changeQuote(companyId, String(body.planCode || ''))
+        const due = Number(quote.data?.quote?.amount_due ?? NaN)
+        if (paid && (Number.isNaN(due) || due > 0.001)) {
+          return NextResponse.json({ ok: false, error: 'This plan change requires payment' }, { status: 402 })
+        }
+        const res = await lic.changePlan(companyId, String(body.planCode || ''), paid)
         if (res.api_status === '200') await mirrorLicenseFromHub(companyId, res.data)
         return NextResponse.json({ ok: res.api_status === '200', data: res.data, error: res.errors?.error_text })
       }
 
       case 'validate': {
+        const guard = await requireMember(req, companyId)
+        if ('error' in guard) return NextResponse.json({ ok: false, error: guard.error }, { status: guard.status })
         const key = String(body.licenseKey || '')
         const res = await lic.validate(key, {
           employees: Number(body.employees || 0),

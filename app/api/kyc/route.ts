@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { lic } from '@/lib/lic/client'
 import { adminClient, adminAvailable } from '@/lib/lic/peer'
-import { requireCompanyAdmin } from '@/lib/lic/serverAuth'
+import { requireCompanyAdmin, getCaller, getMembership, type Membership } from '@/lib/lic/serverAuth'
 import { hitIp } from '@/lib/security/rate-limit'
 
 export const dynamic = 'force-dynamic'
@@ -22,6 +22,20 @@ export async function GET(req: NextRequest) {
   const companyId = searchParams.get('companyId')
   const userId = searchParams.get('userId')
   const db = adminClient()
+
+  // A signed-in caller may read their own badge and the badge of any company
+  // they belong to. Reading another user's state requires company-admin rights.
+  const caller = await getCaller(req)
+  if (!caller) return NextResponse.json({ ok: false, error: 'Not signed in' }, { status: 401 })
+
+  let membership: Membership | null = null
+  if (companyId) {
+    membership = await getMembership(caller.id, companyId)
+    if (!membership) return NextResponse.json({ ok: false, error: 'You are not a member of this company' }, { status: 403 })
+  }
+  if (userId && userId !== caller.id && !membership?.isAdmin) {
+    return NextResponse.json({ ok: false, error: 'You can only read your own verification state' }, { status: 403 })
+  }
 
   const result: Record<string, any> = {}
 
@@ -131,10 +145,22 @@ export async function POST(req: NextRequest) {
     if (!userId) return NextResponse.json({ ok: false, error: 'userId is required' }, { status: 400 })
     if (!accessToken) return NextResponse.json({ ok: false, error: 'A jackisa.com session is required' }, { status: 403 })
 
+    // The badge belongs to the caller, never to an id they typed. Bind the
+    // verified jackisa.com identity to the signed-in account and refuse when
+    // the two do not match, so a session cannot mint a badge for someone else.
+    const caller = await getCaller(req)
+    if (!caller || caller.id !== userId) {
+      return NextResponse.json({ ok: false, error: 'You can only verify your own account' }, { status: 403 })
+    }
+
     const verified = await lic.ssoJackisa(accessToken)
     const profile = verified.data?.profile
     if (verified.api_status !== '200' || !profile?.verified) {
       return NextResponse.json({ ok: false, error: 'Not verified on jackisa.com' }, { status: 403 })
+    }
+    // The jackisa.com identity that returned must be the caller's own.
+    if (profile.email && caller.email && String(profile.email).toLowerCase() !== caller.email.toLowerCase()) {
+      return NextResponse.json({ ok: false, error: 'This Jackisa account does not match your sign-in' }, { status: 403 })
     }
 
     await db.from('users').update({ kyc_status: 'verified' }).eq('id', userId)

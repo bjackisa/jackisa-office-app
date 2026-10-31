@@ -14,6 +14,16 @@ export interface Caller {
 }
 
 export async function getCaller(req: NextRequest): Promise<Caller | null> {
+  const session = await getSession(req)
+  return session?.caller ?? null
+}
+
+/**
+ * Like getCaller, but also returns the raw bearer token so a handler can
+ * re-use the caller's own credentials for a downstream request instead of
+ * reaching for the service role.
+ */
+export async function getSession(req: NextRequest): Promise<{ caller: Caller; token: string } | null> {
   const auth = req.headers.get('authorization') || req.headers.get('Authorization')
   const token = auth?.startsWith('Bearer ') ? auth.slice(7) : null
   if (!token) return null
@@ -23,7 +33,7 @@ export async function getCaller(req: NextRequest): Promise<Caller | null> {
   const client = createClient(url, anon, { auth: { autoRefreshToken: false, persistSession: false } })
   const { data, error } = await client.auth.getUser(token)
   if (error || !data?.user) return null
-  return { id: data.user.id, email: data.user.email ?? null }
+  return { caller: { id: data.user.id, email: data.user.email ?? null }, token }
 }
 
 export interface Membership {
@@ -61,6 +71,15 @@ export async function requireCompanyAdmin(req: NextRequest, companyId: string): 
   if (!caller) return { error: 'Not signed in', status: 401 }
   const membership = await getMembership(caller.id, companyId)
   if (!membership || !membership.isAdmin) return { error: 'You do not have permission to manage this company', status: 403 }
+  return { caller, membership }
+}
+
+/** Require the caller to be any active member of the company (admin or not). */
+export async function requireMember(req: NextRequest, companyId: string): Promise<{ caller: Caller; membership: Membership } | { error: string; status: number }> {
+  const caller = await getCaller(req)
+  if (!caller) return { error: 'Not signed in', status: 401 }
+  const membership = await getMembership(caller.id, companyId)
+  if (!membership) return { error: 'You are not a member of this company', status: 403 }
   return { caller, membership }
 }
 

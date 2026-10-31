@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { adminClient, adminAvailable } from '@/lib/lic/peer'
 import { lic } from '@/lib/lic/client'
 import { loadStudentContext } from '@/lib/education/standings'
+import { requireFeature } from '@/lib/lic/guard'
 
 export const dynamic = 'force-dynamic'
 
@@ -25,6 +26,9 @@ export async function POST(req: NextRequest) {
   if (!companyId || !studentId) {
     return NextResponse.json({ ok: false, error: 'companyId and studentId are required' }, { status: 400 })
   }
+
+  const gate = await requireFeature(req, companyId, 'education')
+  if ('error' in gate) return NextResponse.json({ ok: false, error: gate.error }, { status: gate.status })
 
   const db = adminClient()
   const [{ data: company }, ctx] = await Promise.all([
@@ -121,6 +125,9 @@ export async function GET(req: NextRequest) {
   const companyId = searchParams.get('companyId')
   const studentId = searchParams.get('studentId')
   if (!companyId) return NextResponse.json({ ok: false, error: 'companyId is required' }, { status: 400 })
+
+  const gate = await requireFeature(req, companyId, 'education')
+  if ('error' in gate) return NextResponse.json({ ok: false, error: gate.error }, { status: gate.status })
 
   const db = adminClient()
   let query = db

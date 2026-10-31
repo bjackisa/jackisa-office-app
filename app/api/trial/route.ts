@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { lic } from '@/lib/lic/client'
 import { adminClient, adminAvailable } from '@/lib/lic/peer'
-import { getCaller } from '@/lib/lic/serverAuth'
+import { getCaller, requireMember } from '@/lib/lic/serverAuth'
 import { hitIp } from '@/lib/security/rate-limit'
 import crypto from 'crypto'
 
@@ -32,6 +32,12 @@ export async function POST(req: NextRequest) {
   if (!companyId) return NextResponse.json({ ok: false, error: 'companyId is required' }, { status: 400 })
 
   const caller = await getCaller(req)
+  if (!caller) return NextResponse.json({ ok: false, error: 'Not signed in' }, { status: 401 })
+  // The caller must belong to the workspace the trial is for — otherwise a
+  // signed-in user could start, inspect or cancel another company's trial.
+  const guard = await requireMember(req, companyId)
+  if ('error' in guard) return NextResponse.json({ ok: false, error: guard.error }, { status: guard.status })
+
   const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || req.headers.get('x-real-ip') || '0.0.0.0'
   const fingerprint = String(body?.fingerprint || deriveFingerprint(req))
 

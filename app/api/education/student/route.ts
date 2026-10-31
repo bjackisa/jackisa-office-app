@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { adminClient, adminAvailable } from '@/lib/lic/peer'
 import { lic } from '@/lib/lic/client'
+import { requireFeature } from '@/lib/lic/guard'
 
 export const dynamic = 'force-dynamic'
 
@@ -22,6 +23,9 @@ export async function POST(req: NextRequest) {
   if (!companyId || !student?.id || !student?.name) {
     return NextResponse.json({ ok: false, error: 'companyId, student.id and student.name are required' }, { status: 400 })
   }
+
+  const gate = await requireFeature(req, companyId, 'education')
+  if ('error' in gate) return NextResponse.json({ ok: false, error: gate.error }, { status: gate.status })
 
   const db = adminClient()
   const { data: company } = await db.from('companies').select('lic_tenant_id').eq('id', companyId).maybeSingle()

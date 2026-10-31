@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { lic } from '@/lib/lic/client'
+import { requireMember } from '@/lib/lic/serverAuth'
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -37,6 +38,10 @@ export async function GET(req: NextRequest) {
   if (!payment) {
     return NextResponse.json({ error: 'Payment not found' }, { status: 404 })
   }
+
+  // Only a member of the company that owns the payment may read or advance it.
+  const guard = await requireMember(req, payment.company_id)
+  if ('error' in guard) return NextResponse.json({ error: guard.error }, { status: guard.status })
 
   // Already final
   if (['success', 'failed', 'timed_out', 'cancelled', 'refunded'].includes(payment.status)) {

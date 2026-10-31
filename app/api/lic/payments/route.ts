@@ -37,10 +37,9 @@ export async function POST(req: NextRequest) {
       case 'initiate': {
         const caller = await getCaller(req)
         if (!caller) return NextResponse.json({ ok: false, error: 'Not signed in' }, { status: 401 })
-        if (companyId) {
-          const membership = await getMembership(caller.id, companyId)
-          if (!membership?.isAdmin) return NextResponse.json({ ok: false, error: 'Only a company admin can pay for a licence' }, { status: 403 })
-        }
+        if (!companyId) return NextResponse.json({ ok: false, error: 'companyId is required' }, { status: 400 })
+        const membership = await getMembership(caller.id, companyId)
+        if (!membership?.isAdmin) return NextResponse.json({ ok: false, error: 'Only a company admin can pay for a licence' }, { status: 403 })
         const res = await lic.initiatePayment({
           tenant_id: companyId,
           user_id: caller.id,
@@ -77,6 +76,15 @@ export async function POST(req: NextRequest) {
       }
 
       case 'status': {
+        // Polling a payment requires a signed-in member, and the payment must
+        // belong to the company they are a member of — otherwise anyone could
+        // flip an arbitrary payment to paid.
+        const caller = await getCaller(req)
+        if (!caller) return NextResponse.json({ ok: false, error: 'Not signed in' }, { status: 401 })
+        if (!companyId) return NextResponse.json({ ok: false, error: 'companyId is required' }, { status: 400 })
+        const membership = await getMembership(caller.id, companyId)
+        if (!membership) return NextResponse.json({ ok: false, error: 'You are not a member of this company' }, { status: 403 })
+
         const res = await lic.paymentStatus({ payment_id: body?.paymentId, merchant_ref: body?.merchantRef })
         if (res.api_status === '200' && res.data?.status === 'paid' && res.data?.payment_id) {
           if (adminAvailable()) {
@@ -85,21 +93,25 @@ export async function POST(req: NextRequest) {
                 .from('license_payments')
                 .update({ status: 'paid', paid_at: new Date().toISOString(), merchant_ref: res.data.merchant_ref || null })
                 .eq('payment_id', res.data.payment_id)
+                .eq('company_id', companyId)
             } catch (e) {
               console.error('[payments] status mirror failed', e)
             }
           }
           // A settled licence payment extends or issues the licence on the hub.
           // Pull the fresh certificate so the workspace unlocks without a reload.
-          if (companyId) {
-            const lic2 = await lic.licenseStatus(companyId)
-            if (lic2.api_status === '200') await mirrorLicenseFromHub(companyId, lic2.data)
-          }
+          const lic2 = await lic.licenseStatus(companyId)
+          if (lic2.api_status === '200') await mirrorLicenseFromHub(companyId, lic2.data)
         }
         return NextResponse.json({ ok: res.api_status === '200', data: res.data, error: res.errors?.error_text })
       }
 
       case 'history': {
+        const caller = await getCaller(req)
+        if (!caller) return NextResponse.json({ ok: false, error: 'Not signed in' }, { status: 401 })
+        if (!companyId) return NextResponse.json({ ok: false, error: 'companyId is required' }, { status: 400 })
+        const membership = await getMembership(caller.id, companyId)
+        if (!membership) return NextResponse.json({ ok: false, error: 'You are not a member of this company' }, { status: 403 })
         const res = await lic.paymentHistory(companyId, Number(body?.limit || 20))
         return NextResponse.json({ ok: res.api_status === '200', data: res.data, error: res.errors?.error_text })
       }

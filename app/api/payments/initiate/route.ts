@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { initiatePayment } from '@/lib/payment-gateway'
 import { collectViaJpesa } from '@/lib/lic/collections'
 import { payoutViaJpesa } from '@/lib/lic/payouts'
-import { getCaller } from '@/lib/lic/serverAuth'
+import { getCaller, requireMember } from '@/lib/lic/serverAuth'
 import { hitIp } from '@/lib/security/rate-limit'
 
 export const dynamic = 'force-dynamic'
@@ -31,12 +31,23 @@ export async function POST(req: NextRequest) {
   try {
     const body = await req.json()
     const direction = String(body?.direction || 'collection')
-    const caller = await getCaller(req)
+    const companyId = String(body?.companyId || '')
+    if (!companyId) {
+      return NextResponse.json({ success: false, message: 'companyId is required' }, { status: 400 })
+    }
+
+    // The caller must be a member of the company they are moving money for;
+    // never trust `initiatedBy` from the body.
+    const guard = await requireMember(req, companyId)
+    if ('error' in guard) {
+      return NextResponse.json({ success: false, message: guard.error }, { status: guard.status })
+    }
+    const caller = guard.caller
 
     if (direction === 'collection') {
       const result = await collectViaJpesa({
-        companyId: String(body?.companyId || ''),
-        userId: caller?.id || body?.initiatedBy,
+        companyId,
+        userId: caller.id,
         module: String(body?.module || 'other'),
         moduleReferenceId: body?.moduleReferenceId,
         moduleReferenceType: body?.moduleReferenceType,
@@ -74,8 +85,8 @@ export async function POST(req: NextRequest) {
     }
 
     const result = await payoutViaJpesa({
-      companyId: String(body?.companyId || ''),
-      userId: caller?.id || body?.initiatedBy,
+      companyId,
+      userId: caller.id,
       module: String(body?.module || 'payroll'),
       moduleReferenceId: body?.moduleReferenceId,
       moduleReferenceType: body?.moduleReferenceType,

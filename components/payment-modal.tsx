@@ -9,6 +9,7 @@ import {
   Loader2, ArrowRight, Shield, Landmark, Phone,
 } from 'lucide-react'
 import type { PaymentDirection, PaymentModule, PaymentMethodType } from '@/lib/payment-gateway'
+import { apiFetch } from '@/lib/api'
 
 interface PaymentModalProps {
   open: boolean
@@ -65,7 +66,7 @@ export default function PaymentModal({
     const interval = pollCount < 6 ? 10000 : 30000 // 10s first minute, then 30s
     const timer = setTimeout(async () => {
       try {
-        const res = await fetch(`/api/payments/status?payment_id=${paymentId}`)
+        const res = await apiFetch(`/api/payments/status?payment_id=${paymentId}`)
         const data = await res.json()
         if (data.status === 'success') {
           setStep('success')
@@ -104,7 +105,7 @@ export default function PaymentModal({
     setStep('processing')
     setStatusMsg(chosenMethod === 'cash' ? 'Recording cash payment...' : 'Sending payment request...')
 
-    const response = await fetch('/api/payments/initiate', {
+    const response = await apiFetch('/api/payments/initiate', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

@@ -3,6 +3,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { hasFeature as gateFeature, registerFeatureCatalogue, type GateContext, type Tier } from '@/lib/lic/features'
+import { apiFetch } from '@/lib/api'
 
 export interface LicenseState {
   loading: boolean
@@ -190,7 +191,7 @@ export function LicenseProvider({
           supabase.from('company_employees').select('id', { count: 'exact', head: true }).eq('company_id', companyId).eq('status', 'active'),
           supabase.from('students').select('id', { count: 'exact', head: true }).eq('company_id', companyId),
         ])
-        const res = await fetch('/api/lic/license', {
+        const res = await apiFetch('/api/lic/license', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({

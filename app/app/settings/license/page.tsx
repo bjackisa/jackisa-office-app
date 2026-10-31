@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button'
 import { Spinner } from '@/components/ui/spinner'
 import { ShieldCheck, ShieldAlert, BadgeCheck, Building2, FileText, Copy, RefreshCw, ExternalLink } from 'lucide-react'
 import Link from 'next/link'
+import { apiFetch } from '@/lib/api'
 
 export default function LicensePage() {
   const license = useLicense()
@@ -31,7 +32,7 @@ export default function LicensePage() {
         supabase.from('license_validations').select('*').eq('company_id', ctx.companyId).order('checked_at', { ascending: false }).limit(10),
         // KYC state is read through the server so the browser never touches the
         // verification table directly.
-        fetch(`/api/kyc?companyId=${encodeURIComponent(ctx.companyId)}&userId=${encodeURIComponent(ctx.userId)}`)
+        apiFetch(`/api/kyc?companyId=${encodeURIComponent(ctx.companyId)}&userId=${encodeURIComponent(ctx.userId)}`)
           .then((r) => r.json())
           .catch(() => null),
       ])
@@ -40,7 +41,7 @@ export default function LicensePage() {
       setKyc(kycJson?.company || null)
 
       // Jackisa One: what this plan unlocks on jackisa.com.
-      fetch(`/api/jackisa?companyId=${encodeURIComponent(ctx.companyId)}`)
+      apiFetch(`/api/jackisa?companyId=${encodeURIComponent(ctx.companyId)}`)
         .then((r) => r.json())
         .then((j) => { if (j?.ok) setJackisa(j.data) })
         .catch(() => {})
@@ -53,9 +54,8 @@ export default function LicensePage() {
     setBusy(true)
     setMessage(null)
     try {
-      const res = await fetch('/api/lic/license', {
+      const res = await apiFetch('/api/lic/license', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'validate', companyId, licenseKey: license.licenseKey }),
       })
       const json = await res.json()
@@ -106,14 +106,14 @@ export default function LicensePage() {
     setBusy(true)
     setMessage(null)
     try {
-      const res = await fetch('/api/jackisa', {
+      const res = await apiFetch('/api/jackisa', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ companyId, action: 'materialize' }),
       })
       const json = await res.json()
       setMessage(json.ok ? 'Cross-platform benefits are up to date.' : json.error || 'Could not refresh benefits')
-      const fresh = await fetch(`/api/jackisa?companyId=${encodeURIComponent(companyId)}`).then((r) => r.json()).catch(() => null)
+      const fresh = await apiFetch(`/api/jackisa?companyId=${encodeURIComponent(companyId)}`).then((r) => r.json()).catch(() => null)
       if (fresh?.ok) setJackisa(fresh.data)
     } finally {
       setBusy(false)

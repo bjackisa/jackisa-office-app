@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { adminClient, adminAvailable } from '@/lib/lic/peer'
 import { lic } from '@/lib/lic/client'
+import { requireCompanyAdmin, requireMember } from '@/lib/lic/serverAuth'
 
 export const dynamic = 'force-dynamic'
 
@@ -26,6 +27,9 @@ export async function GET(req: NextRequest) {
   const companyId = new URL(req.url).searchParams.get('companyId') || ''
   if (!companyId) return NextResponse.json({ ok: false, error: 'companyId is required' }, { status: 400 })
 
+  const guard = await requireMember(req, companyId)
+  if ('error' in guard) return NextResponse.json({ ok: false, error: guard.error }, { status: guard.status })
+
   const owner = await resolveOwner(companyId)
   const res = await lic.jackisaBenefits({ tenantId: owner.tenantId, email: owner.email })
   return NextResponse.json({ ok: res.api_status === '200', data: res.data, error: res.errors?.error_text })
@@ -39,6 +43,11 @@ export async function POST(req: NextRequest) {
   if (!companyId || !action) {
     return NextResponse.json({ ok: false, error: 'companyId and action are required' }, { status: 400 })
   }
+
+  // Every Jackisa One action either reads benefits or acts on behalf of the
+  // tenant's owner account, so it is a company-admin action.
+  const guard = await requireCompanyAdmin(req, companyId)
+  if ('error' in guard) return NextResponse.json({ ok: false, error: guard.error }, { status: guard.status })
 
   const owner = await resolveOwner(companyId)
   const id = { tenantId: owner.tenantId, email: owner.email }

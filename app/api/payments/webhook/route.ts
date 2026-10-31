@@ -1,14 +1,42 @@
 import { NextRequest, NextResponse } from 'next/server'
+import crypto from 'crypto'
 import { createClient } from '@supabase/supabase-js'
+import { verifyLicSignature } from '@/lib/lic/peer'
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 )
 
+const WEBHOOK_SECRET = process.env.PAYMENTS_WEBHOOK_SECRET || ''
+
+/**
+ * Verify the caller is the payment provider (or the licence hub), not an
+ * anonymous poster. A forged "success" here marks a payment paid and mints a
+ * receipt, so an unsigned request is refused outright.
+ */
+function verifyWebhook(rawBody: string, req: NextRequest): boolean {
+  const sig = req.headers.get('x-jackisa-signature') || req.headers.get('x-signature-256') || req.headers.get('x-hub-signature-256')
+  if (WEBHOOK_SECRET && sig) {
+    const provided = sig.replace(/^sha256=/i, '').trim()
+    if (/^[0-9a-f]{64}$/i.test(provided)) {
+      const expected = crypto.createHmac('sha256', WEBHOOK_SECRET).update(rawBody).digest()
+      const providedBuf = Buffer.from(provided, 'hex')
+      if (expected.length === providedBuf.length && crypto.timingSafeEqual(expected, providedBuf)) return true
+    }
+  }
+  // Fall back to the licence hub's peer signature so the hub can forward a
+  // provider callback on our behalf.
+  return verifyLicSignature(rawBody, sig, 'office')
+}
+
 export async function POST(req: NextRequest) {
   try {
-    const payload = await req.json()
+    const rawBody = await req.text()
+    if (!verifyWebhook(rawBody, req)) {
+      return NextResponse.json({ error: 'Invalid signature' }, { status: 401 })
+    }
+    const payload = JSON.parse(rawBody || '{}')
     const {
       status, message, customer_reference, internal_reference,
       msisdn, amount, currency, provider, charge, completed_at,

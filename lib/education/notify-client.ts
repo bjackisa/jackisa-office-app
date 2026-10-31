@@ -1,3 +1,4 @@
+import { apiFetch } from '@/lib/api'
 /**
  * Browser-side helper for the education notification API.
  *
@@ -28,7 +29,7 @@ export async function notifyStudent(params: {
   }
 }): Promise<NotifyResult> {
   try {
-    const res = await fetch('/api/education/notify', {
+    const res = await apiFetch('/api/education/notify', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(params),
