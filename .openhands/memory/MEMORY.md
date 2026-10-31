@@ -1,5 +1,27 @@
 # Jackisa Stream — project memory
 
+## Jackisa Office — account-targeted coupons (Oct 30) — see `.openhands/memory/2026-10-30.md`
+- **Coupons are hub-authoritative.** Operator mints a coupon (percent / flat amount / full
+  waiver / bonus days) scoped to one account, a list, or a group (new, legacy, country,
+  industry, kind, tier); a code or auto-apply; duration once/N/forever; cap + expiry.
+  `CouponService` decides eligibility against the live `tenants` row and prices it;
+  `PaymentService::initiate` re-prices any `coupon_code` itself. A fully-covered plan is a
+  zero-amount `payments` row (`status='paid'`) via `redeemFreeLicense`.
+- Hub: `migrations/008_coupons.sql`, `src/Service/CouponService.php`,
+  `src/Controller/CouponController.php`, routes `/api/v1/coupons/{available,validate,quote}`
+  (peer) + `/api/v1/admin/coupons` (admin key). Office: `/app/admin/coupons` console,
+  `/api/admin/coupons` + `/api/lic/coupons`, coupon UI on `/app/settings/billing`,
+  `scripts/office-coupons-v1.sql`.
+- **Peer signing:** HMAC-SHA256 over the raw JSON body → `X-Lic-Signature: sha256=<hex>`,
+  `X-Lic-Peer: office`; secret = `peers.office.shared_secret` in the hub's
+  `config/config.local.php`. Handy for live API tests without the app.
+- **Hub deploy:** the server tree is `~/domains/lic.jackisa.com/app`; the local
+  `jackisa-license-hub` repo mirrors it. scp changed files, then `php bin/migrate.php`
+  (migrations are tracked in `_migrations`; `ADD COLUMN IF NOT EXISTS` works — MariaDB 11.8).
+  **PHP is not in the local shell** — lint/run over SSH.
+- **Supabase SQL apply:** no psql locally; run `scripts/*.sql` through a pg8000 script that
+  strips `--` comments and splits on `;` (creds cached at `/tmp/pg_creds.json`).
+
 ## Jackisa Office — trial/pay auth fixes (Oct 31) — see `.openhands/memory/2026-10-31.md`
 - **Trial 500 = missing hub tenant.** `trials.tenant_id` FK → `tenants.id`; the office app
   never pushed new companies to the hub. Fix: `lib/lic/provision.ts` `ensureLicTenant()`
