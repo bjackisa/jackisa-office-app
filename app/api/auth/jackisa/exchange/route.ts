@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { lic } from '@/lib/lic/client'
 import { adminClient, adminAvailable } from '@/lib/lic/peer'
+import { hitIp } from '@/lib/security/rate-limit'
 
 export const dynamic = 'force-dynamic'
 
@@ -14,6 +15,13 @@ export const dynamic = 'force-dynamic'
  * genuine authenticated session rather than a bare profile.
  */
 export async function POST(req: NextRequest) {
+  const limited = hitIp(req, 'sso-exchange', { windowSeconds: 60, max: 20 })
+  if (!limited.ok) {
+    return NextResponse.json(
+      { ok: false, error: 'Too many sign-in attempts. Please slow down.' },
+      { status: 429, headers: { 'Retry-After': String(limited.retryAfterSeconds) } }
+    )
+  }
   const body = await req.json().catch(() => ({}))
   const ssoToken = String(body?.ssoToken || '')
   if (!ssoToken) {
