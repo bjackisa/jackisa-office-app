@@ -7,7 +7,7 @@ import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Search, Lock, ChevronDown, ChevronRight, Save } from 'lucide-react'
-import { FEATURES } from '@/lib/lic/features'
+import { allFeatureSlugs, featureDef } from '@/lib/lic/features'
 
 export default function RolesPage() {
   const [companyId, setCompanyId] = useState<string | null>(null)
@@ -67,7 +67,7 @@ export default function RolesPage() {
     setSavingRole(null)
   }
 
-  const featureSlugs = Object.keys(FEATURES)
+  const featureSlugs = allFeatureSlugs()
 
   return (
     <div className="p-6 lg:p-8 max-w-[1000px] mx-auto animate-fade-in space-y-6">
@@ -168,7 +168,7 @@ export default function RolesPage() {
                             </div>
                             <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-2">
                               {featureSlugs.map((slug) => {
-                                const def = FEATURES[slug]
+                                const def = featureDef(slug)
                                 const on = roleGrants[slug] ?? false
                                 return (
                                   <label key={slug} className="flex items-center gap-2.5 px-3 py-2 rounded-lg border border-border/40 hover:bg-muted/30 cursor-pointer">
@@ -179,9 +179,9 @@ export default function RolesPage() {
                                       className="accent-primary"
                                     />
                                     <span className="min-w-0">
-                                      <span className="block text-xs font-medium text-foreground truncate">{def.name}</span>
+                                      <span className="block text-xs font-medium text-foreground truncate">{def?.name || slug}</span>
                                       <span className="block text-[10px] text-muted-foreground/50 capitalize">
-                                        needs {def.minTier} · {def.category}
+                                        needs {def?.minTier || 'basic'} · {def?.category || 'custom'}
                                       </span>
                                     </span>
                                   </label>

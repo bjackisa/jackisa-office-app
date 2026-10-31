@@ -2,7 +2,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import { supabase } from '@/lib/supabase'
-import { hasFeature as gateFeature, type GateContext, type Tier } from '@/lib/lic/features'
+import { hasFeature as gateFeature, registerFeatureCatalogue, type GateContext, type Tier } from '@/lib/lic/features'
 
 export interface LicenseState {
   loading: boolean
@@ -94,12 +94,17 @@ export function LicenseProvider({
     }
 
     try {
-      const [{ data: lic }, { data: trial }, { count: employeeCount }, { count: studentCount }] = await Promise.all([
+      const [{ data: lic }, { data: trial }, { count: employeeCount }, { count: studentCount }, { data: catalogue }] = await Promise.all([
         supabase.from('platform_licenses').select('*').eq('company_id', companyId).eq('is_current', true).maybeSingle(),
         supabase.from('trial_registrations').select('*').eq('company_id', companyId).order('created_at', { ascending: false }).limit(1).maybeSingle(),
         supabase.from('company_employees').select('id', { count: 'exact', head: true }).eq('company_id', companyId).eq('status', 'active'),
         supabase.from('students').select('id', { count: 'exact', head: true }).eq('company_id', companyId),
+        supabase.from('platform_features').select('slug, name, category, min_tier'),
       ])
+
+      // Feed the synced catalogue into the gate so a package/feature added on
+      // the hub gates correctly without a redeploy.
+      if (catalogue?.length) registerFeatureCatalogue(catalogue as any[])
 
       let overrides: Record<string, boolean> = {}
       let roleGrants: Record<string, boolean> = {}

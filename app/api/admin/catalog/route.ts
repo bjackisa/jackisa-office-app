@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { lic } from '@/lib/lic/client'
 import { requireSuperAdmin } from '@/lib/lic/serverAuth'
+import { adminClient, adminAvailable } from '@/lib/lic/peer'
 
 export const dynamic = 'force-dynamic'
 
@@ -41,5 +42,26 @@ export async function POST(req: NextRequest) {
       { status: Number(res.api_status) >= 400 ? Number(res.api_status) : 502 }
     )
   }
+
+  // Mirror the catalogue into Supabase so the office gate picks the change up
+  // immediately (the hub also pushes it on the next sync).
+  if (kind === 'features' && adminAvailable()) {
+    try {
+      const rows: any[] = res.data?.features || (res.data?.feature ? [res.data.feature] : [])
+      const mapped = rows
+        .filter((f) => f?.slug)
+        .map((f) => ({
+          slug: f.slug,
+          name: f.name || f.slug,
+          category: f.category || 'custom',
+          min_tier: f.min_tier || 'basic',
+          is_active: f.is_active === undefined ? true : Boolean(f.is_active),
+        }))
+      if (mapped.length) await adminClient().from('platform_features').upsert(mapped, { onConflict: 'slug' })
+    } catch (e) {
+      console.error('[admin/catalog] feature mirror failed', e)
+    }
+  }
+
   return NextResponse.json({ ok: true, data: res.data })
 }

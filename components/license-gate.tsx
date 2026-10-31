@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useLicense } from '@/lib/lic/useLicense'
-import { FEATURES, requiredTier } from '@/lib/lic/features'
+import { featureDef, requiredTier } from '@/lib/lic/features'
 import { featureForRoute } from '@/components/sidebar-nav'
 import { Button } from '@/components/ui/button'
 import { Lock, ArrowUpRight, ShieldAlert } from 'lucide-react'
@@ -63,7 +63,7 @@ export function LicenseGate({ feature, children }: { feature?: string; children:
   }
 
   if (feature && !can(feature)) {
-    const def = FEATURES[feature]
+    const def = featureDef(feature)
     const need = requiredTier(feature)
     return (
       <div className="max-w-lg mx-auto mt-16 p-8 rounded-2xl border border-border/50 bg-card text-center">

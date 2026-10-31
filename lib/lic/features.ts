@@ -88,7 +88,7 @@ export interface GateContext {
 }
 
 export function hasFeature(slug: string, ctx: GateContext): boolean {
-  const feature = FEATURES[slug]
+  const feature = featureDef(slug)
   if (!feature) return true // unknown feature: do not block
   if (!isTierAtLeast(ctx.tier, feature.minTier)) return false
   // A feature bound to certain organisation kinds is unavailable elsewhere,
@@ -106,5 +106,36 @@ export function hasFeature(slug: string, ctx: GateContext): boolean {
 
 /** The lowest tier that unlocks a feature, for upgrade prompts. */
 export function requiredTier(slug: string): Tier {
-  return FEATURES[slug]?.minTier ?? 'basic'
+  return featureDef(slug)?.minTier ?? 'basic'
+}
+
+/**
+ * Runtime feature catalogue, fed from the synced `platform_features` table so a
+ * plan or feature added through the package manager (lic /api/v1/admin/*) gates
+ * correctly without a redeploy. The static FEATURES map above is the seed and
+ * the offline fallback.
+ */
+const RUNTIME_FEATURES: Record<string, { name: string; category: string; minTier: Tier }> = {}
+
+export function registerFeatureCatalogue(rows: Array<{ slug?: string; name?: string; category?: string; min_tier?: string }>): void {
+  for (const row of rows || []) {
+    if (!row?.slug) continue
+    RUNTIME_FEATURES[row.slug] = {
+      name: row.name || row.slug,
+      category: row.category || 'custom',
+      minTier: (row.min_tier as Tier) || 'basic',
+    }
+  }
+}
+
+/** Resolve a feature's definition: a synced catalogue row first, then the seed. */
+export function featureDef(slug: string): { name: string; category: string; minTier: Tier; route?: string } | undefined {
+  const runtime = RUNTIME_FEATURES[slug]
+  if (runtime) return { ...runtime, route: FEATURES[slug]?.route }
+  return FEATURES[slug]
+}
+
+/** Every known feature slug (seed + synced catalogue), for the roles screen. */
+export function allFeatureSlugs(): string[] {
+  return Array.from(new Set([...Object.keys(FEATURES), ...Object.keys(RUNTIME_FEATURES)]))
 }
