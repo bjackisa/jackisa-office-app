@@ -3,6 +3,7 @@ import { lic } from '@/lib/lic/client'
 import { adminClient, adminAvailable } from '@/lib/lic/peer'
 import { getCaller, requireMember } from '@/lib/lic/serverAuth'
 import { ensureLicTenant } from '@/lib/lic/provision'
+import { mirrorLicenseFromHub } from '@/lib/lic/mirror'
 import { hitIp } from '@/lib/security/rate-limit'
 import crypto from 'crypto'
 
@@ -43,14 +44,27 @@ export async function POST(req: NextRequest) {
   const fingerprint = String(body?.fingerprint || deriveFingerprint(req))
 
   if (action === 'cancel') {
-    if (!adminAvailable()) return NextResponse.json({ ok: false, error: 'Not configured' }, { status: 500 })
-    const db = adminClient()
-    await db
-      .from('trial_registrations')
-      .update({ status: 'cancelled', cancelled_at: new Date().toISOString() })
-      .eq('company_id', companyId)
-      .in('status', ['active', 'reminded'])
-    return NextResponse.json({ ok: true, cancelled: true })
+    // Cancel on the hub first (it owns the trial and sends the cancellation
+    // notification on both channels), then mirror the local record.
+    const hub = await lic.cancelTrial(companyId, 'Cancelled by customer')
+    if (adminAvailable()) {
+      const db = adminClient()
+      await db
+        .from('trial_registrations')
+        .update({ status: 'cancelled', cancelled_at: new Date().toISOString() })
+        .eq('company_id', companyId)
+        .in('status', ['active', 'reminded'])
+    }
+    // The cancelled trial licence is no longer current locally.
+    if (hub.api_status === '200' && adminAvailable()) {
+      await adminClient()
+        .from('platform_licenses')
+        .update({ status: 'expired', expires_at: new Date().toISOString() })
+        .eq('company_id', companyId)
+        .eq('is_current', true)
+        .eq('status', 'trial')
+    }
+    return NextResponse.json({ ok: true, cancelled: true, hub: hub.api_status === '200' })
   }
 
   if (action === 'status') {
@@ -77,6 +91,13 @@ export async function POST(req: NextRequest) {
 
   const granted = res.data?.granted !== false
   const endsAt = res.data?.ends_at || new Date(Date.now() + TRIAL_DAYS * 86400000).toISOString()
+
+  // Mirror the licence the hub just issued (the chosen plan/tier, not a default
+  // basic one) into platform_licenses so the app renders the right tier and a
+  // real status instead of falling back to basic / unknown.
+  if (granted && res.data?.license) {
+    await mirrorLicenseFromHub(companyId, { license: res.data.license })
+  }
 
   if (adminAvailable()) {
     try {

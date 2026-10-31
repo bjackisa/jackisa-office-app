@@ -85,22 +85,25 @@ final class CronService
         foreach ($rows as $trial) {
             $ends = date('d/m/Y', strtotime((string) $trial['ends_at']));
             $name = $trial['full_name'] ?: 'there';
-            if (!empty($trial['email'])) {
-                MailService::send(
-                    [$trial['email']],
-                    'Your Jackisa Office trial ends in 2 days',
-                    '<p>Hello ' . htmlspecialchars($name) . ',</p>'
-                    . '<p>Your free trial of <strong>' . htmlspecialchars((string) $trial['tenant_name']) . '</strong> ends on <strong>' . $ends . '</strong>.</p>'
-                    . '<p>Add a payment number to keep your workspace active — we will charge it automatically when the trial ends. You can cancel any time.</p>'
-                    . '<p><a href="https://office.jackisa.com/app/settings/billing" style="background:#0d5ba3;color:#fff;padding:10px 18px;border-radius:8px;text-decoration:none;">Review billing</a></p>',
-                    [], ['template' => 'trial_reminder']
-                );
-            }
-            if (!empty($trial['phone'])) {
-                WhatsAppService::send($trial['phone'],
-                    "Hello $name, your Jackisa Office free trial for " . $trial['tenant_name'] . " ends on $ends. Add a payment number to keep going — reply STOP to cancel.",
-                    ['template' => 'trial_reminder']);
-            }
+            $daysLeft = max(0, (int) ceil((strtotime((string) $trial['ends_at']) - time()) / 86400));
+            $billing = 'https://office.jackisa.com/app/settings/billing';
+            $subject = 'Your Jackisa Office trial ends in ' . $daysLeft . ' day' . ($daysLeft === 1 ? '' : 's');
+            $html = MailService::wrap($subject,
+                '<p>Hello ' . htmlspecialchars($name) . ',</p>'
+                . '<p>Your free trial of <strong>' . htmlspecialchars((string) $trial['tenant_name']) . '</strong> ends on <strong>' . $ends . '</strong>.</p>'
+                . '<p>Add a payment number to keep your workspace active — we will charge it automatically when the trial ends. You can cancel any time.</p>'
+                . '<p><a href="' . $billing . '" style="background:#0d5ba3;color:#fff;padding:10px 18px;border-radius:8px;text-decoration:none;">Review billing</a></p>');
+
+            // Both channels, once per trial (dedupe key includes the trial id).
+            NotificationService::dispatch('trial.reminder', 'trial:reminder:' . $trial['id'],
+                !empty($trial['email']) ? [$trial['email']] : [], [
+                    'subject'  => $subject,
+                    'html'     => $html,
+                    'whatsapp' => $trial['phone'] ?? null,
+                    'template' => 'trial_reminder',
+                    'tenant_id' => $trial['tenant_id'],
+                ]);
+
             $app->run("UPDATE trials SET reminder_sent_at = NOW(), status = 'reminded' WHERE id = ?", [$trial['id']]);
             $sent++;
         }
@@ -116,6 +119,7 @@ final class CronService
         $expired = 0;
         foreach ($rows as $trial) {
             $app->run("UPDATE trials SET status = 'expired' WHERE id = ?", [$trial['id']]);
+            $chargeStarted = false;
             // If a payment number is on file, attempt the first real charge for
             // the plan the visitor chose when they started the trial.
             if (!empty($trial['msisdn']) && !empty($trial['tenant_id'])) {
@@ -136,13 +140,46 @@ final class CronService
                         'plan_code'       => $planCode,
                         'description'     => 'Jackisa Office licence (trial conversion)',
                     ]);
+                    $chargeStarted = true;
                 } catch (\Throwable $e) {
                     $app->log('warn', 'trial conversion charge failed', ['trial' => $trial['id'], 'error' => $e->getMessage()]);
                 }
             }
+            self::notifyTrialEnded($trial, $chargeStarted);
             $expired++;
         }
         return ['expired' => $expired];
+    }
+
+    /** Tell the customer their trial ended, and whether a charge is in flight. */
+    private static function notifyTrialEnded(array $trial, bool $chargeStarted): void
+    {
+        $tenantId = (string) ($trial['tenant_id'] ?? '');
+        if ($tenantId === '') {
+            return;
+        }
+        $contact = NotificationService::ownerContact($tenantId);
+        $name = $contact['name'] ?: 'there';
+        $tenant = App::instance()->one('SELECT name FROM tenants WHERE id = ?', [$tenantId]);
+        $company = $tenant['name'] ?? 'your workspace';
+        $billing = 'https://office.jackisa.com/app/settings/billing';
+
+        $subject = 'Your Jackisa Office trial has ended';
+        $intro = "<p>Hello $name,</p><p>Your free trial of <strong>$company</strong> has ended.</p>";
+        $intro .= $chargeStarted
+            ? '<p>We have sent a mobile-money payment prompt to your number. Approve it to activate your licence and keep all your features.</p>'
+            : '<p>Subscribe to restore licensed features and keep your data.</p>';
+
+        $html = MailService::wrap($subject, $intro . '<p><a href="' . $billing . '" style="background:#0d5ba3;color:#fff;padding:10px 18px;border-radius:8px;text-decoration:none;">Open billing</a></p>');
+
+        NotificationService::dispatch('trial.expired', 'trial:expired:' . $trial['id'],
+            !empty($contact['email']) ? [$contact['email']] : [], [
+                'subject'  => $subject,
+                'html'     => $html,
+                'whatsapp' => $contact['phone'] ?? ($trial['msisdn'] ?? null),
+                'template' => 'trial_expired',
+                'tenant_id' => $tenantId,
+            ]);
     }
 
     // -- Payments: reconcile pending charges with the provider --------------

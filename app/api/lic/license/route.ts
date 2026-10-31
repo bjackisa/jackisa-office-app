@@ -83,6 +83,9 @@ export async function POST(req: NextRequest) {
         const guard = await requireMember(req, companyId)
         if ('error' in guard) return NextResponse.json({ ok: false, error: guard.error }, { status: guard.status })
         const res = await lic.licenseStatus(companyId)
+        // Self-heal: if the hub holds a live licence the office has not mirrored
+        // (e.g. a trial started before the mirror was wired), write it now.
+        if (res.api_status === '200') await mirrorLicenseFromHub(companyId, res.data)
         return NextResponse.json({ ok: res.api_status === '200', data: res.data, error: res.errors?.error_text })
       }
 

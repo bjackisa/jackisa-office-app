@@ -186,6 +186,18 @@ final class LicenseController
         Response::ok($result);
     }
 
+    /** POST /api/v1/office-license/trial-cancel */
+    public static function trialCancel(Request $request): void
+    {
+        Auth::requirePeer($request);
+        $tenantId = $request->string('tenant_id');
+        if ($tenantId === '') {
+            Response::error('422', 'tenant_id is required', 422);
+        }
+        $result = LicenseService::cancelTrial($tenantId, $request->string('reason', 'Cancelled by customer'));
+        Response::ok($result);
+    }
+
     /** POST /api/v1/office-license/change-quote — price a plan change. */
     public static function changeQuote(Request $request): void
     {

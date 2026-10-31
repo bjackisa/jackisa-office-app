@@ -300,6 +300,49 @@ final class PaymentService
             'INSERT INTO audit_log (actor_type, action, entity_type, entity_id, details) VALUES (?,?,?,?,?)',
             ['system', 'payment.fulfilled', 'payment', $payment['id'], json_encode(['months' => $months, 'plan' => $payment['plan_code']])]
         );
+
+        // Receipt on both channels, keyed on the payment id so a retried
+        // fulfilment (reconcile + callback) never sends a second receipt.
+        self::notifyPayment($payment, $license, $periodEnd);
+    }
+
+    /** Payment receipt notification (email + WhatsApp). */
+    private static function notifyPayment(array $payment, ?array $license, \DateTimeImmutable $periodEnd): void
+    {
+        $tenantId = (string) ($payment['tenant_id'] ?? '');
+        if ($tenantId === '') {
+            return;
+        }
+        $contact = NotificationService::ownerContact($tenantId);
+        $name = $contact['name'] ?: 'there';
+        $tenant = App::instance()->one('SELECT name FROM tenants WHERE id = ?', [$tenantId]);
+        $company = $tenant['name'] ?? 'your workspace';
+        $amount = number_format((float) $payment['amount']);
+        $currency = (string) ($payment['currency'] ?? 'UGX');
+        $planCode = (string) ($payment['plan_code'] ?? '');
+        $plan = $planCode !== '' ? App::instance()->one('SELECT name FROM plans WHERE code = ?', [$planCode]) : null;
+        $label = $plan['name'] ?? $planCode;
+        $ref = (string) ($payment['merchant_ref'] ?? '');
+        $validUntil = $periodEnd->format('d/m/Y');
+
+        $subject = 'Payment received — ' . $currency . ' ' . $amount;
+        $intro = "<p>Hello $name,</p><p>We received your payment for <strong>$company</strong>. Your licence is active.</p>"
+            . '<table style="width:100%;border-collapse:collapse;margin:12px 0">'
+            . '<tr><td style="padding:6px 0;color:#94a3b8;font-size:13px">Amount</td><td style="padding:6px 0;text-align:right;font-weight:700;font-size:13px">' . $currency . ' ' . $amount . '</td></tr>'
+            . ($label !== '' ? '<tr><td style="padding:6px 0;color:#94a3b8;font-size:13px">Plan</td><td style="padding:6px 0;text-align:right;font-size:13px">' . htmlspecialchars($label) . '</td></tr>' : '')
+            . ($ref !== '' ? '<tr><td style="padding:6px 0;color:#94a3b8;font-size:13px">Reference</td><td style="padding:6px 0;text-align:right;font-size:13px">' . htmlspecialchars($ref) . '</td></tr>' : '')
+            . '<tr><td style="padding:6px 0;color:#94a3b8;font-size:13px">Valid until</td><td style="padding:6px 0;text-align:right;font-size:13px">' . $validUntil . '</td></tr>'
+            . '</table>';
+
+        $html = MailService::wrap($subject, $intro . '<p><a href="https://office.jackisa.com/app/settings/billing" style="background:#0d5ba3;color:#fff;padding:10px 18px;border-radius:8px;text-decoration:none;">View billing</a></p>');
+
+        NotificationService::dispatch('payment.received', 'payment:' . $payment['id'], $contact['email'] ? [$contact['email']] : [], [
+            'subject'  => $subject,
+            'html'     => $html,
+            'whatsapp' => $contact['phone'],
+            'template' => 'payment_receipt',
+            'tenant_id' => $tenantId,
+        ]);
     }
 
     /**

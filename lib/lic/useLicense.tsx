@@ -95,13 +95,37 @@ export function LicenseProvider({
     }
 
     try {
-      const [{ data: lic }, { data: trial }, { count: employeeCount }, { count: studentCount }, { data: catalogue }] = await Promise.all([
+      const [{ data: licRow }, { data: trial }, { count: employeeCount }, { count: studentCount }, { data: catalogue }] = await Promise.all([
         supabase.from('platform_licenses').select('*').eq('company_id', companyId).eq('is_current', true).maybeSingle(),
         supabase.from('trial_registrations').select('*').eq('company_id', companyId).order('created_at', { ascending: false }).limit(1).maybeSingle(),
         supabase.from('company_employees').select('id', { count: 'exact', head: true }).eq('company_id', companyId).eq('status', 'active'),
         supabase.from('students').select('id', { count: 'exact', head: true }).eq('company_id', companyId),
         supabase.from('platform_features').select('slug, name, category, min_tier'),
       ])
+
+      // Self-heal: a licence may exist on the hub but not be mirrored here (a
+      // trial started before the mirror was wired), or be a stale/partial row
+      // from the old buggy mirror (tier 'basic', no license_key). Ask the hub
+      // once and re-read, so the workspace shows its real tier and status.
+      let lic = licRow
+      if (!lic?.license_key) {
+        try {
+          await apiFetch('/api/lic/license', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: 'status', companyId }),
+          })
+          const { data: refetched } = await supabase
+            .from('platform_licenses')
+            .select('*')
+            .eq('company_id', companyId)
+            .eq('is_current', true)
+            .maybeSingle()
+          if (refetched?.license_key) lic = refetched
+        } catch (e) {
+          console.error('[license] self-heal sync failed', e)
+        }
+      }
 
       // Feed the synced catalogue into the gate so a package/feature added on
       // the hub gates correctly without a redeploy.

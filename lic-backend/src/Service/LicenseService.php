@@ -35,6 +35,14 @@ final class LicenseService
             throw new \InvalidArgumentException('Unknown plan: ' . $planCode);
         }
 
+        // A licence carries the same tenant FK as a trial; make sure the tenant
+        // exists so issuing never fails on a not-yet-synced workspace.
+        TenantService::ensureTenant($tenantId, [
+            'name'                => $opts['tenant_name'] ?? null,
+            'email'               => $opts['tenant_email'] ?? null,
+            'supabase_company_id' => $tenantId,
+        ]);
+
         $interval = (int) ($opts['interval_months'] ?? $plan['interval_months']);
         if (!in_array($interval, self::INTERVALS, true)) {
             $interval = (int) $plan['interval_months'];
@@ -323,6 +331,15 @@ final class LicenseService
         $app = App::instance();
         $ip = $opts['ip'] ?? null;
 
+        // The tenant must exist before a trial can reference it (FK on
+        // trials.tenant_id). A request that arrives ahead of the office sync
+        // would otherwise fail the constraint and 500, so create it on demand.
+        TenantService::ensureTenant($tenantId, [
+            'name'                => $opts['tenant_name'] ?? null,
+            'email'               => $opts['tenant_email'] ?? null,
+            'supabase_company_id' => $tenantId,
+        ]);
+
         // A trial is for a genuinely new device/network. Deny when the device
         // fingerprint has been seen before, or when the same public IP already
         // consumed a trial — otherwise a fresh account on a known device/IP
@@ -385,7 +402,116 @@ final class LicenseService
 
         self::audit('trial.started', 'tenant', $tenantId, ['days' => $days, 'fingerprint' => $fingerprint, 'plan' => $planCode]);
 
+        // Tell the customer their trial started, on both channels. Keyed on the
+        // trial id so a retried request never sends a second copy.
+        self::notifyTrial('started', $tenantId, (string) $id, [
+            'days' => $days,
+            'plan' => $planCode,
+            'ends' => $end->format('d/m/Y'),
+            'msisdn' => $opts['msisdn'] ?? null,
+        ]);
+
         return ['granted' => true, 'trial_id' => $id, 'ends_at' => $end->format('c'), 'license' => $license];
+    }
+
+    /**
+     * Cancel a tenant's active trial. Idempotent: a trial already cancelled or
+     * converted is left alone. Returns whether a trial was cancelled.
+     */
+    public static function cancelTrial(string $tenantId, string $reason = 'Cancelled by customer'): array
+    {
+        $app = App::instance();
+        $trial = $app->one(
+            "SELECT * FROM trials WHERE tenant_id = ? AND status IN ('active','reminded')
+             ORDER BY created_at DESC LIMIT 1",
+            [$tenantId]
+        );
+        if ($trial === null) {
+            return ['cancelled' => false, 'reason' => 'no_active_trial'];
+        }
+
+        $app->run(
+            "UPDATE trials SET status = 'cancelled', cancelled_at = NOW() WHERE id = ?",
+            [$trial['id']]
+        );
+        // The trial licence stops being valid the moment it is cancelled.
+        $app->run(
+            "UPDATE licenses SET status = 'expired', expires_at = NOW(), updated_at = NOW()
+             WHERE tenant_id = ? AND status = 'trial'",
+            [$tenantId]
+        );
+        self::audit('trial.cancelled', 'tenant', $tenantId, ['trial' => $trial['id'], 'reason' => $reason]);
+
+        self::notifyTrial('cancelled', $tenantId, (string) $trial['id'], [
+            'ends' => date('d/m/Y', strtotime((string) $trial['ends_at'])),
+            'msisdn' => $trial['msisdn'] ?? null,
+        ]);
+
+        return ['cancelled' => true, 'trial_id' => $trial['id']];
+    }
+
+    /**
+     * Send a trial lifecycle notification on both channels.
+     *
+     * @param 'started'|'cancelled'|'reminder'|'expired' $phase
+     * @param array<string,mixed> $vars
+     */
+    private static function notifyTrial(string $phase, string $tenantId, string $trialId, array $vars): void
+    {
+        $contact = NotificationService::ownerContact($tenantId);
+        $email = $contact['email'] ?? null;
+        $phone = $contact['phone'] ?? ($vars['msisdn'] ?? null);
+        $name = $contact['name'] ?: 'there';
+        $tenant = App::instance()->one('SELECT name FROM tenants WHERE id = ?', [$tenantId]);
+        $company = $tenant['name'] ?? 'your workspace';
+        $billing = 'https://office.jackisa.com/app/settings/billing';
+        $planLabel = self::planLabel((string) ($vars['plan'] ?? ''));
+        $amount = self::planAmount((string) ($vars['plan'] ?? ''));
+
+        if ($phase === 'started') {
+            $subject = 'Your Jackisa Office free trial has started';
+            $intro = "<p>Hello $name,</p><p>Your free trial of <strong>$company</strong> is now active on the <strong>$planLabel</strong> plan. It runs for <strong>{$vars['days']} day(s)</strong> and ends on <strong>{$vars['ends']}</strong>.</p>";
+            $intro .= $amount > 0
+                ? '<p>When the trial ends we will send a JPesa prompt to your mobile money number to collect <strong>' . number_format($amount) . ' UGX</strong>. Approve it to keep your workspace active, or cancel any time before then.</p>'
+                : '<p>Add a payment number before the trial ends to keep your workspace active. You can cancel any time.</p>';
+        } elseif ($phase === 'cancelled') {
+            $subject = 'Your Jackisa Office trial has been cancelled';
+            $intro = "<p>Hello $name,</p><p>Your free trial of <strong>$company</strong> has been cancelled, so you will not be charged. Your workspace stays readable, but licensed features are now paused.</p><p>You can start a plan whenever you are ready.</p>";
+        } elseif ($phase === 'expired') {
+            $subject = 'Your Jackisa Office trial has ended';
+            $intro = "<p>Hello $name,</p><p>Your free trial of <strong>$company</strong> has ended. Subscribe to restore licensed features.</p>";
+        } else {
+            $subject = 'Your Jackisa Office trial ends soon';
+            $intro = "<p>Hello $name,</p><p>Your free trial of <strong>$company</strong> ends in <strong>{$vars['days']} day(s)</strong> on <strong>{$vars['ends']}</strong>.</p><p>Add a payment number to keep going — you can cancel any time.</p>";
+        }
+
+        $html = MailService::wrap($subject, $intro . '<p><a href="' . $billing . '" style="background:#0d5ba3;color:#fff;padding:10px 18px;border-radius:8px;text-decoration:none;">Open billing</a></p>');
+
+        NotificationService::dispatch('trial.' . $phase, 'trial:' . $phase . ':' . $trialId, $email ? [$email] : [], [
+            'subject'  => $subject,
+            'html'     => $html,
+            'whatsapp' => $phone,
+            'template' => 'trial_' . $phase,
+            'tenant_id' => $tenantId,
+        ]);
+    }
+
+    private static function planLabel(string $planCode): string
+    {
+        if ($planCode === '') {
+            return 'your chosen';
+        }
+        $plan = App::instance()->one('SELECT name FROM plans WHERE code = ?', [$planCode]);
+        return $plan['name'] ?? $planCode;
+    }
+
+    private static function planAmount(string $planCode): float
+    {
+        if ($planCode === '') {
+            return 0.0;
+        }
+        $plan = App::instance()->one('SELECT price FROM plans WHERE code = ?', [$planCode]);
+        return (float) ($plan['price'] ?? 0);
     }
 
     /**
@@ -521,7 +647,41 @@ final class LicenseService
             'to' => $newPlanCode, 'credit' => $quote['credit'], 'direction' => $quote['direction'],
         ]);
 
+        // Notify the customer their plan changed, on both channels. Keyed on the
+        // licence id + new plan so a retried change does not double-send.
+        self::notifyPlanChanged($tenantId, (string) $lic['id'], $newPlanCode, $quote);
+
         return self::certify($lic['id']);
+    }
+
+    /** Plan change notification (upgrade / downgrade / interval switch). */
+    private static function notifyPlanChanged(string $tenantId, string $licenseId, string $newPlanCode, array $quote): void
+    {
+        $contact = NotificationService::ownerContact($tenantId);
+        $name = $contact['name'] ?: 'there';
+        $tenant = App::instance()->one('SELECT name FROM tenants WHERE id = ?', [$tenantId]);
+        $company = $tenant['name'] ?? 'your workspace';
+        $plan = App::instance()->one('SELECT name, price, currency, interval_months FROM plans WHERE code = ?', [$newPlanCode]);
+        $label = $plan['name'] ?? $newPlanCode;
+        $direction = (string) ($quote['direction'] ?? 'change');
+        $verb = $direction === 'upgrade' ? 'upgraded' : ($direction === 'downgrade' ? 'changed' : 'updated');
+
+        $subject = "Your Jackisa Office plan was $verb to $label";
+        $intro = "<p>Hello $name,</p><p>The Jackisa Office plan for <strong>$company</strong> is now <strong>$label</strong>.</p>";
+        if ($direction === 'upgrade') {
+            $intro .= '<p>Your new features are active immediately.</p>';
+        }
+        $intro .= '<p>You can review the plan and billing history any time.</p>';
+
+        $html = MailService::wrap($subject, $intro . '<p><a href="https://office.jackisa.com/app/settings/billing" style="background:#0d5ba3;color:#fff;padding:10px 18px;border-radius:8px;text-decoration:none;">Open billing</a></p>');
+
+        NotificationService::dispatch('license.changed', 'plan:' . $licenseId . ':' . $newPlanCode . ':' . date('Ymd'), $contact['email'] ? [$contact['email']] : [], [
+            'subject'  => $subject,
+            'html'     => $html,
+            'whatsapp' => $contact['phone'],
+            'template' => 'plan_changed',
+            'tenant_id' => $tenantId,
+        ]);
     }
 
     public static function decodeFeatures(mixed $features): array

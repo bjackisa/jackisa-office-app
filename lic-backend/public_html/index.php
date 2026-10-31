@@ -79,6 +79,7 @@ $router->post('/api/v1/office-license/renew',    fn(Request $r) => LicenseContro
 $router->post('/api/v1/office-license/revoke',   fn(Request $r) => LicenseController::revoke($r));
 $router->post('/api/v1/office-license/suspend',  fn(Request $r) => LicenseController::suspend($r));
 $router->post('/api/v1/office-license/trial',    fn(Request $r) => LicenseController::trial($r));
+$router->post('/api/v1/office-license/trial-cancel', fn(Request $r) => LicenseController::trialCancel($r));
 $router->post('/api/v1/office-license/change-quote', fn(Request $r) => LicenseController::changeQuote($r));
 $router->post('/api/v1/office-license/change',   fn(Request $r) => LicenseController::change($r));
 $router->any('/api/v1/office-license/status',    fn(Request $r) => LicenseController::status($r));

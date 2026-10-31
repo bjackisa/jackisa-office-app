@@ -11,8 +11,16 @@ import { adminClient, adminAvailable } from '@/lib/lic/peer'
  */
 export async function mirrorLicenseFromHub(companyId: string, data: any): Promise<void> {
   if (!companyId || !adminAvailable()) return
-  const license = data?.license || data?.certificate?.payload || data?.certificate || null
+
+  // The hub returns a signed certificate shaped { payload, signature,
+  // fingerprint }; the status endpoint returns a raw licence row; some callers
+  // pass the certificate already unwrapped. Normalise all three to the payload
+  // before reading fields, otherwise the licence mirrors as tier 'basic' /
+  // plan null and the workspace looks like it was given a basic trial.
+  const cert = data?.license || data?.certificate || data || null
+  const license = cert?.payload || cert
   if (!license) return
+  if (!license.plan_code && !license.serial && !license.tier) return
 
   const db = adminClient()
   const row = {
@@ -30,15 +38,30 @@ export async function mirrorLicenseFromHub(companyId: string, data: any): Promis
     starts_at: license.starts_at ?? null,
     expires_at: license.expires_at ?? null,
     grace_until: license.grace_until ?? null,
-    certificate: license.certificate ?? (data?.certificate ? JSON.stringify(data.certificate) : null),
-    fingerprint: license.fingerprint ?? data?.certificate?.fingerprint ?? null,
+    certificate: cert?.payload ? JSON.stringify(cert) : license.certificate ?? null,
+    fingerprint: cert?.fingerprint ?? license.fingerprint ?? null,
     is_current: true,
     last_validated_at: new Date().toISOString(),
   }
 
   try {
+    // Update the current row in place when it is the same licence, so a repeated
+    // sync (e.g. the twice-daily status check) does not pile up dead rows.
+    const { data: existing } = await db
+      .from('platform_licenses')
+      .select('id, license_key')
+      .eq('company_id', companyId)
+      .eq('is_current', true)
+      .maybeSingle()
+
+    if (existing && (existing as any).license_key && (existing as any).license_key === row.license_key) {
+      await db.from('platform_licenses').update(row).eq('id', (existing as any).id)
+      return
+    }
+
     await db.from('platform_licenses').update({ is_current: false }).eq('company_id', companyId).eq('is_current', true)
-    await db.from('platform_licenses').insert(row)
+    const { error } = await db.from('platform_licenses').insert(row)
+    if (error) console.error('[lic] license mirror insert failed', error)
   } catch (e) {
     console.error('[lic] license mirror failed', e)
   }

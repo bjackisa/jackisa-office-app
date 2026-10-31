@@ -54,6 +54,45 @@ final class TenantService
         return $id;
     }
 
+    /**
+     * Guarantee a tenant row exists for this id before anything references it.
+     *
+     * Trials, licences, subscriptions and memberships all carry a foreign key to
+     * `tenants`, so a request that arrives before the tenant has been synced
+     * from office/jackisa.com would otherwise fail the FK and 500. This is
+     * idempotent: an existing row is left untouched (only the optional links are
+     * filled in), and it never clobbers a richer record already on file.
+     */
+    public static function ensureTenant(string $id, array $seed = []): void
+    {
+        if ($id === '') {
+            return;
+        }
+        $app = App::instance();
+        $app->run(
+            'INSERT INTO tenants (id, name, slug, email, phone, industry, country, currency, kind, logo_url, supabase_company_id, synced_at)
+             VALUES (?,?,?,?,?,?,?,?,?,?,?,NOW())
+             ON DUPLICATE KEY UPDATE
+               name = IF(name = "" OR name IS NULL, VALUES(name), name),
+               email = COALESCE(email, VALUES(email)),
+               supabase_company_id = COALESCE(supabase_company_id, VALUES(supabase_company_id)),
+               updated_at = NOW()',
+            [
+                $id,
+                $seed['name'] ?? 'Untitled workspace',
+                $seed['slug'] ?? null,
+                $seed['email'] ?? null,
+                $seed['phone'] ?? null,
+                $seed['industry'] ?? null,
+                $seed['country'] ?? null,
+                $seed['currency'] ?? 'UGX',
+                ($seed['kind'] ?? 'company') === 'institution' ? 'institution' : 'company',
+                $seed['logo_url'] ?? null,
+                $seed['supabase_company_id'] ?? null,
+            ]
+        );
+    }
+
     public static function upsertUser(array $data): string
     {
         $app = App::instance();

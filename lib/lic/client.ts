@@ -125,6 +125,10 @@ export const lic = {
     return call('/api/v1/office-license/trial', { tenant_id: tenantId, fingerprint, ...opts })
   },
 
+  cancelTrial(tenantId: string, reason?: string) {
+    return call('/api/v1/office-license/trial-cancel', { tenant_id: tenantId, reason })
+  },
+
   renew(licenseKey: string, intervalMonths: number, planCode?: string) {
     return call('/api/v1/office-license/renew', {
       license_key: licenseKey,
