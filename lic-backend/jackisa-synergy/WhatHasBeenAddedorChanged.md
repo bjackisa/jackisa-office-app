@@ -10,11 +10,12 @@ All new files live in the jackisa.com web root (`public_html/`).
 
 | File | Purpose |
 |------|---------|
-| `office_bridge.php` | The one endpoint `lic.jackisa.com` calls. Every action is HMAC-signed with the shared bridge secret. Actions: `verify` (SSO session check), `pull` (user directory), `sync_entitlements`, `entitlements`, `materialize_benefits`, `publish_course`, `schedule_meeting`, `sync_member_channel`, `pull_store_earnings`, `apply_verification`. |
+| `office_bridge.php` | The one endpoint `lic.jackisa.com` calls. Every action is HMAC-signed with the shared bridge secret. Actions: `verify` (SSO session check), `pull` (user directory), `verify_username`, `sync_entitlements`, `entitlements`, `materialize_benefits`, `publish_course`, `schedule_meeting`, `sync_member_channel`, `pull_store_earnings`, `apply_verification`. |
 | `office_entitlements.php` | The entitlement engine. Maps a Jackisa One tier (basic / pro / platinum) to concrete platform limits: channels, live minutes, store enabled, course publishing, verified badge, meeting seats, member seats, feature flags. Also creates the real artifacts on purchase: storefront/seller, gold badge, reserved seats. |
 | `office_sso.php` | "Continue with Jackisa" entry point. If the visitor has a jackisa.com session, it redirects to the office callback with a one-time `access_token`. If not, it bounces through the standard login page and returns. Only `office.jackisa.com`, `localhost` and `127.0.0.1` may receive the token. |
 | `office_bridge_secret.php` | **Never committed.** Holds the shared HMAC secret. Listed in `.gitignore`. |
 | `lic_cron.php` | Hosting-panel cron entry that runs the licence hub's scheduled jobs twice a day. |
+| `WhatHasBeenAddedorChanged.md` | This document. |
 
 ## New database table
 
@@ -32,12 +33,30 @@ SQL: `jackisa_one_entitlements.sql`.
 | `features` | JSON feature flags |
 | `status` | `active` / `suspended` |
 
+## Entitlement materialization
+
+A tier row on its own changes nothing a customer can see, so
+`PT_OfficeMaterializeBenefits($user_id, $tier, $data)` turns a plan into real
+artifacts on jackisa.com. It is idempotent, so repeated syncs are safe.
+
+| Entitlement | Artifact created |
+|-------------|------------------|
+| `store_enabled` | Opens the seller storefront (accepts the store terms, creates the seller if missing) and sets it `active` immediately — the plan already paid for it, so it does not wait on the seller-approval queue. |
+| `verified_badge` | Applies the gold verification badge (`users.verified = 1`). |
+| `meeting_seats` | Reports the reserved seat allocation so the office UI can show availability. |
+
+The bridge calls this on every `sync_entitlements`, and the dedicated
+`materialize_benefits` action re-runs it on demand.
+
 ## Changed files
 
 | File | Change |
 |------|--------|
 | `themes/playtag/layout/header/loggedin.html` | Added a "Jackisa Office" link to the user menu. Signed-in users go through `office_sso.php` so the office app signs them in without a second password. |
 | `themes/playtag/layout/header/not-logged.html` | Added a "Jackisa Office" link for guests, pointing at `office.jackisa.com`. |
+| `office_bridge.php` | `sync_entitlements` now calls `PT_OfficeMaterializeBenefits` and returns what it created; new `materialize_benefits` action; `entitlements` now returns `store_slug` / `store_url` so the office app can deep-link to the live storefront. |
+| `office_entitlements.php` | Added `PT_OfficeMaterializeBenefits()` — the storefront / badge / seats materializer described above. |
+| `.well-known/assetlinks.json` | Added the newest Android signing-certificate fingerprint so office / jackisa.com deep links keep resolving after the app signing key changed. |
 
 ## How it works end to end
 
