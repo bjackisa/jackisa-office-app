@@ -76,3 +76,20 @@ The bridge calls this on every `sync_entitlements`, and the dedicated
 * Every bridge call carries `X-Lic-Signature` (HMAC-SHA256 over the raw body) and is
   rejected if the signature does not match.
 * `office_sso.php` refuses to hand a session token to any host outside the allow-list.
+
+## Licensing flow fixes (office + licence hub)
+
+Two defects in the office sign-up / licensing flow, fixed together.
+
+| Where | Change |
+|-------|--------|
+| `office.jackisa.com` — `lib/lic/provision.ts` (new) | `ensureLicTenant()` pushes a company to the hub as a tenant (with its owner user and owner membership) before the hub is asked to start a trial or charge a licence. The hub enforces a foreign key from `trials` / `licenses` / `subscriptions` to `tenants`, but the office app previously never told the hub about a new company, so the first trial insert failed the constraint and the hub returned an HTTP 500. The tenant id is the office company id — the same value every licence call already passes as `tenant_id` — and the id is remembered on `companies.lic_tenant_id` so later calls take the fast path. |
+| `office.jackisa.com` — `app/api/trial/route.ts`, `app/api/lic/license/route.ts`, `app/api/lic/payments/route.ts` | Call `ensureLicTenant()` before the hub call. |
+| `office.jackisa.com` — `lib/lic/serverAuth.ts` | `getMembership()` now falls back to the company's `created_by` / `owner_user_id` when there is no active `company_employees` row, so a company owner is always treated as an admin member. Without this, an owner whose membership row was missing or not yet active was told "Not signed in" when paying for a licence. |
+| `lic.jackisa.com` — `TenantService::ensureTenant()` (new) | Idempotent tenant upsert that never clobbers a richer record already on file. `LicenseService::issue()` and `startTrial()` call it first, so a request that arrives ahead of the office sync can no longer fail the foreign key. |
+
+Note: the office fixes had been committed but not deployed — the live site was serving
+a build that both omitted the tenant provisioning and called the licence routes without
+the caller's token, which is what surfaced as "Not signed in" while signed in. The
+office app was redeployed with these changes.
+
