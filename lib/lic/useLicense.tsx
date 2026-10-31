@@ -3,6 +3,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { hasFeature as gateFeature, registerFeatureCatalogue, type GateContext, type Tier } from '@/lib/lic/features'
+import { profileFor } from '@/lib/industries'
 import { apiFetch } from '@/lib/api'
 
 export interface LicenseState {
@@ -250,6 +251,7 @@ export function LicenseProvider({
       const ctx: GateContext = {
         tier: state.tier,
         companyKind,
+        industryKind: profileFor(industry).kind,
         overrides: state.overrides,
         roleGrants: state.roleGrants,
         isAdminRole: state.isAdminRole,
@@ -258,7 +260,7 @@ export function LicenseProvider({
       if (state.status !== 'unknown' && !state.valid) return false
       return gateFeature(slug, ctx)
     },
-    [state.tier, state.overrides, state.roleGrants, state.isAdminRole, state.valid, state.status, companyKind]
+    [state.tier, state.overrides, state.roleGrants, state.isAdminRole, state.valid, state.status, companyKind, industry]
   )
 
   const value = useMemo(() => ({ ...state, refresh: load, can }), [state, load, can])

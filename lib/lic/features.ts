@@ -79,6 +79,14 @@ export interface GateContext {
   tier: string | null | undefined
   /** The kind of organisation (companies.kind). */
   companyKind?: string | null
+  /**
+   * The kind implied by the company's industry (e.g. "Education" -> institution).
+   * Workspaces created before company kinds existed carry the generic `company`
+   * default, so the kind bound to a feature must match either the stored kind or
+   * the industry-implied kind — otherwise a school on the education industry
+   * would never unlock the education modules.
+   */
+  industryKind?: string | null
   /** Overrides set for the company (feature_slug -> enabled). */
   overrides?: Record<string, boolean>
   /** Role grants (feature_slug -> enabled) for the user's role. */
@@ -92,10 +100,14 @@ export function hasFeature(slug: string, ctx: GateContext): boolean {
   if (!feature) return true // unknown feature: do not block
   if (!isTierAtLeast(ctx.tier, feature.minTier)) return false
   // A feature bound to certain organisation kinds is unavailable elsewhere,
-  // unless the company has been explicitly granted it.
+  // unless the company has been explicitly granted it. The stored kind and the
+  // industry-implied kind are both honoured so legacy workspaces keep working.
   const kinds = FEATURE_KINDS[slug]
-  if (kinds && ctx.companyKind && !kinds.includes(ctx.companyKind as CompanyKind)) {
-    if (!(ctx.overrides && ctx.overrides[slug])) return false
+  if (kinds) {
+    const candidates = [ctx.companyKind, ctx.industryKind].filter(Boolean) as string[]
+    if (candidates.length > 0 && !candidates.some((k) => kinds.includes(k as CompanyKind))) {
+      if (!(ctx.overrides && ctx.overrides[slug])) return false
+    }
   }
   if (ctx.overrides && slug in ctx.overrides) return ctx.overrides[slug]
   if (ctx.isAdminRole) return true

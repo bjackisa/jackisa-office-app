@@ -11,6 +11,7 @@ import { NextRequest } from 'next/server'
 import { adminClient, adminAvailable } from './peer'
 import { getCaller, getMembership } from './serverAuth'
 import { hasFeature, registerFeatureCatalogue, type GateContext } from './features'
+import { profileFor } from '@/lib/industries'
 
 export interface FeatureGate {
   callerId: string
@@ -40,7 +41,7 @@ export async function requireFeature(
   const db = adminClient()
   const [{ data: lic }, { data: company }, { data: catalogue }, { data: overrides }, { data: grants }] = await Promise.all([
     db.from('platform_licenses').select('tier, status, expires_at, grace_until').eq('company_id', companyId).eq('is_current', true).maybeSingle(),
-    db.from('companies').select('kind').eq('id', companyId).maybeSingle(),
+    db.from('companies').select('kind, industry').eq('id', companyId).maybeSingle(),
     db.from('platform_features').select('slug, name, category, min_tier'),
     db.from('company_feature_overrides').select('feature_slug, enabled').eq('company_id', companyId),
     membership.roleId
@@ -58,6 +59,7 @@ export async function requireFeature(
   const ctx: GateContext = {
     tier: (lic as any)?.tier || 'basic',
     companyKind: (company as any)?.kind || null,
+    industryKind: profileFor((company as any)?.industry).kind,
     overrides: Object.fromEntries((overrides || []).map((o: any) => [o.feature_slug, o.enabled])),
     roleGrants: Object.fromEntries((grants || []).map((g: any) => [g.feature_slug, g.enabled])),
     isAdminRole: membership.isAdmin,
