@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { lic } from '@/lib/lic/client'
 import { adminClient, adminAvailable } from '@/lib/lic/peer'
 import { getCaller } from '@/lib/lic/serverAuth'
+import { hitIp } from '@/lib/security/rate-limit'
 import crypto from 'crypto'
 
 export const dynamic = 'force-dynamic'
@@ -18,6 +19,13 @@ const TRIAL_DAYS = 7
  * by JPesa; the user may cancel any time before then.
  */
 export async function POST(req: NextRequest) {
+  const limited = hitIp(req, 'trial', { windowSeconds: 3600, max: 5 })
+  if (!limited.ok) {
+    return NextResponse.json(
+      { ok: false, error: 'Too many trial attempts. Please try again later.' },
+      { status: 429, headers: { 'Retry-After': String(limited.retryAfterSeconds) } }
+    )
+  }
   const body = await req.json().catch(() => ({}))
   const action = String(body?.action || 'start')
   const companyId = String(body?.companyId || '')

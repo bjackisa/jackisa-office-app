@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { adminClient, adminAvailable } from '@/lib/lic/peer'
+import { hitIp } from '@/lib/security/rate-limit'
 import crypto from 'crypto'
 
 export const dynamic = 'force-dynamic'
@@ -14,6 +15,13 @@ export const dynamic = 'force-dynamic'
  * keeps and replays after signup so the plan is applied without re-asking.
  */
 export async function POST(req: NextRequest) {
+  const limited = hitIp(req, 'signup-intent', { windowSeconds: 60, max: 20 })
+  if (!limited.ok) {
+    return NextResponse.json(
+      { ok: false, error: 'Too many requests. Please slow down.' },
+      { status: 429, headers: { 'Retry-After': String(limited.retryAfterSeconds) } }
+    )
+  }
   const body = await req.json().catch(() => ({}))
   if (!adminAvailable()) {
     return NextResponse.json({ ok: true, token: null, persisted: false })

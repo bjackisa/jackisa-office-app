@@ -3,6 +3,7 @@ import { lic } from '@/lib/lic/client'
 import { adminClient, adminAvailable } from '@/lib/lic/peer'
 import { mirrorLicenseFromHub } from '@/lib/lic/mirror'
 import { getCaller, getMembership } from '@/lib/lic/serverAuth'
+import { hitIp } from '@/lib/security/rate-limit'
 
 export const dynamic = 'force-dynamic'
 
@@ -15,6 +16,13 @@ export const dynamic = 'force-dynamic'
  * Results are mirrored into the office payments table for the local ledger.
  */
 export async function POST(req: NextRequest) {
+  const limited = hitIp(req, 'payments', { windowSeconds: 60, max: 30 })
+  if (!limited.ok) {
+    return NextResponse.json(
+      { ok: false, error: 'Too many requests. Please slow down.' },
+      { status: 429, headers: { 'Retry-After': String(limited.retryAfterSeconds) } }
+    )
+  }
   const body = await req.json().catch(() => ({}))
   const action = String(body?.action || '')
   const companyId = String(body?.companyId || '')
