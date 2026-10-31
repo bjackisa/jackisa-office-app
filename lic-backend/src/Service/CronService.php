@@ -443,19 +443,23 @@ final class CronService
             $to = $lic['owner_email'] ?: $lic['tenant_email'];
             if (!$to) { continue; }
             $days = (int) ((strtotime((string) $lic['expires_at']) - time()) / 86400);
-            MailService::send([$to], 'Your Jackisa Office licence expires soon',
+            $subject = 'Your Jackisa Office licence expires soon';
+            $html = MailService::wrap($subject,
                 '<p>Hello,</p><p>The Jackisa Office licence for <strong>' . htmlspecialchars((string) $lic['tenant_name'])
                 . '</strong> expires in <strong>' . $days . ' day(s)</strong>.</p>'
                 . '<p>Renew to avoid an interruption in service.</p>'
-                . '<p><a href="https://office.jackisa.com/app/settings/billing" style="background:#0d5ba3;color:#fff;padding:10px 18px;border-radius:8px;text-decoration:none;">Renew now</a></p>',
-                [], ['template' => 'renewal_reminder']
-            );
-            // Mirror the reminder to WhatsApp when we hold a number.
-            if (!empty($lic['owner_phone'])) {
-                WhatsAppService::send($lic['owner_phone'],
-                    'Your Jackisa Office licence for ' . $lic['tenant_name'] . " expires in $days day(s). Renew at https://office.jackisa.com/app/settings/billing to avoid interruption.",
-                    ['template' => 'renewal_reminder']);
-            }
+                . '<p><a href="https://office.jackisa.com/app/settings/billing" style="background:#0d5ba3;color:#fff;padding:10px 18px;border-radius:8px;text-decoration:none;">Renew now</a></p>');
+
+            // Both channels, once per (licence, days-left, day) so a cron that
+            // runs twice in a day cannot send the same reminder twice.
+            NotificationService::dispatch('license.expiring', 'renew:' . $lic['id'] . ':' . $days . ':' . date('Ymd'),
+                [$to], [
+                    'subject'  => $subject,
+                    'html'     => $html,
+                    'whatsapp' => $lic['owner_phone'] ?? null,
+                    'template' => 'renewal_reminder',
+                    'tenant_id' => $lic['tenant_id'],
+                ]);
             $sent++;
         }
         return ['reminded' => $sent];
