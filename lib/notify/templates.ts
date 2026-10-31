@@ -55,6 +55,7 @@ const builders: Record<string, Builder> = {
       table(row('Points this entry', `<strong style="color:${color}">${gain ? '+' : '-'}${points}</strong>`) + row('Points balance', `<strong>${balance}</strong>`))
     const document: DocumentSpec = {
       kind: 'points_statement',
+      eyebrow: 'Human resources',
       title: gain ? 'Points Award Notice' : 'Points Deduction Notice',
       subtitle: `Issued to ${s(data.employeeName)}`,
       meta: [
@@ -93,14 +94,20 @@ const builders: Record<string, Builder> = {
       text: `Invoice ${data.invoiceNumber} from ${companyName}: total ${money(data.total, data.currency || 'UGX')}, due ${data.dueDate}. The PDF is attached.`,
       document: {
         kind: 'invoice',
+        eyebrow: 'Billing',
         title: 'Tax Invoice',
-        subtitle: `Invoice ${s(data.invoiceNumber, '')}`,
+        subtitle: `Invoice ${s(data.invoiceNumber, '')} · ${s(companyName)}`,
+        status: 'Due',
+        status_tone: 'retake',
         filename: `invoice-${s(data.invoiceNumber, 'invoice')}.pdf`,
+        parties: [
+          { label: 'From', lines: [String(companyName || '')] },
+          { label: 'Billed to', lines: [String(data.customerName || ''), data.customerEmail ? String(data.customerEmail) : ''].filter(Boolean) },
+        ],
         meta: [
-          ['Billed to', String(data.customerName || '')],
+          ['Invoice no.', String(data.invoiceNumber || '')],
           ['Invoice date', String(data.invoiceDate || new Date().toISOString().slice(0, 10))],
           ['Due date', String(data.dueDate || '')],
-          ['Invoice no.', String(data.invoiceNumber || '')],
         ],
         tables: items.length
           ? [{
@@ -112,7 +119,7 @@ const builders: Record<string, Builder> = {
         totals: [
           { label: 'Subtotal', value: money(data.subtotal ?? data.total, data.currency || 'UGX') },
           { label: 'Tax', value: money(data.tax ?? 0, data.currency || 'UGX') },
-          { label: 'Total', value: money(data.total, data.currency || 'UGX'), strong: true },
+          { label: 'Total', value: money(data.total, data.currency || 'UGX') },
           { label: 'Amount due', value: money(data.outstanding ?? data.total, data.currency || 'UGX'), strong: true },
         ],
         note: data.notes ? String(data.notes) : undefined,
@@ -130,10 +137,17 @@ const builders: Record<string, Builder> = {
     text: `Payment of ${money(data.amount, data.currency || 'UGX')} received for invoice ${data.invoiceNumber}. Thank you.`,
     document: {
       kind: 'receipt',
+      eyebrow: 'Payment receipt',
       title: 'Official Receipt',
-      subtitle: `Invoice ${s(data.invoiceNumber, '')}`,
+      subtitle: `Invoice ${s(data.invoiceNumber, '')} · ${s(companyName)}`,
+      status: 'Paid',
+      status_tone: 'pass',
       filename: `receipt-${s(data.invoiceNumber, 'receipt')}.pdf`,
-      meta: [['Received from', String(data.customerName || '')], ['Invoice', String(data.invoiceNumber || '')], ['Date', new Date().toISOString().slice(0, 10)]],
+      parties: [
+        { label: 'Received by', lines: [String(companyName || '')] },
+        { label: 'Received from', lines: [String(data.customerName || '')] },
+      ],
+      meta: [['Invoice', String(data.invoiceNumber || '')], ['Date', new Date().toISOString().slice(0, 10)]],
       totals: [
         { label: 'Amount paid', value: money(data.amount, data.currency || 'UGX'), strong: true },
         { label: 'Outstanding balance', value: money(data.balance ?? 0, data.currency || 'UGX') },
@@ -189,10 +203,17 @@ const builders: Record<string, Builder> = {
     text: `Your salary for ${data.period} has been paid. Net pay: ${money(data.net, data.currency || 'UGX')}. Payslip attached.`,
     document: {
       kind: 'payslip',
+      eyebrow: 'Payroll',
       title: 'Payslip',
-      subtitle: `${s(data.period)} · ${s(data.employeeName)}`,
+      subtitle: `${s(data.period)} · ${s(companyName)}`,
+      status: 'Paid',
+      status_tone: 'pass',
       filename: `payslip-${s(data.period, 'period')}.pdf`,
-      meta: [['Employee', String(data.employeeName || '')], ['Company', companyName], ['Period', String(data.period || '')]],
+      parties: [
+        { label: 'Employer', lines: [String(companyName || '')] },
+        { label: 'Employee', lines: [String(data.employeeName || '')] },
+      ],
+      meta: [['Period', String(data.period || '')], ['Pay date', String(data.payDate || new Date().toISOString().slice(0, 10))]],
       tables: [{
         columns: [{ label: 'Earnings & deductions' }, { label: 'Amount', align: 'right' }],
         rows: [
@@ -201,6 +222,7 @@ const builders: Record<string, Builder> = {
           [{ text: 'Net pay', strong: true }, { text: money(data.net, data.currency || 'UGX'), strong: true }],
         ],
       }],
+      totals: [{ label: 'Net pay', value: money(data.net, data.currency || 'UGX'), strong: true }],
       note: 'This payslip is issued electronically by the employer.',
     },
     template: 'payroll_paid',
@@ -215,8 +237,9 @@ const builders: Record<string, Builder> = {
     text: `A dividend of ${money(data.amount, data.currency || 'UGX')} has been declared for you.`,
     document: {
       kind: 'dividend_advice',
+      eyebrow: 'Shareholder distribution',
       title: 'Dividend Advice Note',
-      subtitle: String(data.employeeName || data.memberName || ''),
+      subtitle: `${s(data.employeeName || data.memberName)} · ${s(companyName)}`,
       meta: [['Beneficiary', String(data.employeeName || data.memberName || '')], ['Company', companyName], ['Date', new Date().toISOString().slice(0, 10)]],
       totals: [{ label: 'Dividend declared', value: money(data.amount, data.currency || 'UGX'), strong: true }],
     },
@@ -231,10 +254,17 @@ const builders: Record<string, Builder> = {
     text: `Order ${data.orderNumber} confirmed. Total ${money(data.total, data.currency || 'UGX')}.`,
     document: {
       kind: 'sales_receipt',
+      eyebrow: 'Sales',
       title: 'Sales Receipt',
-      subtitle: `Order ${s(data.orderNumber, '')}`,
+      subtitle: `Order ${s(data.orderNumber, '')} · ${s(companyName)}`,
+      status: 'Paid',
+      status_tone: 'pass',
       filename: `receipt-${s(data.orderNumber, 'order')}.pdf`,
-      meta: [['Customer', String(data.customerName || '')], ['Company', companyName], ['Order no.', String(data.orderNumber || '')], ['Date', new Date().toISOString().slice(0, 10)]],
+      parties: [
+        { label: 'Seller', lines: [String(companyName || '')] },
+        { label: 'Customer', lines: [String(data.customerName || '')] },
+      ],
+      meta: [['Order no.', String(data.orderNumber || '')], ['Date', new Date().toISOString().slice(0, 10)]],
       totals: [{ label: 'Total paid', value: money(data.total, data.currency || 'UGX'), strong: true }],
       note: 'Thank you for your business. This receipt confirms your payment.',
     },

@@ -47,9 +47,16 @@ export type NotifyEvent =
 
 export interface DocumentSpec {
   kind?: string
+  eyebrow?: string
   title?: string
   subtitle?: string
   filename?: string
+  /** A status chip on the title line, e.g. PAID / DUE / DRAFT. */
+  status?: string
+  /** pass | retake | fail | neutral — colours the status chip. */
+  status_tone?: string
+  /** A From / To style block for invoices, receipts and payslips. */
+  parties?: Array<{ label: string; lines: string[] }>
   meta?: Array<[string, string]>
   tables?: Array<{ title?: string; columns: Array<{ label: string; align?: string }>; rows: Array<Array<any>> }>
   totals?: Array<{ label: string; value: string; strong?: boolean }>
