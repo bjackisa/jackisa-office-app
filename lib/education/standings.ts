@@ -21,7 +21,7 @@ export interface ModuleStanding {
   module_id: string
   code: string
   name: string
-  /** The coursework half's contribution to the module total (0–50). */
+  /** The coursework half's contribution to the module total (0–50), or null when nothing was graded. */
   coursework: number | null
   /** The exam half's contribution (0–50), or null when the paper was not sat. */
   exam: number | null
@@ -41,7 +41,7 @@ export interface StudentStanding {
 }
 
 export function gradeFor(pct: number | null): string {
-  if (pct === null) return '—'
+  if (pct === null) return 'NA'
   if (pct >= 80) return 'A'
   if (pct >= 70) return 'B'
   if (pct >= 60) return 'C'
@@ -54,7 +54,11 @@ const round1 = (n: number): number => Math.round(n * 10) / 10
 
 export function totalFor(coursework: number | null, exam: number | null): number | null {
   if (coursework === null && exam === null) return null
-  return round1((coursework ?? 0) + (exam ?? 0))
+  // A module assessed on one component only is graded on that component alone,
+  // scaled to 100 — an exam-only module scores the exam percentage.
+  if (coursework === null) return round1((exam as number) * 2)
+  if (exam === null) return round1((coursework as number) * 2)
+  return round1(coursework + exam)
 }
 
 /** Compute a student's standing across every module they are enrolled in. */
@@ -92,11 +96,11 @@ export function computeStanding(input: {
     const missed = days.filter((d) => !gradedDayIds.has(d.id)).length
     missedTotal += missed
 
-    // Coursework half: raw marks scaled to 50 points; 0 when nothing is
-    // recorded, matching the Grades screen.
+    // Coursework half: raw marks scaled to 50 points, or null when nothing was
+    // graded — an ungraded module shows dashes and NA, not a zero.
     const coursework = cwMax > 0
       ? round1(Math.min((cwSum / cwMax) * COURSEWORK_POINTS, COURSEWORK_POINTS))
-      : 0
+      : null
 
     // Exam half: out of 50. Each mark entry creates its own final_exams row, so
     // pick this student's paper (latest by exam_date, as the Grades screen does)

@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { getSessionContext } from '@/lib/company-context'
 import { supabase } from '@/lib/supabase'
 import { notifyStudent } from '@/lib/education/notify-client'
+import { gradeFor, totalFor } from '@/lib/education/standings'
 
 const STATUS_OPTIONS = ['Pending', 'Active', 'Failed', 'Suspended', 'Deceased', 'Graduated']
 
@@ -75,12 +76,13 @@ export default function GradesPage() {
         return sum + Number(day?.max_marks || 20)
       }, 0)
 
-      const coursework50 = courseworkMax > 0 ? Math.min((courseworkTotalRaw / courseworkMax) * 50, 50) : 0
+      const coursework50 = courseworkMax > 0 ? Math.round(Math.min((courseworkTotalRaw / courseworkMax) * 50, 50) * 10) / 10 : null
 
       const moduleExamIds = exams.filter((exam) => exam.module_id === module.id).map((exam) => exam.id)
       const examRow = examGrades.find((grade) => grade.student_id === student.id && moduleExamIds.includes(grade.final_exam_id))
       const examMarks = examRow ? Number(examRow.marks_obtained) : null
-      const exam50 = examMarks === null ? null : (examMarks / 100) * 50
+      const exam50 = examMarks === null ? null : Math.round((examMarks / 100) * 50 * 10) / 10
+      const total = totalFor(coursework50, exam50)
 
       report.push({
         studentPk: student.id,
@@ -94,7 +96,8 @@ export default function GradesPage() {
         coursework50,
         examMarks,
         exam50,
-        total: coursework50 + (exam50 || 0),
+        total,
+        grade: gradeFor(total),
         status: 'Active',
       })
     })
@@ -158,6 +161,7 @@ export default function GradesPage() {
               <th className="text-center">Coursework (50%)</th>
               <th className="text-center">Exam (50%)</th>
               <th className="text-center">Overall Grade</th>
+              <th className="text-center">Grade</th>
               <th>Status</th>
               <th className="text-right">Report Card</th>
             </tr>
@@ -171,10 +175,11 @@ export default function GradesPage() {
                 </td>
                 <td>{row.studentName}</td>
                 <td className="font-mono text-xs text-muted-foreground">{row.studentID}</td>
-                <td className="text-center tabular-nums">{row.courseworkTotalRaw} / {row.courseworkMax}</td>
-                <td className="text-center tabular-nums">{row.coursework50.toFixed(1)}</td>
-                <td className="text-center tabular-nums">{row.exam50 === null ? '--' : row.exam50.toFixed(1)}</td>
-                <td className="text-center font-bold tabular-nums">{row.total.toFixed(1)} / 100</td>
+                <td className="text-center tabular-nums">{row.courseworkMax > 0 ? `${row.courseworkTotalRaw} / ${row.courseworkMax}` : '—'}</td>
+                <td className="text-center tabular-nums">{row.coursework50 === null ? '—' : row.coursework50.toFixed(1)}</td>
+                <td className="text-center tabular-nums">{row.exam50 === null ? '—' : row.exam50.toFixed(1)}</td>
+                <td className="text-center font-bold tabular-nums">{row.total === null ? '— / 100' : `${row.total.toFixed(1)} / 100`}</td>
+                <td className="text-center font-semibold">{row.grade}</td>
                 <td>
                   <select className="form-select !py-1 !px-2 !text-xs" value={row.status} onChange={(e) => updateStatus(row.studentPk, e.target.value)}>
                     {STATUS_OPTIONS.map((status) => <option key={status} value={status}>{status}</option>)}
@@ -192,7 +197,7 @@ export default function GradesPage() {
                 </td>
               </tr>
             ))}
-            {sortedRows.length === 0 && <tr><td className="!py-12 text-center text-muted-foreground/60" colSpan={9}>No enrolled students found.</td></tr>}
+            {sortedRows.length === 0 && <tr><td className="!py-12 text-center text-muted-foreground/60" colSpan={10}>No enrolled students found.</td></tr>}
           </tbody>
         </table>
         </div>
