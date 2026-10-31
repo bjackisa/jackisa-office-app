@@ -1,5 +1,16 @@
 # Jackisa Stream — project memory
 
+## Jackisa Office — trial/pay auth fixes (Oct 31) — see `.openhands/memory/2026-10-31.md`
+- **Trial 500 = missing hub tenant.** `trials.tenant_id` FK → `tenants.id`; the office app
+  never pushed new companies to the hub. Fix: `lib/lic/provision.ts` `ensureLicTenant()`
+  (called before trial/payment) + hub `TenantService::ensureTenant()`. **The office company
+  id IS the hub tenant id.**
+- **"Not signed in" while signed in = app was 17 commits behind origin/main.** The auth +
+  `apiFetch`-token fix (`7a0be62`) was committed but never deployed. Always confirm the live
+  build matches `origin/main` (probe a protected route: it must 401 without a token).
+- `getMembership()` now falls back to `companies.created_by`/`owner_user_id` → the owner is
+  always an admin member.
+
 ## Jackisa Office — repos & deployment (Oct 31) — see `.openhands/memory/2026-10-31.md`
 - **Repos:** `bjackisa/jackisastream` (jackisa.com, private), `bjackisa/jackisa-office-app`
   (this app, public), **new** `bjackisa/jackisa-license-hub` (lic app, private) = `lic-backend/`
