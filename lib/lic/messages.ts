@@ -10,6 +10,14 @@
 const BRAND = 'Jackisa Office'
 const BRAND_URL = 'https://office.jackisa.com'
 
+/**
+ * Wrap body HTML in the branded email shell. Exported so the notification
+ * engine (lib/notify/events.ts) brands every module's email the same way.
+ */
+export function emailShell(heading: string, bodyHtml: string): string {
+  return shell(heading, bodyHtml)
+}
+
 function shell(heading: string, bodyHtml: string): string {
   return `<!doctype html>
 <html><body style="margin:0;padding:0;background:#f4f5f7;font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;color:#0f172a">
@@ -140,7 +148,7 @@ export function paymentReceiptEmail(p: PaymentReceiptEmailParams): { subject: st
   }
 }
 
-function escapeHtml(input: string): string {
+export function escapeHtml(input: string): string {
   return String(input)
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')

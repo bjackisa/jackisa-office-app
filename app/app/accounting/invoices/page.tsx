@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { getSessionContext } from '@/lib/company-context'
+import { apiJson } from '@/lib/api'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -83,6 +84,7 @@ export default function InvoicesPage() {
     const tax = Number(form.tax_amount || 0)
     const total = subtotal + tax
     const number = `INV-${Date.now()}`
+    const currency = 'UGX'
 
     await supabase.from('invoices').insert({
       company_id: companyId,
@@ -100,6 +102,33 @@ export default function InvoicesPage() {
       notes: form.notes || null,
       created_by: userId,
     })
+
+    // Email + WhatsApp the invoice to the customer automatically, with the PDF
+    // attached — no "send" button. Skipped while the invoice is still a draft.
+    if (form.status !== 'draft' && form.customer_email) {
+      void apiJson('/api/notify/event', {
+        method: 'POST',
+        body: JSON.stringify({
+          companyId,
+          event: 'invoice.created',
+          dedupeKey: `invoice.created:${companyId}:${number}`,
+          emails: [form.customer_email],
+          subjectType: 'invoice',
+          data: {
+            invoiceNumber: number,
+            invoiceDate: new Date().toISOString().split('T')[0],
+            dueDate: form.due_date,
+            customerName: form.customer_name,
+            currency,
+            subtotal,
+            tax,
+            total,
+            outstanding: total,
+            notes: form.notes || '',
+          },
+        }),
+      }).catch((e) => console.error('[invoice.created] notify failed', e))
+    }
 
     // Post to the double-entry ledger: debit receivable, credit revenue + VAT.
     if (form.status !== 'draft') {
@@ -137,6 +166,29 @@ export default function InvoicesPage() {
       if (alloc) {
         setFundAllocMsg(`${alloc.currency} ${alloc.netToFund.toLocaleString()} allocated to investment fund from this invoice`)
         setTimeout(() => setFundAllocMsg(null), 5000)
+      }
+
+      // Receipt to the customer automatically, PDF attached.
+      const inv = invoices.find((i) => i.id === id)
+      if (inv?.customer_email) {
+        void apiJson('/api/notify/event', {
+          method: 'POST',
+          body: JSON.stringify({
+            companyId,
+            event: 'invoice.paid',
+            dedupeKey: `invoice.paid:${companyId}:${id}`,
+            emails: [inv.customer_email],
+            subjectType: 'invoice',
+            subjectId: id,
+            data: {
+              invoiceNumber: inv.invoice_number,
+              customerName: inv.customer_name,
+              currency: 'UGX',
+              amount: totalAmount,
+              balance: 0,
+            },
+          }),
+        }).catch((e) => console.error('[invoice.paid] notify failed', e))
       }
     }
     await loadInvoices()

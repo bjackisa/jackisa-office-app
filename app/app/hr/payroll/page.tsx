@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { getSessionContext } from '@/lib/company-context'
+import { apiJson } from '@/lib/api'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import {
@@ -71,7 +72,7 @@ export default function PayrollPage() {
 
       const { data: emps } = await supabase
           .from('company_employees')
-          .select('id, salary, users(full_name, phone), company_roles(name)')
+          .select('id, user_id, salary, users(full_name, phone), company_roles(name)')
           .eq('company_id', context.companyId)
           .eq('status', 'active')
 
@@ -162,6 +163,40 @@ export default function PayrollPage() {
     setEcosystemMsg(`Payroll run created for ${run.count} employee(s) and posted to the ledger.${contributorCount > 0 ? ` ${contributorCount} auto-contributed UGX ${totalContributed.toLocaleString()} to the fund.` : ''}`)
     setTimeout(() => setEcosystemMsg(null), 8000)
     setProcessing(false)
+
+    // Email each employee their payslip (PDF attached) automatically.
+    void notifyPayslips(monthName, run.runId)
+  }
+
+  /** Send every employee their payslip for the run just processed. */
+  const notifyPayslips = async (period: string, runId?: string) => {
+    try {
+      if (!companyId) return
+      for (const emp of payrollData) {
+        if (!emp.user_id) continue
+        await apiJson('/api/notify/event', {
+          method: 'POST',
+          body: JSON.stringify({
+            companyId,
+            event: 'payroll.paid',
+            dedupeKey: `payroll.paid:${runId || period}:${emp.id}`,
+            userIds: [emp.user_id],
+            subjectType: 'payslip',
+            subjectId: emp.id,
+            data: {
+              employeeName: emp.users?.full_name || 'Employee',
+              period,
+              currency: 'UGX',
+              gross: emp.gross,
+              deductions: emp.nssf + emp.paye,
+              net: emp.net,
+            },
+          }),
+        })
+      }
+    } catch (err) {
+      console.error('[payroll.paid] notify failed', err)
+    }
   }
 
   const now = new Date()

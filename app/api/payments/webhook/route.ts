@@ -138,6 +138,31 @@ export async function POST(req: NextRequest) {
           relworx_ref: internal_reference,
         },
       })
+
+      // 8. Confirm the payment automatically — WhatsApp to the payer, email to
+      // the company's admins. Best-effort; never fails the webhook.
+      try {
+        const { raise } = await import('@/lib/notify/raise')
+        await raise(
+          'payment.received',
+          pmnt.company_id,
+          `payment.received:${pmnt.id}`,
+          {
+            amount: pmnt.gross_amount,
+            currency: pmnt.currency || 'UGX',
+            reference: internal_reference,
+            purpose: pmnt.module,
+          },
+          {
+            whatsapp: pmnt.msisdn ? [pmnt.msisdn] : [],
+            notifyCompanyAdmins: true,
+            subjectType: 'payment',
+            subjectId: pmnt.id,
+          }
+        )
+      } catch (notifyErr) {
+        console.error('[payment.received] notify failed', notifyErr)
+      }
     }
 
     return NextResponse.json({ ok: true })

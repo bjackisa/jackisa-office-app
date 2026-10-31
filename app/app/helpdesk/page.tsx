@@ -7,6 +7,7 @@ import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Search } from 'lucide-react'
+import { apiJson } from '@/lib/api'
 
 export default function HelpdeskPage() {
   const [companyId, setCompanyId] = useState<string | null>(null)
@@ -22,7 +23,7 @@ export default function HelpdeskPage() {
     setCompanyId(ctx.companyId); setUserId(ctx.userId)
     const [tRes, eRes] = await Promise.all([
       supabase.from('support_tickets').select('*, company_employees(users(full_name))').eq('company_id', ctx.companyId).order('created_at', { ascending: false }),
-      supabase.from('company_employees').select('id, users(full_name)').eq('company_id', ctx.companyId).eq('status', 'active')
+      supabase.from('company_employees').select('id, user_id, users(full_name)').eq('company_id', ctx.companyId).eq('status', 'active')
     ])
     setTickets(tRes.data || [])
     setEmployees(eRes.data || [])
@@ -33,9 +34,10 @@ export default function HelpdeskPage() {
 
   const createTicket = async () => {
     if (!companyId || !userId || !form.subject) return
+    const ticketNumber = `TK-${Date.now()}`
     await supabase.from('support_tickets').insert({
       company_id: companyId,
-      ticket_number: `TK-${Date.now()}`,
+      ticket_number: ticketNumber,
       subject: form.subject,
       description: form.description || null,
       priority: form.priority,
@@ -43,6 +45,26 @@ export default function HelpdeskPage() {
       assigned_to: form.assigned_to || null,
       reported_by: userId,
     })
+
+    // Notify the assignee (or the company admins) that a ticket needs them.
+    const assignee = employees.find((e) => e.id === form.assigned_to)
+    void apiJson('/api/notify/event', {
+      method: 'POST',
+      body: JSON.stringify({
+        companyId,
+        event: 'helpdesk.ticket',
+        dedupeKey: `helpdesk.ticket:${ticketNumber}`,
+        userIds: assignee?.user_id ? [assignee.user_id] : [],
+        notifyCompanyAdmins: !assignee?.user_id,
+        subjectType: 'ticket',
+        data: {
+          reference: ticketNumber,
+          subject: form.subject,
+          priority: form.priority,
+        },
+      }),
+    }).catch((e) => console.error('[helpdesk.ticket] notify failed', e))
+
     setForm({ subject: '', description: '', priority: 'medium', assigned_to: '' })
     await loadData()
   }

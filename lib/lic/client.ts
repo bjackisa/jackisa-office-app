@@ -379,6 +379,39 @@ export const lic = {
     return call('/api/v1/mail/send', params)
   },
 
+  /**
+   * The one rail every office module notifies through. The hub renders the
+   * optional document to a PDF, stores it, and attaches it to both the email
+   * and the WhatsApp message — never as a link. De-duplicated by `dedupe_key`.
+   */
+  notify(params: {
+    tenant_id: string
+    company_name?: string
+    company_logo_url?: string
+    event: string
+    dedupe_key?: string
+    subject: string
+    html?: string
+    text?: string
+    emails?: string[]
+    whatsapp?: string[]
+    template?: string
+    subject_type?: string
+    subject_id?: string
+    document?: {
+      kind?: string
+      title?: string
+      subtitle?: string
+      filename?: string
+      meta?: Array<[string, string]>
+      tables?: Array<{ title?: string; columns: Array<{ label: string; align?: string }>; rows: Array<Array<any>> }>
+      totals?: Array<{ label: string; value: string; strong?: boolean }>
+      note?: string
+    }
+  }) {
+    return call('/api/v1/notify', params)
+  },
+
   sendWhatsApp(params: { to: string; body: string; template?: string; media?: any }) {
     return call('/api/v1/whapi/send', params)
   },

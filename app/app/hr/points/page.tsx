@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { getSessionContext } from '@/lib/company-context'
+import { apiJson } from '@/lib/api'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -78,7 +79,7 @@ export default function HRPointsPage() {
           .eq('company_id', context.companyId)
           .eq('is_active', true)
           .order('sort_order', { ascending: true }),
-        supabase.from('company_employees').select('id, employee_id_number, department, position, joined_at, termination_date, users(full_name), status').eq('company_id', context.companyId),
+        supabase.from('company_employees').select('id, user_id, employee_id_number, department, position, joined_at, termination_date, users(full_name, email, phone), status').eq('company_id', context.companyId),
       ])
 
       setTransactions(txRes.data || [])
@@ -214,6 +215,10 @@ export default function HRPointsPage() {
 
       if (error) throw error
 
+      // Notify the employee automatically — no manual "send" step. Recipients
+      // and the PDF are resolved server-side from the employee's user record.
+      void notifyPointsEvent()
+
       setMessage({
         type: 'success',
         text: `Point event applied using "${selectedRule?.indicator || 'rule'}". Balances and monetization were recalculated automatically.`,
@@ -223,6 +228,60 @@ export default function HRPointsPage() {
       loadData()
     } catch (error: any) {
       setMessage({ type: 'error', text: error.message || 'Failed to record points.' })
+    }
+  }
+
+  /**
+   * Raise the HR points notification for the entry just recorded. Runs in the
+   * background so a slow notification never blocks the form; failures are
+   * logged, never shown as a save error.
+   */
+  const notifyPointsEvent = async () => {
+    try {
+      if (!companyId) return
+      const employee = employees.find((e: any) => e.id === awardForm.employeeId)
+      const userId = employee?.user_id as string | undefined
+      const actionType = selectedRule?.action_type === 'loss' ? 'loss' : 'gain'
+      const points = isAccountRefillRule
+        ? refillPointsValue
+        : Math.abs(Number(selectedRule?.point_value || 0))
+      if (!points) return
+
+      // Best-effort current balance for the message/PDF.
+      const { data: bal } = await supabase
+        .from('point_balances')
+        .select('closing_balance')
+        .eq('company_id', companyId)
+        .eq('employee_id', awardForm.employeeId)
+        .order('period_year', { ascending: false })
+        .order('period_month', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+      const balance = Number(bal?.closing_balance ?? 0)
+
+      await apiJson('/api/notify/event', {
+        method: 'POST',
+        body: JSON.stringify({
+          companyId,
+          event: 'hr.points',
+          dedupeKey: `hr.points:${companyId}:${awardForm.employeeId}:${Date.now()}`,
+          userIds: userId ? [userId] : [],
+          subjectType: 'employee',
+          subjectId: awardForm.employeeId,
+          data: {
+            employeeName: employee?.users?.full_name || 'Employee',
+            actionType,
+            points,
+            gained: actionType === 'gain' ? points : 0,
+            lost: actionType === 'loss' ? points : 0,
+            balance,
+            reason: awardForm.reason || selectedRule?.indicator || '',
+            date: new Date().toISOString().slice(0, 10),
+          },
+        }),
+      })
+    } catch (err) {
+      console.error('[hr.points] notify failed', err)
     }
   }
 

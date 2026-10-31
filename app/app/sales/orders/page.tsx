@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { getSessionContext } from '@/lib/company-context'
+import { apiJson } from '@/lib/api'
 import { supabase } from '@/lib/supabase'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -41,6 +42,29 @@ export default function SalesOrdersPage() {
       if (alloc) {
         setFundAllocMsg(`${alloc.currency} ${alloc.netToFund.toLocaleString()} allocated to fund from this sale`)
         setTimeout(() => setFundAllocMsg(null), 5000)
+      }
+
+      // Thank the customer automatically (WhatsApp + email, receipt attached).
+      const order = orders.find((o) => o.id === orderId)
+      if (order?.customer_email || order?.customer_phone) {
+        void apiJson('/api/notify/event', {
+          method: 'POST',
+          body: JSON.stringify({
+            companyId,
+            event: 'sales.order',
+            dedupeKey: `sales.order:${companyId}:${orderId}:paid`,
+            emails: order?.customer_email ? [order.customer_email] : [],
+            whatsapp: order?.customer_phone ? [order.customer_phone] : [],
+            subjectType: 'sales_order',
+            subjectId: orderId,
+            data: {
+              orderNumber: order?.order_number,
+              customerName: order?.customer_name,
+              currency: 'UGX',
+              total: totalAmount,
+            },
+          }),
+        }).catch((e) => console.error('[sales.order] notify failed', e))
       }
     }
     await loadData()

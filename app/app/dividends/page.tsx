@@ -1,6 +1,7 @@
 'use client'
 import { useEffect, useState } from 'react'
 import { getSessionContext } from '@/lib/company-context'
+import { apiJson } from '@/lib/api'
 import { supabase } from '@/lib/supabase'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -33,10 +34,47 @@ export default function DividendsPage() {
       setMessage(error.message)
     } else {
       setMessage(`Dividend distributed: ${Number(data || 0).toLocaleString()} allocated to unit holders pro-rata.`)
+      void notifyDividendHolders(dividendId)
       await loadData()
     }
     setDistributing(null)
     setTimeout(() => setMessage(null), 8000)
+  }
+
+  /** Tell each unit holder their dividend automatically, with an advice PDF. */
+  const notifyDividendHolders = async (dividendId: string) => {
+    try {
+      if (!companyId) return
+      const dividend = dividends.find((d) => d.id === dividendId)
+      const { data: allocs } = await supabase
+        .from('dividend_allocations')
+        .select('employee_id, allocated_amount, company_employees(user_id, users(full_name))')
+        .eq('dividend_id', dividendId)
+      for (const a of allocs || []) {
+        const userId = (a as any).company_employees?.user_id
+        const name = (a as any).company_employees?.users?.full_name || 'Member'
+        if (!userId) continue
+        await apiJson('/api/notify/event', {
+          method: 'POST',
+          body: JSON.stringify({
+            companyId,
+            event: 'dividend.declared',
+            dedupeKey: `dividend.declared:${dividendId}:${a.employee_id}`,
+            userIds: [userId],
+            subjectType: 'dividend',
+            subjectId: dividendId,
+            data: {
+              memberName: name,
+              amount: Number(a.allocated_amount || 0),
+              currency: 'UGX',
+              payoutDate: dividend?.dividend_date,
+            },
+          }),
+        })
+      }
+    } catch (err) {
+      console.error('[dividend.declared] notify failed', err)
+    }
   }
   return (
     <div className="p-6 lg:p-8 max-w-[1100px] mx-auto animate-fade-in space-y-6">

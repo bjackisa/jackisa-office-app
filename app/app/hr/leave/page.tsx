@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Search, Landmark, Zap } from 'lucide-react'
 import { logEcosystemEvent } from '@/lib/ecosystem'
+import { apiJson } from '@/lib/api'
 
 export default function LeavePage() {
   const [companyId, setCompanyId] = useState<string | null>(null)
@@ -29,7 +30,7 @@ export default function LeavePage() {
     const [reqRes, typeRes, empRes] = await Promise.all([
       supabase.from('leave_requests').select('*, leave_types(name), company_employees(users(full_name))').eq('company_id', ctx.companyId).order('created_at', { ascending: false }),
       supabase.from('leave_types').select('*').eq('company_id', ctx.companyId).order('name'),
-      supabase.from('company_employees').select('id, users(full_name)').eq('company_id', ctx.companyId).eq('status', 'active'),
+      supabase.from('company_employees').select('id, user_id, users(full_name)').eq('company_id', ctx.companyId).eq('status', 'active'),
     ])
 
     setRequests(reqRes.data || [])
@@ -56,6 +57,27 @@ export default function LeavePage() {
       status: 'pending',
     })
 
+    // Tell the company admins a request is waiting for them.
+    const employee = employees.find((e) => e.id === form.employee_id)
+    const leaveType = types.find((t) => t.id === form.leave_type_id)
+    void apiJson('/api/notify/event', {
+      method: 'POST',
+      body: JSON.stringify({
+        companyId,
+        event: 'leave.requested',
+        dedupeKey: `leave.requested:${companyId}:${form.employee_id}:${form.start_date}:${form.end_date}`,
+        notifyCompanyAdmins: true,
+        subjectType: 'leave',
+        data: {
+          employeeName: employee?.users?.full_name || 'Employee',
+          leaveType: leaveType?.name || 'Leave',
+          startDate: form.start_date,
+          endDate: form.end_date,
+          days,
+        },
+      }),
+    }).catch((e) => console.error('[leave.requested] notify failed', e))
+
     setForm({ employee_id: '', leave_type_id: '', start_date: '', end_date: '', reason: '' })
     await loadData()
   }
@@ -63,6 +85,28 @@ export default function LeavePage() {
   const updateLeaveStatus = async (id: string, newStatus: string, employeeId: string, days: number) => {
     if (!companyId) return
     await supabase.from('leave_requests').update({ status: newStatus }).eq('id', id)
+
+    // Tell the employee the outcome automatically.
+    const employee = employees.find((e) => e.id === employeeId)
+    if (employee?.user_id) {
+      void apiJson('/api/notify/event', {
+        method: 'POST',
+        body: JSON.stringify({
+          companyId,
+          event: 'leave.decided',
+          dedupeKey: `leave.decided:${id}:${newStatus}`,
+          userIds: [employee.user_id],
+          subjectType: 'leave',
+          subjectId: id,
+          data: {
+            employeeName: employee?.users?.full_name || 'Employee',
+            status: newStatus,
+            startDate: requests.find((r) => r.id === id)?.start_date,
+            endDate: requests.find((r) => r.id === id)?.end_date,
+          },
+        }),
+      }).catch((e) => console.error('[leave.decided] notify failed', e))
+    }
 
     if (newStatus === 'approved') {
       await logEcosystemEvent({ companyId, eventType: 'leave_approved', sourceTable: 'leave_requests', sourceId: id, payload: { employee_id: employeeId, days, status: newStatus } })
