@@ -12,6 +12,7 @@ export interface NotifyResult {
   ok: boolean
   documentUrl?: string | null
   error?: string
+  note?: string
   standing?: any
 }
 

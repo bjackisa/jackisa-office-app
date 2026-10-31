@@ -93,15 +93,19 @@ export async function POST(req: NextRequest) {
   const delivery = (result as any)?.data?.delivery || null
   const waResults: any[] = Array.isArray(delivery?.whatsapp) ? delivery.whatsapp : []
   const emailResults: any[] = Array.isArray(delivery?.email) ? delivery.email : []
-  const waUndeliverable = waResults.filter((w) => w?.status === 'undeliverable')
   const waSent = waResults.filter((w) => w?.status === 'sent')
+  const waUndeliverable = waResults.filter((w) => w?.status === 'undeliverable')
+  // A number over the WhatsApp conversation limit is relayed to the school's own
+  // (already-open) chat — that still reaches a human, so count it as delivered.
+  const waRelayed = waResults.filter((w) => w?.fallback?.status === 'sent')
   const emailSent = emailResults.some((e) => e?.status === 'sent')
-  // A send counts as delivered only when something actually reached someone:
-  // a 'sent' WhatsApp or email. A WhatsApp that failed (provider error such as
-  // a trial limit, an invalid number) or bounced is not a delivery, even if the
-  // hub accepted the request.
-  const waFailed = waResults.filter((w) => w?.status !== 'sent' && w?.status !== 'undeliverable')
-  const ok = result.api_status === '200' && (waSent.length > 0 || emailSent)
+  // A send counts as delivered when something actually reached someone: a sent
+  // WhatsApp, a relayed one, or an email. A WhatsApp that failed at the provider
+  // (invalid number, or an error the hub could not relay around) is not a send.
+  const waFailed = waResults.filter(
+    (w) => w?.status !== 'sent' && w?.status !== 'undeliverable' && w?.fallback?.status !== 'sent'
+  )
+  const ok = result.api_status === '200' && (waSent.length > 0 || emailSent || waRelayed.length > 0)
   const firstWaError = (waFailed[0]?.error || waUndeliverable[0]?.error || '') as string
   const deliveryError = ok
     ? undefined
@@ -112,6 +116,9 @@ export async function POST(req: NextRequest) {
         : waUndeliverable.length
           ? `${waUndeliverable.length} WhatsApp number(s) not on WhatsApp; relayed to the school`
           : (result as any)?.errors?.error_text || 'Delivery failed'
+  const deliveryNote = waRelayed.length
+    ? `${waRelayed.length} number(s) could not be reached directly; relayed to the school to pass on`
+    : undefined
 
   // Record what happened so the school can see (and re-send) it later.
   try {
@@ -138,6 +145,7 @@ export async function POST(req: NextRequest) {
     delivery,
     standing: standingPayload,
     error: ok ? undefined : deliveryError,
+    note: deliveryNote,
   })
 }
 

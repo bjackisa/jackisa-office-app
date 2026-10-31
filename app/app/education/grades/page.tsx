@@ -122,7 +122,7 @@ export default function GradesPage() {
       const res = await notifyStudent({ companyId, studentId, kind: 'transcript' })
       setMessage(
         res.ok
-          ? `Report card sent to ${studentName}'s guardians.${res.documentUrl ? ' Document stored.' : ''}`
+          ? `Report card sent to ${studentName}'s guardians.${res.documentUrl ? ' Document stored.' : ''}${res.note ? ' ' + res.note + '.' : ''}`
           : res.error || 'Could not send the report card.'
       )
     } finally {
