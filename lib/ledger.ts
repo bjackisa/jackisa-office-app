@@ -28,8 +28,11 @@ export const CHART_OF_ACCOUNTS: { code: string; name: string; type: string; norm
   { code: '2100', name: 'VAT Payable', type: 'liability', normal_side: 'credit' },
   { code: '2200', name: 'PAYE Payable', type: 'liability', normal_side: 'credit' },
   { code: '2300', name: 'NSSF Payable', type: 'liability', normal_side: 'credit' },
+  { code: '2310', name: 'Employer NSSF Payable', type: 'liability', normal_side: 'credit' },
   { code: '2400', name: 'Net Salaries Payable', type: 'liability', normal_side: 'credit' },
+  { code: '2500', name: 'Dividends Payable', type: 'liability', normal_side: 'credit' },
   { code: '3000', name: "Owner's Equity", type: 'equity', normal_side: 'credit' },
+  { code: '3100', name: 'Retained Earnings', type: 'equity', normal_side: 'credit' },
   { code: '4000', name: 'Sales Revenue', type: 'income', normal_side: 'credit' },
   { code: '4900', name: 'Other Income', type: 'income', normal_side: 'credit' },
   { code: '5000', name: 'Cost of Goods Sold', type: 'expense', normal_side: 'debit' },
@@ -37,6 +40,7 @@ export const CHART_OF_ACCOUNTS: { code: string; name: string; type: string; norm
   { code: '6100', name: 'Rent', type: 'expense', normal_side: 'debit' },
   { code: '6200', name: 'Utilities', type: 'expense', normal_side: 'debit' },
   { code: '6300', name: 'Marketing', type: 'expense', normal_side: 'debit' },
+  { code: '6400', name: 'Employer NSSF', type: 'expense', normal_side: 'debit' },
   { code: '6900', name: 'General Expenses', type: 'expense', normal_side: 'debit' },
 ]
 

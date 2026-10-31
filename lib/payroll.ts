@@ -8,7 +8,7 @@
  */
 
 import { supabase } from '@/lib/supabase'
-import { postEntry } from '@/lib/ledger'
+import { postEntry, type LedgerLine } from '@/lib/ledger'
 
 export const NSSF_EMPLOYEE_RATE = 0.05
 export const NSSF_EMPLOYER_RATE = 0.10
@@ -84,6 +84,7 @@ export async function createPayrollRun(params: {
     const gross = await grossFromStructure(companyId, emp.id)
     if (gross <= 0) continue
     const { nssf, paye, net } = calcPAYE(gross)
+    const employerNssf = round(gross * NSSF_EMPLOYER_RATE)
     slips.push({
       company_id: companyId,
       employee_id: emp.id,
@@ -91,6 +92,7 @@ export async function createPayrollRun(params: {
       payroll_period_end: periodEnd,
       gross_salary: gross,
       nssf_contribution: nssf,
+      employer_nssf_contribution: employerNssf,
       taxable_amount: round(gross - nssf),
       paye_tax: paye,
       net_salary: net,
@@ -105,10 +107,11 @@ export async function createPayrollRun(params: {
     (acc, s) => ({
       gross: acc.gross + s.gross_salary,
       nssf: acc.nssf + s.nssf_contribution,
+      employerNssf: acc.employerNssf + s.employer_nssf_contribution,
       paye: acc.paye + s.paye_tax,
       net: acc.net + s.net_salary,
     }),
-    { gross: 0, nssf: 0, paye: 0, net: 0 }
+    { gross: 0, nssf: 0, employerNssf: 0, paye: 0, net: 0 }
   )
 
   const { data: run, error: runErr } = await supabase
@@ -122,6 +125,7 @@ export async function createPayrollRun(params: {
         employee_count: slips.length,
         total_gross: round(totals.gross),
         total_nssf: round(totals.nssf),
+        total_employer_nssf: round(totals.employerNssf),
         total_paye: round(totals.paye),
         total_net: round(totals.net),
         created_by: userId,
@@ -153,18 +157,22 @@ export async function approvePayrollRun(runId: string, userId: string): Promise<
     .eq('id', runId)
   if (error) return { error: error.message }
 
+  const employerNssf = Number(run.total_employer_nssf || 0)
+  const lines: LedgerLine[] = [
+    { account_code: '6000', debit: Number(run.total_gross), memo: 'Gross salaries' },
+    { account_code: '6400', debit: employerNssf, memo: 'Employer NSSF (10%)' },
+    { account_code: '2200', credit: Number(run.total_paye), memo: 'PAYE payable to URA' },
+    { account_code: '2300', credit: Number(run.total_nssf) + employerNssf, memo: 'NSSF payable (employee + employer)' },
+    { account_code: '2400', credit: Number(run.total_net), memo: 'Net salaries payable' },
+  ].filter((l) => (l.debit || 0) !== 0 || (l.credit || 0) !== 0) as LedgerLine[]
+
   await postEntry({
     companyId: run.company_id,
     entryDate: run.period_end,
     memo: `Payroll ${run.period_start} to ${run.period_end}`,
     sourceModule: 'payroll_run',
     sourceId: runId,
-    lines: [
-      { account_code: '6000', debit: Number(run.total_gross), memo: 'Gross salaries' },
-      { account_code: '2200', credit: Number(run.total_paye), memo: 'PAYE payable to URA' },
-      { account_code: '2300', credit: Number(run.total_nssf), memo: 'NSSF payable' },
-      { account_code: '2400', credit: Number(run.total_net), memo: 'Net salaries payable' },
-    ],
+    lines,
     createdBy: userId,
   })
   return {}
