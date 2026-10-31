@@ -2,7 +2,9 @@
 
 import { useState } from 'react'
 import { Button } from '@/components/ui/button'
-import { Loader2 } from 'lucide-react'
+import { Loader2, ShieldCheck } from 'lucide-react'
+
+const JACKISA_LOGO = 'https://jackisa.com/themes/playtag/img/icon.png'
 
 /**
  * "Continue with Jackisa" — hands off to jackisa.com to authenticate, then
@@ -14,7 +16,15 @@ import { Loader2 } from 'lucide-react'
  *   3. /auth/callback posts it to /api/auth/jackisa, then exchanges the
  *      one-time SSO token for a magic link and follows it.
  */
-export function ContinueWithJackisa({ label = 'Continue with Jackisa', redirect }: { label?: string; redirect?: string }) {
+export function ContinueWithJackisa({
+  label = 'Continue with Jackisa',
+  redirect,
+  compact = false,
+}: {
+  label?: string
+  redirect?: string
+  compact?: boolean
+}) {
   const [loading, setLoading] = useState(false)
 
   const start = () => {
@@ -25,11 +35,27 @@ export function ContinueWithJackisa({ label = 'Continue with Jackisa', redirect 
   }
 
   return (
-    <Button type="button" variant="outline" className="w-full h-11 font-semibold" onClick={start} disabled={loading}>
-      {loading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : (
-        <span className="w-4 h-4 mr-2 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600" />
+    <div className="space-y-2.5">
+      <Button
+        type="button"
+        onClick={start}
+        disabled={loading}
+        aria-label="Sign in with your Jackisa account"
+        className="w-full h-12 rounded-xl font-semibold bg-white text-slate-900 border border-slate-200 hover:bg-slate-50 hover:border-slate-300 shadow-sm hover:shadow transition-all active:scale-[0.99]"
+      >
+        {loading ? (
+          <Loader2 className="w-5 h-5 mr-2.5 animate-spin text-slate-500" />
+        ) : (
+          <img src={JACKISA_LOGO} alt="" className="w-5 h-5 mr-2.5 object-contain" />
+        )}
+        <span className="text-[15px]">{loading ? 'Taking you to Jackisa…' : label}</span>
+      </Button>
+      {!compact && (
+        <p className="flex items-center justify-center gap-1.5 text-[11px] text-muted-foreground/60">
+          <ShieldCheck className="w-3 h-3" />
+          One account across Jackisa — your profile and photo come with you
+        </p>
       )}
-      {label}
-    </Button>
+    </div>
   )
 }

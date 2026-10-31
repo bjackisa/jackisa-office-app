@@ -15,8 +15,9 @@ export default function CreditNotesPage() {
   const [creditNotes, setCreditNotes] = useState<any[]>([])
   const [searchQuery, setSearchQuery] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
-  const [form, setForm] = useState({ invoice_id: '', credit_date: new Date().toISOString().split('T')[0], reason: '', amount: '' })
+  const [form, setForm] = useState({ invoice_id: '', credit_date: new Date().toISOString().split('T')[0], reason: '', amount: '', msisdn: '' })
   const [error, setError] = useState<string | null>(null)
+  const [notice, setNotice] = useState<string | null>(null)
 
   const loadData = async () => {
     const ctx = await getSessionContext()
@@ -94,6 +95,11 @@ export default function CreditNotesPage() {
       return
     }
 
+    if (!form.msisdn || form.msisdn.replace(/\D/g, '').length < 9) {
+      setError('Enter the payer\'s mobile money number to collect via JPesa.')
+      return
+    }
+
     setError(null)
 
     const response = await fetch('/api/payments/initiate', {
@@ -105,9 +111,10 @@ export default function CreditNotesPage() {
         moduleReferenceId: form.invoice_id,
         moduleReferenceType: 'invoices',
         direction: 'collection',
-        paymentMethod: 'cash',
+        paymentMethod: 'jackisa_pay',
         currency: 'UGX',
         amount,
+        msisdn: form.msisdn,
         description: form.reason || `Invoice partial settlement (${form.credit_date})`,
         metadata: {
           source: 'credit_notes_page',
@@ -125,7 +132,8 @@ export default function CreditNotesPage() {
       return
     }
 
-    setForm({ invoice_id: '', credit_date: new Date().toISOString().split('T')[0], reason: '', amount: '' })
+    setNotice(`JPesa payment request sent to ${form.msisdn}. Ask the payer to approve the prompt on their phone — the credit note posts automatically once it settles.`)
+    setForm({ invoice_id: '', credit_date: new Date().toISOString().split('T')[0], reason: '', amount: '', msisdn: '' })
     await loadData()
   }
 
@@ -143,10 +151,10 @@ export default function CreditNotesPage() {
           </div>
           <div>
             <h3 className="text-sm font-semibold text-foreground">Create Credit Note</h3>
-            <p className="text-[11px] text-muted-foreground/60">Collect a full or partial invoice payment (auto-creates credit note)</p>
+            <p className="text-[11px] text-muted-foreground/60">Collect a full or partial invoice payment via JPesa (auto-creates credit note)</p>
           </div>
         </div>
-        <div className="grid md:grid-cols-4 gap-3">
+        <div className="grid md:grid-cols-5 gap-3">
           <select className="form-select" value={form.invoice_id} onChange={(e) => { setError(null); setForm({ ...form, invoice_id: e.target.value }) }}>
             <option value="">Select invoice</option>
             {invoices.filter(invoiceHasBalance).map((invoice) => {
@@ -161,6 +169,7 @@ export default function CreditNotesPage() {
           <Input type="date" value={form.credit_date} onChange={(e) => setForm({ ...form, credit_date: e.target.value })} />
           <Input placeholder="Reason" value={form.reason} onChange={(e) => setForm({ ...form, reason: e.target.value })} />
           <Input type="number" placeholder="Amount" value={form.amount} onChange={(e) => { setError(null); setForm({ ...form, amount: e.target.value }) }} max={selectedOutstanding > 0 ? selectedOutstanding : undefined} />
+          <Input type="tel" placeholder="Payer mobile money no." value={form.msisdn} onChange={(e) => { setError(null); setForm({ ...form, msisdn: e.target.value }) }} />
         </div>
         {selectedInvoice && (
           <div className="rounded-xl border border-border/40 bg-background/70 px-3 py-2">
@@ -169,6 +178,7 @@ export default function CreditNotesPage() {
           </div>
         )}
         {error && <p className="text-xs text-red-600">{error}</p>}
+        {notice && <p className="text-xs text-emerald-600">{notice}</p>}
         <div className="pt-3 border-t border-border/30">
           <Button size="sm" onClick={createCreditNote}>Apply Credit Note</Button>
         </div>

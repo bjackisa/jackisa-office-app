@@ -73,7 +73,7 @@ final class CronService
         $app = App::instance();
         $reminderDays = (int) $app->config('license.trial_reminder_days', 2);
         $rows = $app->all(
-            "SELECT t.*, u.email, u.full_name, u.phone, ten.name AS tenant_name
+            "SELECT t.*, u.email, u.full_name, COALESCE(u.phone, t.msisdn) AS phone, ten.name AS tenant_name
              FROM trials t
              JOIN tenants ten ON ten.id = t.tenant_id
              LEFT JOIN users u ON u.id = t.user_id
@@ -394,7 +394,9 @@ final class CronService
         $rows = $app->all(
             "SELECT l.*, t.name AS tenant_name, t.email AS tenant_email,
                     (SELECT email FROM users u JOIN tenant_members m ON m.user_id = u.id
-                     WHERE m.tenant_id = l.tenant_id AND m.is_owner = 1 LIMIT 1) AS owner_email
+                     WHERE m.tenant_id = l.tenant_id AND m.is_owner = 1 LIMIT 1) AS owner_email,
+                    (SELECT COALESCE(u.phone, t.phone) FROM users u JOIN tenant_members m ON m.user_id = u.id
+                     WHERE m.tenant_id = l.tenant_id AND m.is_owner = 1 LIMIT 1) AS owner_phone
              FROM licenses l JOIN tenants t ON t.id = l.tenant_id
              WHERE l.status IN ('active','trial')
                AND DATE(l.expires_at) IN (DATE_ADD(CURDATE(), INTERVAL 7 DAY), DATE_ADD(CURDATE(), INTERVAL 1 DAY))"
@@ -411,6 +413,12 @@ final class CronService
                 . '<p><a href="https://office.jackisa.com/app/settings/billing" style="background:#0d5ba3;color:#fff;padding:10px 18px;border-radius:8px;text-decoration:none;">Renew now</a></p>',
                 [], ['template' => 'renewal_reminder']
             );
+            // Mirror the reminder to WhatsApp when we hold a number.
+            if (!empty($lic['owner_phone'])) {
+                WhatsAppService::send($lic['owner_phone'],
+                    'Your Jackisa Office licence for ' . $lic['tenant_name'] . " expires in $days day(s). Renew at https://office.jackisa.com/app/settings/billing to avoid interruption.",
+                    ['template' => 'renewal_reminder']);
+            }
             $sent++;
         }
         return ['reminded' => $sent];

@@ -5,7 +5,7 @@ import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
-  Banknote, Smartphone, CreditCard, X, CheckCircle, AlertCircle,
+  Banknote, Smartphone, X, CheckCircle, AlertCircle,
   Loader2, ArrowRight, Shield, Landmark, Phone,
 } from 'lucide-react'
 import type { PaymentDirection, PaymentModule, PaymentMethodType } from '@/lib/payment-gateway'
@@ -100,11 +100,6 @@ export default function PaymentModal({
     setStep('cash')
   }
 
-  const handleCard = () => {
-    setMethod('visa_mastercard')
-    processPayment('visa_mastercard')
-  }
-
   const processPayment = async (chosenMethod: PaymentMethodType, phoneNumber?: string) => {
     setStep('processing')
     setStatusMsg(chosenMethod === 'cash' ? 'Recording cash payment...' : 'Sending payment request...')
@@ -144,12 +139,6 @@ export default function PaymentModal({
         setStatusMsg(result.message)
         onFailed?.(result.message)
       }
-      return
-    }
-
-    if (chosenMethod === 'visa_mastercard' && result.paymentUrl) {
-      window.open(result.paymentUrl, '_blank')
-      setStatusMsg('Card payment page opened. Complete payment there.')
       return
     }
 
@@ -193,9 +182,11 @@ export default function PaymentModal({
           {/* ── Step: Choose Method ── */}
           {step === 'choose' && (
             <div className="space-y-3">
-              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Select payment method</p>
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">
+                {direction === 'collection' ? 'Pay with JPesa' : 'Select payment method'}
+              </p>
 
-              {/* Jackisa Pay (Mobile Money) */}
+              {/* Mobile money via JPesa (the only inbound rail) */}
               <button
                 onClick={handleJackisaPay}
                 className="w-full flex items-center gap-4 p-4 rounded-xl border border-border/50 hover:border-primary/30 hover:bg-primary/[0.02] transition-all group"
@@ -204,47 +195,36 @@ export default function PaymentModal({
                   <Smartphone className="w-5 h-5 text-white" />
                 </div>
                 <div className="flex-1 text-left">
-                  <p className="text-sm font-semibold text-foreground">Jackisa Pay</p>
+                  <p className="text-sm font-semibold text-foreground">
+                    {direction === 'collection' ? 'Mobile Money via JPesa' : 'Jackisa Pay'}
+                  </p>
                   <p className="text-[11px] text-muted-foreground">MTN Mobile Money · Airtel Money</p>
                 </div>
                 <ArrowRight className="w-4 h-4 text-muted-foreground/30 group-hover:text-primary transition-colors" />
               </button>
 
-              {/* Cash */}
-              <button
-                onClick={handleCash}
-                className="w-full flex items-center gap-4 p-4 rounded-xl border border-border/50 hover:border-amber-300 hover:bg-amber-50/30 transition-all group"
-              >
-                <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-amber-500 to-orange-500 flex items-center justify-center shadow-sm group-hover:scale-105 transition-transform">
-                  <Banknote className="w-5 h-5 text-white" />
-                </div>
-                <div className="flex-1 text-left">
-                  <p className="text-sm font-semibold text-foreground">Cash</p>
-                  <p className="text-[11px] text-muted-foreground">Record a physical cash transaction</p>
-                </div>
-                <ArrowRight className="w-4 h-4 text-muted-foreground/30 group-hover:text-amber-500 transition-colors" />
-              </button>
-
-              {/* Card (collections only) */}
-              {direction === 'collection' && (
+              {/* Cash is a disbursement / on-site record only, never an inbound rail */}
+              {direction === 'disbursement' && (
                 <button
-                  onClick={handleCard}
-                  className="w-full flex items-center gap-4 p-4 rounded-xl border border-border/50 hover:border-blue-300 hover:bg-blue-50/30 transition-all group"
+                  onClick={handleCash}
+                  className="w-full flex items-center gap-4 p-4 rounded-xl border border-border/50 hover:border-amber-300 hover:bg-amber-50/30 transition-all group"
                 >
-                  <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center shadow-sm group-hover:scale-105 transition-transform">
-                    <CreditCard className="w-5 h-5 text-white" />
+                  <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-amber-500 to-orange-500 flex items-center justify-center shadow-sm group-hover:scale-105 transition-transform">
+                    <Banknote className="w-5 h-5 text-white" />
                   </div>
                   <div className="flex-1 text-left">
-                    <p className="text-sm font-semibold text-foreground">Visa / Mastercard</p>
-                    <p className="text-[11px] text-muted-foreground">Secure card payment via Relworx</p>
+                    <p className="text-sm font-semibold text-foreground">Cash</p>
+                    <p className="text-[11px] text-muted-foreground">Record a physical cash payout</p>
                   </div>
-                  <ArrowRight className="w-4 h-4 text-muted-foreground/30 group-hover:text-blue-500 transition-colors" />
+                  <ArrowRight className="w-4 h-4 text-muted-foreground/30 group-hover:text-amber-500 transition-colors" />
                 </button>
               )}
 
               <div className="flex items-center gap-1.5 justify-center pt-2">
                 <Shield className="w-3 h-3 text-muted-foreground/30" />
-                <p className="text-[10px] text-muted-foreground/40">Payments secured by Jackisa &amp; Relworx</p>
+                <p className="text-[10px] text-muted-foreground/40">
+                  {direction === 'collection' ? 'All payments are collected securely by JPesa' : 'Payouts secured by Jackisa'}
+                </p>
               </div>
             </div>
           )}

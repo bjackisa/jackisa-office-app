@@ -39,7 +39,9 @@ export default function TeamManagementPage() {
     position: '',
     roleId: '',
     salary: '',
+    msisdn: '',
   })
+  const [lastInviteUrl, setLastInviteUrl] = useState<string | null>(null)
 
   useEffect(() => {
     loadData()
@@ -90,27 +92,44 @@ export default function TeamManagementPage() {
       const expiresAt = new Date()
       expiresAt.setDate(expiresAt.getDate() + 7)
 
-      const { error } = await supabase
-        .from('employee_invitations')
-        .insert({
-          company_id: companyId,
-          company_role_id: form.roleId,
-          email: form.email,
-          full_name: form.fullName,
-          department: form.department || null,
+      // Create a shareable invite link. When an email is supplied the link is
+      // delivered on email and WhatsApp at once.
+      const res = await fetch('/api/companies/members', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+        body: JSON.stringify({
+          action: 'create_invite',
+          companyId,
+          companyRoleId: form.roleId,
+          label: form.fullName,
           position: form.position || null,
-          salary: form.salary ? parseFloat(form.salary) : null,
-          token,
-          status: 'pending',
-          invited_by: session.user.id,
-          expires_at: expiresAt.toISOString(),
-        })
+          department: form.department || null,
+          email: form.email,
+          msisdn: form.msisdn || null,
+          expiresAt: expiresAt.toISOString(),
+        }),
+      })
+      const json = await res.json()
+      if (!json.ok) throw new Error(json.error || 'Failed to send invitation')
 
-      if (error) throw error
+      // Keep the structured record in sync so the list below stays complete.
+      await supabase.from('employee_invitations').insert({
+        company_id: companyId,
+        company_role_id: form.roleId,
+        email: form.email,
+        full_name: form.fullName,
+        department: form.department || null,
+        position: form.position || null,
+        salary: form.salary ? parseFloat(form.salary) : null,
+        token,
+        status: 'pending',
+        invited_by: session.user.id,
+        expires_at: expiresAt.toISOString(),
+      })
 
-      setMessage({ type: 'success', text: `Invitation sent to ${form.email}` })
-      setForm({ email: '', fullName: '', department: '', position: '', roleId: '', salary: '' })
-      setShowInviteForm(false)
+      setLastInviteUrl(json.url || null)
+      setMessage({ type: 'success', text: `Invitation sent to ${form.email} by email and WhatsApp.` })
+      setForm({ email: '', fullName: '', department: '', position: '', roleId: '', salary: '', msisdn: '' })
       loadData()
     } catch (error: any) {
       setMessage({ type: 'error', text: error.message || 'Failed to send invitation' })
@@ -244,6 +263,16 @@ export default function TeamManagementPage() {
               />
             </div>
             <div>
+              <label className="block text-xs font-medium text-muted-foreground mb-1.5">WhatsApp Number</label>
+              <Input
+                type="tel"
+                placeholder="e.g. 256700000000"
+                value={form.msisdn}
+                onChange={(e) => setForm({ ...form, msisdn: e.target.value })}
+                className="bg-card"
+              />
+            </div>
+            <div>
               <label className="block text-xs font-medium text-muted-foreground mb-1.5">Monthly Salary (UGX)</label>
               <Input
                 type="number"
@@ -254,6 +283,20 @@ export default function TeamManagementPage() {
               />
             </div>
           </div>
+          <p className="text-[11px] text-muted-foreground/60 mt-3">
+            The invite link is sent to the email address and, when a number is given, to WhatsApp as well.
+          </p>
+          {lastInviteUrl && (
+            <div className="mt-3 flex items-center gap-2 rounded-lg border border-border/40 bg-background/70 px-3 py-2">
+              <span className="text-[11px] text-muted-foreground flex-1 truncate">{lastInviteUrl}</span>
+              <button
+                onClick={() => navigator.clipboard?.writeText(lastInviteUrl)}
+                className="text-[11px] font-medium text-primary hover:underline shrink-0"
+              >
+                Copy link
+              </button>
+            </div>
+          )}
           <div className="flex items-center gap-3 mt-5">
             <Button
               size="sm"

@@ -189,6 +189,19 @@ export async function initiatePayment(params: InitiatePaymentParams): Promise<Pa
   const currency = params.currency || 'UGX'
   const db = getPaymentDb()
 
+  // Every inbound payment is collected by JPesa through the licence hub.
+  // This gateway only ever moves money OUT (payouts). Reject a collection here
+  // so no code path can accidentally take a customer payment on another rail.
+  if (params.direction === 'collection') {
+    return {
+      success: false,
+      paymentId: '',
+      ourReference,
+      status: 'failed',
+      message: 'Collections are handled by JPesa. Use /api/payments/initiate with the licence hub.',
+    }
+  }
+
   // Validate amount for Relworx methods
   if (params.paymentMethod !== 'cash' && params.paymentMethod !== 'internal_transfer') {
     const err = validateAmount(params.amount, currency, params.paymentMethod)
@@ -245,33 +258,14 @@ export async function initiatePayment(params: InitiatePaymentParams): Promise<Pa
     await db.from('payments').update({ relworx_account_no: config.accountNo, status: 'processing' }).eq('id', paymentId)
 
     const apiParams = { account_no: config.accountNo, reference: ourReference, msisdn: formatMsisdn(params.msisdn), currency, amount: params.amount, description: params.description || '' }
-    const endpoint = params.direction === 'collection' ? '/mobile-money/request-payment' : '/mobile-money/send-payment'
-    const result = await callRelworx(config, endpoint, 'POST', apiParams)
+    const result = await callRelworx(config, '/mobile-money/send-payment', 'POST', apiParams)
 
     if (result.success && result.internal_reference) {
       await db.from('payments').update({ relworx_internal_ref: result.internal_reference, status: 'processing', status_message: result.message }).eq('id', paymentId)
-      return { success: true, paymentId, ourReference, status: 'processing', message: params.direction === 'collection' ? 'Payment prompt sent. Waiting for approval.' : 'Disbursement submitted.', relworxInternalRef: result.internal_reference }
+      return { success: true, paymentId, ourReference, status: 'processing', message: 'Disbursement submitted.', relworxInternalRef: result.internal_reference }
     } else {
       await db.from('payments').update({ status: 'failed', failure_reason: result.message }).eq('id', paymentId)
       return { success: false, paymentId, ourReference, status: 'failed', message: result.message || 'Payment request failed' }
-    }
-  }
-
-  // ── VISA / MASTERCARD ──
-  if (params.paymentMethod === 'visa_mastercard') {
-    const config = await getGatewayConfig(params.companyId)
-    if (!config) {
-      await db.from('payments').update({ status: 'failed', failure_reason: 'Gateway not configured' }).eq('id', paymentId)
-      return { success: false, paymentId, ourReference, status: 'failed', message: 'Payment gateway not configured' }
-    }
-    await db.from('payments').update({ relworx_account_no: config.accountNo, status: 'processing' }).eq('id', paymentId)
-    const result = await callRelworx(config, '/visa/request-session', 'POST', { account_no: config.accountNo, reference: ourReference, currency, amount: params.amount, description: params.description || '' })
-    if (result.success && result.payment_url) {
-      await db.from('payments').update({ card_payment_url: result.payment_url, status: 'processing' }).eq('id', paymentId)
-      return { success: true, paymentId, ourReference, status: 'processing', message: 'Redirecting to card payment page.', paymentUrl: result.payment_url }
-    } else {
-      await db.from('payments').update({ status: 'failed', failure_reason: result.message }).eq('id', paymentId)
-      return { success: false, paymentId, ourReference, status: 'failed', message: result.message || 'Card session failed' }
     }
   }
 

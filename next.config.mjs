@@ -9,7 +9,7 @@ const csp = [
   "default-src 'self'",
   `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ''} https://*.vercel.app`,
   "style-src 'self' 'unsafe-inline'",
-  "img-src 'self' data: blob: https://res.cloudinary.com https://*.supabase.co",
+  "img-src 'self' data: blob: https://res.cloudinary.com https://*.supabase.co https://jackisa.com",
   "font-src 'self' data:",
   "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://lic.jackisa.com https://jackisa.com https://api.whapi.cloud",
   "frame-src 'self' https://jackisa.com https://www.youtube.com https://player.vimeo.com",

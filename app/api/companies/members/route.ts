@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { adminClient, adminAvailable } from '@/lib/lic/peer'
 import { getCaller, requireCompanyAdmin } from '@/lib/lic/serverAuth'
 import { checkEmployeeCap } from '@/lib/lic/caps'
+import { notifyCompanyInvite, notifyJoinDecision } from '@/lib/lic/invites'
 import crypto from 'crypto'
 
 export const dynamic = 'force-dynamic'
@@ -51,7 +52,28 @@ export async function POST(req: NextRequest) {
           .select()
           .single()
         if (error) return NextResponse.json({ ok: false, error: error.message }, { status: 400 })
-        return NextResponse.json({ ok: true, invite: data, url: `${new URL(req.url).origin}/auth/join?invite=${token}` })
+        const url = `${new URL(req.url).origin}/auth/join?invite=${token}`
+
+        // Email + WhatsApp the link when the admin supplied a recipient.
+        let delivered: string | null = null
+        if (body.email) {
+          const { data: inviter } = await db.from('users').select('full_name').eq('id', guard.caller.id).maybeSingle()
+          const { data: company } = await db.from('companies').select('name').eq('id', companyId).maybeSingle()
+          await notifyCompanyInvite({
+            companyId,
+            companyName: company?.name,
+            inviteUrl: url,
+            email: String(body.email),
+            msisdn: body.msisdn ? String(body.msisdn) : null,
+            position: body.position || null,
+            inviterName: inviter?.full_name || null,
+            requiresApproval: !!body.requiresApproval,
+            expiresAt: body.expiresAt || null,
+          })
+          delivered = String(body.email)
+        }
+
+        return NextResponse.json({ ok: true, invite: data, url, delivered })
       }
 
       case 'list_invites': {
@@ -181,6 +203,15 @@ export async function POST(req: NextRequest) {
             if (invite) await db.from('company_invite_links').update({ use_count: (invite.use_count || 0) + 1 }).eq('id', request.invite_link_id)
           }
         }
+
+        // Tell the applicant the outcome on email + WhatsApp.
+        await notifyJoinDecision({
+          companyId,
+          userId: request.user_id,
+          approved: approve,
+          note: body.note || null,
+        })
+
         return NextResponse.json({ ok: true })
       }
 

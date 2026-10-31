@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { lic } from '@/lib/lic/client'
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -8,6 +9,18 @@ const supabaseAdmin = createClient(
 
 const RELWORX_ACCOUNT_NO = process.env.RELWORX_ACCOUNT_NO || process.env.NEXT_PUBLIC_RELWORX_ACCOUNT_NO
 const RELWORX_API_KEY = process.env.RELWORX_API_KEY
+
+/** Map a licence-hub (JPesa) payment status onto the office payment status. */
+function mapJpesaStatus(status: string): string {
+  switch (String(status || '').toLowerCase()) {
+    case 'paid': return 'success'
+    case 'failed': return 'failed'
+    case 'cancelled': return 'cancelled'
+    case 'expired': return 'timed_out'
+    case 'processing': return 'processing'
+    default: return 'pending'
+  }
+}
 
 export async function GET(req: NextRequest) {
   const paymentId = req.nextUrl.searchParams.get('payment_id')
@@ -33,7 +46,38 @@ export async function GET(req: NextRequest) {
       completed_at: payment.completed_at,
       customer_reference: payment.customer_reference,
       net_amount: payment.net_amount,
-      relworx_charge: payment.relworx_charge,
+    })
+  }
+
+  const meta = (payment.metadata || {}) as Record<string, any>
+
+  // ── JPesa collections: ask the licence hub to reconcile ──
+  if (meta.provider === 'jpesa' || meta.lic_payment_id || meta.merchant_ref) {
+    const res = await lic.paymentStatus({
+      payment_id: meta.lic_payment_id || undefined,
+      merchant_ref: meta.merchant_ref || undefined,
+    })
+    const data = res.data || {}
+    const mapped = res.api_status === '200' ? mapJpesaStatus(data.status) : 'processing'
+
+    if (mapped !== payment.status) {
+      await supabaseAdmin
+        .from('payments')
+        .update({
+          status: mapped,
+          status_message: data.provider_status || mapped,
+          completed_at: mapped === 'success' ? (data.completed_at || new Date().toISOString()) : payment.completed_at,
+          failure_reason: mapped === 'failed' ? (data.provider_status || 'Payment failed') : null,
+        })
+        .eq('id', paymentId)
+    }
+
+    return NextResponse.json({
+      status: mapped,
+      message: mapped === 'success' ? 'Payment confirmed' : (data.provider_status || 'Waiting for payment confirmation...'),
+      completed_at: data.completed_at,
+      charged: data.charged,
+      fee: data.fee,
     })
   }
 
