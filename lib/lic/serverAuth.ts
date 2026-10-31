@@ -52,6 +52,7 @@ export async function getMembership(userId: string, companyId: string): Promise<
     .select('company_id, company_role_id, position, status, company_roles(name)')
     .eq('user_id', userId)
     .eq('company_id', companyId)
+    .eq('status', 'active')
     .maybeSingle()
   if (!data) return null
   const roleName = (data as any).company_roles?.name ?? null

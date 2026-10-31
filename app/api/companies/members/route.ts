@@ -136,11 +136,12 @@ export async function POST(req: NextRequest) {
         if (error) return NextResponse.json({ ok: false, error: error.message }, { status: 400 })
 
         if (autoApprove) {
+          const roleId = invite.company_role_id || (await db.rpc('jo_default_company_role', { p_company_id: targetCompany })).data
           await db.from('company_employees').upsert(
             {
               company_id: targetCompany,
               user_id: caller.id,
-              company_role_id: invite.company_role_id || null,
+              company_role_id: roleId,
               position: invite.position || 'Member',
               department: invite.department || null,
               status: 'active',
@@ -186,11 +187,12 @@ export async function POST(req: NextRequest) {
           .eq('id', requestId)
 
         if (approve) {
+          const roleId = request.company_role_id || (await db.rpc('jo_default_company_role', { p_company_id: companyId })).data
           await db.from('company_employees').upsert(
             {
               company_id: companyId,
               user_id: request.user_id,
-              company_role_id: request.company_role_id || null,
+              company_role_id: roleId,
               position: request.position || 'Member',
               department: request.department || null,
               status: 'active',
