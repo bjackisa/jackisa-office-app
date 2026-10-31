@@ -1,5 +1,18 @@
 # Jackisa Stream — project memory
 
+## Jackisa Office — repos & deployment (Oct 31) — see `.openhands/memory/2026-10-31.md`
+- **Repos:** `bjackisa/jackisastream` (jackisa.com, private), `bjackisa/jackisa-office-app`
+  (this app, public), **new** `bjackisa/jackisa-license-hub` (lic app, private) = `lic-backend/`
+  contents at repo root (`bin/ config/ src/ migrations/ public_html/`). `src/` is the live
+  tree; the server also has stale duplicate top-level dirs (unused, not in the repo).
+- lic doc root `~/domains/lic.jackisa.com/public_html/` is a shim → `../app/public_html/index.php`;
+  the repo deploys to `.../app/`.
+- **Deployment gap:** server `src/Service/CronService.php` + `public_html/.htaccess` are older
+  than the pushed repo — server needs a redeploy of those two files.
+- **Tokens:** workspace `GITHUB_TOKEN` (fine-grained) pushes jackisastream + office-app but
+  cannot create repos; the server's classic `~/.git-credentials` token can. Push with
+  `git -c credential.helper= push https://bjackisa:<token>@github.com/...`.
+
 ## Jackisa Office — ledger / unit-trust / legacy backfill (Oct 31) — see `.openhands/memory/2026-10-31.md`
 - **Fund money never hit the double-entry ledger.** `process_contribution/redemption/
   process_sale_to_fund_allocation` moved `cash_pool` + `fund_transactions` only.
