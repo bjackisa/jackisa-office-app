@@ -51,6 +51,17 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ ok: res.api_status === '200', data: res.data, error: res.errors?.error_text })
       }
 
+      case 'change-quote': {
+        const res = await lic.changeQuote(companyId, String(body.planCode || ''))
+        return NextResponse.json({ ok: res.api_status === '200', data: res.data, error: res.errors?.error_text })
+      }
+
+      case 'change': {
+        const res = await lic.changePlan(companyId, String(body.planCode || ''), Boolean(body.paid))
+        if (res.api_status === '200') await mirrorLicenseFromHub(companyId, res.data)
+        return NextResponse.json({ ok: res.api_status === '200', data: res.data, error: res.errors?.error_text })
+      }
+
       case 'validate': {
         const key = String(body.licenseKey || '')
         const res = await lic.validate(key, {

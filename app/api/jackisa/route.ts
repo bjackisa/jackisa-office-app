@@ -63,6 +63,9 @@ export async function POST(req: NextRequest) {
     case 'verification':
       res = await lic.jackisaVerification({ ...id, badge: body.badge || 'company', verified: body.verified !== false })
       break
+    case 'materialize':
+      res = await lic.jackisaMaterialize(owner.tenantId)
+      break
     default:
       return NextResponse.json({ ok: false, error: 'Unknown action' }, { status: 400 })
   }

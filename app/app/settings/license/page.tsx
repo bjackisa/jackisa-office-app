@@ -7,7 +7,7 @@ import { useLicense } from '@/lib/lic/useLicense'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Spinner } from '@/components/ui/spinner'
-import { ShieldCheck, ShieldAlert, BadgeCheck, Building2, FileText, Copy, RefreshCw } from 'lucide-react'
+import { ShieldCheck, ShieldAlert, BadgeCheck, Building2, FileText, Copy, RefreshCw, ExternalLink } from 'lucide-react'
 import Link from 'next/link'
 
 export default function LicensePage() {
@@ -86,6 +86,31 @@ export default function LicensePage() {
       setMessage('Company verification requested. We will email you when it is reviewed.')
     } catch (e: any) {
       setMessage(e?.message || 'Could not request verification')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  // Open the tenant's storefront on jackisa.com (created by the plan).
+  const openStore = () => {
+    window.open(jackisa?.entitlement?.store_url || 'https://jackisa.com/store', '_blank', 'noopener')
+  }
+
+  // Re-run the cross-platform materialisation (storefront, badge, seats).
+  const materialize = async () => {
+    if (!companyId) return
+    setBusy(true)
+    setMessage(null)
+    try {
+      const res = await fetch('/api/jackisa', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ companyId, action: 'materialize' }),
+      })
+      const json = await res.json()
+      setMessage(json.ok ? 'Cross-platform benefits are up to date.' : json.error || 'Could not refresh benefits')
+      const fresh = await fetch(`/api/jackisa?companyId=${encodeURIComponent(companyId)}`).then((r) => r.json()).catch(() => null)
+      if (fresh?.ok) setJackisa(fresh.data)
     } finally {
       setBusy(false)
     }
@@ -173,7 +198,7 @@ export default function LicensePage() {
             <span className="text-xs font-semibold capitalize px-2.5 py-1 rounded-full bg-primary/10 text-primary">{jackisa.entitlement.tier}</span>
           )}
         </div>
-        <div className="p-5">
+        <div className="p-5 space-y-4">
           {jackisa?.benefits?.length ? (
             <ul className="grid sm:grid-cols-2 gap-2.5">
               {jackisa.benefits.map((b: string) => (
@@ -187,6 +212,14 @@ export default function LicensePage() {
               Link your Jackisa account to carry this plan's benefits to jackisa.com. Courses you publish here appear in your Jackisa store.
             </p>
           )}
+          <div className="flex flex-wrap gap-2 pt-1">
+            <Button size="sm" variant="outline" onClick={openStore} disabled={busy}>
+              <ExternalLink className="w-3.5 h-3.5 mr-1.5" /> Open my Jackisa store
+            </Button>
+            <Button size="sm" variant="ghost" onClick={materialize} disabled={busy}>
+              <RefreshCw className="w-3.5 h-3.5 mr-1.5" /> Refresh cross-platform benefits
+            </Button>
+          </div>
         </div>
       </Card>
 

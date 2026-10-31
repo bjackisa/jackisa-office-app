@@ -85,7 +85,7 @@ final class PaymentService
                 $params['tenant_id'] ?? null,
                 $params['user_id'] ?? null,
                 $params['subscription_id'] ?? null,
-                in_array($params['purpose'] ?? 'license', ['license','subscription','topup','invoice','other'], true) ? $params['purpose'] : 'license',
+                in_array($params['purpose'] ?? 'license', ['license','subscription','topup','invoice','other','change'], true) ? $params['purpose'] : 'license',
                 $params['channel'] ?? 'jpesa',
                 'jpesa',
                 $split['amount'], $split['charged'], $split['fee'],
@@ -233,6 +233,24 @@ final class PaymentService
 
         $months = (int) ($payment['interval_months'] ?? 0);
         $tenantId = (string) ($payment['tenant_id'] ?? '');
+
+        // A plan change is settled by switching the licence to the new plan
+        // (the credit for the unused period was already applied to the charge).
+        if (($payment['purpose'] ?? '') === 'change' && $tenantId !== '' && !empty($payment['plan_code'])) {
+            try {
+                LicenseService::changePlan($tenantId, (string) $payment['plan_code'], ['paid' => true]);
+            } catch (\Throwable $e) {
+                $app->log('error', 'payment.fulfill change failed', ['payment' => $payment['id'], 'error' => $e->getMessage()]);
+                return; // leave unfulfilled so it can be retried
+            }
+            $app->run('UPDATE payments SET fulfilled = 1, updated_at = NOW() WHERE id = ?', [$payment['id']]);
+            $app->run(
+                'INSERT INTO audit_log (actor_type, action, entity_type, entity_id, details) VALUES (?,?,?,?,?)',
+                ['system', 'payment.fulfilled', 'payment', $payment['id'], json_encode(['purpose' => 'change', 'plan' => $payment['plan_code']])]
+            );
+            return;
+        }
+
         if ($tenantId === '' || $months <= 0) {
             $app->run('UPDATE payments SET fulfilled = 1, updated_at = NOW() WHERE id = ?', [$payment['id']]);
             return;

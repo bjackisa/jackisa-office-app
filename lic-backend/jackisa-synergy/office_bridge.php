@@ -132,12 +132,26 @@ if ($action === 'sync_entitlements') {
     if (empty($result['status'])) {
         office_bridge_respond(['ok' => false, 'error' => $result['message'] ?? 'Could not store entitlements']);
     }
+    // Make the plan real on jackisa.com: open the storefront, apply the badge.
+    $materialized = PT_OfficeMaterializeBenefits($userId, $tier, $body);
     office_bridge_respond([
         'ok'      => true,
         'user_id' => $userId,
         'tier'    => $result['row']->tier,
         'benefits' => PT_OfficeEntitlementBenefitLines($tier),
+        'materialized' => $materialized['created'] ?? [],
     ]);
+}
+
+if ($action === 'materialize_benefits') {
+    // Explicitly turn a plan's entitlements into artifacts (storefront, badge).
+    $userId = PT_OfficeEntitlementResolveUser($body);
+    if ($userId <= 0) {
+        office_bridge_respond(['ok' => false, 'error' => 'No matching jackisa.com user']);
+    }
+    $e = PT_OfficeEntitlement($userId);
+    $result = PT_OfficeMaterializeBenefits($userId, $e->tier ?? 'basic', $body);
+    office_bridge_respond($result);
 }
 
 if ($action === 'entitlements') {
@@ -148,6 +162,16 @@ if ($action === 'entitlements') {
     $e = PT_OfficeEntitlement($userId);
     if (empty($e)) {
         office_bridge_respond(['ok' => true, 'user_id' => $userId, 'entitlement' => null]);
+    }
+    // Include the live storefront URL so office can deep-link to it.
+    $storeSlug = '';
+    $storeUrl = '';
+    if (function_exists('PT_StoreSellerByUser')) {
+        $seller = PT_StoreSellerByUser($userId);
+        if (!empty($seller)) {
+            $storeSlug = (string) $seller->store_slug;
+            $storeUrl = function_exists('PT_Link') ? PT_Link('timeline/' . $seller->store_slug . '/store') : ('https://jackisa.com/store');
+        }
     }
     office_bridge_respond([
         'ok'          => true,
@@ -164,6 +188,8 @@ if ($action === 'entitlements') {
             'member_seats'          => (int) $e->member_seats,
             'features'              => json_decode((string) $e->features, true) ?: [],
             'status'                => $e->status,
+            'store_slug'            => $storeSlug,
+            'store_url'             => $storeUrl,
         ],
         'benefits' => PT_OfficeEntitlementBenefitLines($e->tier),
     ]);

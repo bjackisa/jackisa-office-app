@@ -186,6 +186,42 @@ final class LicenseController
         Response::ok($result);
     }
 
+    /** POST /api/v1/office-license/change-quote — price a plan change. */
+    public static function changeQuote(Request $request): void
+    {
+        Auth::requirePeer($request);
+        $tenantId = $request->string('tenant_id');
+        $planCode = $request->string('plan_code');
+        if ($tenantId === '' || $planCode === '') {
+            Response::error('422', 'tenant_id and plan_code are required', 422);
+        }
+        try {
+            Response::ok(['quote' => LicenseService::changeQuote($tenantId, $planCode)]);
+        } catch (\InvalidArgumentException $e) {
+            Response::error('422', $e->getMessage(), 422);
+        }
+    }
+
+    /** POST /api/v1/office-license/change — apply an upgrade/downgrade. */
+    public static function change(Request $request): void
+    {
+        Auth::requirePeer($request);
+        $tenantId = $request->string('tenant_id');
+        $planCode = $request->string('plan_code');
+        if ($tenantId === '' || $planCode === '') {
+            Response::error('422', 'tenant_id and plan_code are required', 422);
+        }
+        try {
+            $certificate = LicenseService::changePlan($tenantId, $planCode, [
+                'paid' => (bool) $request->int('paid', 0),
+            ]);
+            self::pushEntitlements($tenantId);
+            Response::ok(['certificate' => $certificate]);
+        } catch (\InvalidArgumentException $e) {
+            Response::error('422', $e->getMessage(), 422);
+        }
+    }
+
     /** GET /api/v1/office-license/plans */
     public static function plans(Request $request): void
     {

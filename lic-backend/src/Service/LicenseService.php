@@ -388,6 +388,142 @@ final class LicenseService
         return ['granted' => true, 'trial_id' => $id, 'ends_at' => $end->format('c'), 'license' => $license];
     }
 
+    /**
+     * Quote a plan change (upgrade, downgrade, or interval switch) for a tenant.
+     *
+     * The unused value of the current paid period is credited against the new
+     * plan, so a customer who moves mid-cycle is never charged twice. The quote
+     * is what the app shows before it charges the difference through JPesa.
+     *
+     * @return array<string,mixed>
+     */
+    public static function changeQuote(string $tenantId, string $newPlanCode): array
+    {
+        $app = App::instance();
+        $newPlan = $app->one('SELECT * FROM plans WHERE code = ? AND is_active = 1', [$newPlanCode]);
+        if ($newPlan === null) {
+            throw new \InvalidArgumentException('Unknown plan: ' . $newPlanCode);
+        }
+        $lic = $app->one(
+            'SELECT * FROM licenses WHERE tenant_id = ? ORDER BY created_at DESC LIMIT 1',
+            [$tenantId]
+        );
+
+        $now = new \DateTimeImmutable('now');
+        $credit = 0.0;
+        $current = null;
+        if ($lic !== null && in_array($lic['status'], ['trial', 'active', 'grace'], true)) {
+            $start = new \DateTimeImmutable((string) $lic['starts_at']);
+            $end = new \DateTimeImmutable((string) $lic['expires_at']);
+            $span = max(1, $end->getTimestamp() - $start->getTimestamp());
+            $left = max(0, $end->getTimestamp() - $now->getTimestamp());
+            $plan = $app->one('SELECT price FROM plans WHERE code = ?', [$lic['plan_code']]);
+            $price = (float) ($plan['price'] ?? 0);
+            // Trial time has no cash value, so a trial converts with no credit.
+            $credit = $lic['status'] === 'trial' ? 0.0 : round($price * ($left / $span), 2);
+            $current = [
+                'plan_code' => $lic['plan_code'],
+                'tier'      => $lic['tier'],
+                'status'    => $lic['status'],
+                'expires_at' => $lic['expires_at'],
+            ];
+        }
+
+        $price = (float) $newPlan['price'];
+        $amountDue = max(0.0, round($price - $credit, 2));
+        $direction = 'change';
+        if ($current !== null) {
+            $from = self::TIER_RANK[$current['tier']] ?? 0;
+            $to = self::TIER_RANK[$newPlan['tier']] ?? 0;
+            $direction = $to > $from ? 'upgrade' : ($to < $from ? 'downgrade' : 'interval');
+        }
+
+        return [
+            'tenant_id'      => $tenantId,
+            'current'        => $current,
+            'plan_code'      => $newPlanCode,
+            'plan_name'      => $newPlan['name'],
+            'tier'           => $newPlan['tier'],
+            'interval_months' => (int) $newPlan['interval_months'],
+            'price'          => number_format($price, 2, '.', ''),
+            'credit'         => number_format($credit, 2, '.', ''),
+            'amount_due'     => number_format($amountDue, 2, '.', ''),
+            'currency'       => $newPlan['currency'],
+            'direction'      => $direction,
+            'requires_payment' => $amountDue > 0.0,
+        ];
+    }
+
+    /**
+     * Apply a plan change. Call this after any required payment has settled (or
+     * straight away for a downgrade/interval switch fully covered by credit).
+     *
+     * @return array<string,mixed> the new certificate
+     */
+    public static function changePlan(string $tenantId, string $newPlanCode, array $opts = []): array
+    {
+        $app = App::instance();
+        $quote = self::changeQuote($tenantId, $newPlanCode);
+        if ($quote['requires_payment'] && empty($opts['paid'])) {
+            throw new \InvalidArgumentException('This change needs a payment of ' . $quote['amount_due'] . ' ' . $quote['currency'] . ' first.');
+        }
+
+        $lic = $app->one('SELECT * FROM licenses WHERE tenant_id = ? ORDER BY created_at DESC LIMIT 1', [$tenantId]);
+        $interval = (int) $quote['interval_months'];
+
+        if ($lic === null) {
+            // Nothing to change from: just issue.
+            return self::issue($tenantId, $newPlanCode, ['status' => 'active']);
+        }
+
+        // A change restarts the paid period from now for the new plan's interval.
+        $now = new \DateTimeImmutable('now');
+        $expires = $now->modify('+' . $interval . ' months');
+        $plan = $app->one('SELECT * FROM plans WHERE code = ?', [$newPlanCode]);
+
+        $app->run(
+            "UPDATE licenses SET plan_code = ?, tier = ?, status = 'active', interval_months = ?,
+                max_employees = ?, max_students = ?, storage_gb = ?, features = ?,
+                starts_at = ?, expires_at = ?, grace_until = ?,
+                activated_at = COALESCE(activated_at, NOW()), updated_at = NOW()
+             WHERE id = ?",
+            [
+                $newPlanCode, $plan['tier'], $interval,
+                (int) $plan['max_employees'], (int) $plan['max_students'], (int) $plan['storage_gb'],
+                json_encode(self::decodeFeatures($plan['features']), JSON_UNESCAPED_SLASHES),
+                $now->format('Y-m-d H:i:s'), $expires->format('Y-m-d H:i:s'),
+                $expires->modify('+' . self::graceDays() . ' days')->format('Y-m-d H:i:s'),
+                $lic['id'],
+            ]
+        );
+
+        // Keep the subscription row in step with the new plan/period.
+        $sub = $app->one('SELECT * FROM subscriptions WHERE tenant_id = ? ORDER BY created_at DESC LIMIT 1', [$tenantId]);
+        if ($sub !== null) {
+            $app->run(
+                "UPDATE subscriptions SET plan_code = ?, tier = ?, interval_months = ?, amount = ?, currency = ?,
+                    status = 'active', current_period_start = NOW(), current_period_end = ?, updated_at = NOW()
+                 WHERE id = ?",
+                [$newPlanCode, $plan['tier'], $interval, (float) $plan['price'], $plan['currency'],
+                 $expires->format('Y-m-d H:i:s'), $sub['id']]
+            );
+        } else {
+            $app->run(
+                'INSERT INTO subscriptions (id, tenant_id, license_id, plan_code, tier, interval_months, status, amount, currency, current_period_start, current_period_end)
+                 VALUES (?,?,?,?,?,?,?,?,?,NOW(),?)',
+                [Ids::uuid(), $tenantId, $lic['id'], $newPlanCode, $plan['tier'], $interval, 'active',
+                 (float) $plan['price'], $plan['currency'], $expires->format('Y-m-d H:i:s')]
+            );
+        }
+
+        self::audit('license.changed', 'license', $lic['id'], [
+            'tenant_id' => $tenantId, 'from' => $quote['current']['plan_code'] ?? null,
+            'to' => $newPlanCode, 'credit' => $quote['credit'], 'direction' => $quote['direction'],
+        ]);
+
+        return self::certify($lic['id']);
+    }
+
     public static function decodeFeatures(mixed $features): array
     {
         if (is_array($features)) {

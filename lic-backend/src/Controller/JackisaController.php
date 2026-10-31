@@ -131,6 +131,20 @@ final class JackisaController
             : Response::error('502', $result['error'] ?? 'Could not update the badge', 502);
     }
 
+    /** POST /api/v1/jackisa/materialize — create storefront/badge/seats. */
+    public static function materialize(Request $request): void
+    {
+        Auth::requirePeer($request);
+        $tenantId = $request->string('tenant_id');
+        if ($tenantId === '') {
+            Response::error('422', 'tenant_id is required', 422);
+        }
+        $result = JackisaBridgeService::materializeBenefits($tenantId);
+        $result['ok'] ?? false
+            ? Response::ok($result)
+            : Response::error('502', $result['error'] ?? 'Could not materialise the plan benefits', 502);
+    }
+
     /** Resolve the owner email from either an explicit email or a tenant id. */
     private static function resolveEmail(Request $request): string
     {

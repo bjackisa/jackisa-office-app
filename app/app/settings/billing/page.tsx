@@ -41,6 +41,7 @@ export default function BillingPage() {
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState<{ kind: 'ok' | 'error'; text: string } | null>(null)
   const [payments, setPayments] = useState<any[]>([])
+  const [quote, setQuote] = useState<any | null>(null)
 
   useEffect(() => {
     const load = async () => {
@@ -74,6 +75,21 @@ export default function BillingPage() {
     }
     return null
   }, [plans, tier, intervalMonths])
+
+  // A live quote for moving to the selected plan (credit for unused time).
+  useEffect(() => {
+    if (!companyId || !selectedPlan?.code) return
+    let active = true
+    fetch('/api/lic/license', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'change-quote', companyId, planCode: selectedPlan.code }),
+    })
+      .then((r) => r.json())
+      .then((j) => { if (active && j?.ok) setQuote(j.data?.quote || null) })
+      .catch(() => {})
+    return () => { active = false }
+  }, [companyId, selectedPlan?.code])
 
   const pollStatus = async (ref: string) => {
     for (let i = 0; i < 40; i++) {
@@ -126,6 +142,28 @@ export default function BillingPage() {
       setMessage({ kind: 'error', text: 'Enter a valid mobile money number (e.g. 256700000000).' })
       return
     }
+    const due = quote?.amount_due !== undefined ? Number(quote.amount_due) : Number(selectedPlan.price)
+    const isChange = Boolean(quote?.current) && due < Number(selectedPlan.price) + 0.001
+    // A change fully covered by credit needs no mobile-money step.
+    if (isChange && due <= 0) {
+      setBusy(true)
+      setMessage(null)
+      try {
+        const res = await fetch('/api/lic/license', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'change', companyId, planCode: selectedPlan.code, paid: true }),
+        })
+        const json = await res.json()
+        setMessage(json.ok
+          ? { kind: 'ok', text: 'Plan changed. Your new plan is active.' }
+          : { kind: 'error', text: json.error || 'Could not change the plan' })
+        if (json.ok) await license.refresh()
+      } finally {
+        setBusy(false)
+      }
+      return
+    }
     setBusy(true)
     setMessage(null)
     try {
@@ -135,18 +173,18 @@ export default function BillingPage() {
         body: JSON.stringify({
           action: 'initiate',
           companyId,
-          amount: selectedPlan.price,
+          amount: due,
           msisdn,
           planCode: selectedPlan.code,
           intervalMonths,
-          purpose: 'license',
-          description: `${selectedPlan.name} licence`,
+          purpose: isChange ? 'change' : 'license',
+          description: isChange ? `Change to ${selectedPlan.name}` : `${selectedPlan.name} licence`,
         }),
       })
       const json = await res.json()
       if (json.ok) {
         const ref = json.data?.payment_id || json.data?.merchant_ref || null
-        setMessage({ kind: 'ok', text: 'Check your phone and approve the payment prompt. Your licence activates as soon as it is confirmed.' })
+        setMessage({ kind: 'ok', text: 'Check your phone and approve the payment prompt. Your plan activates as soon as it is confirmed.' })
         if (ref) pollStatus(ref)
       } else {
         setMessage({ kind: 'error', text: json.error || 'Payment could not be started' })
@@ -259,18 +297,32 @@ export default function BillingPage() {
           </div>
 
           {selectedPlan && (
-            <div className="rounded-xl bg-muted/40 border border-border/50 p-5 flex items-center justify-between">
-              <div>
-                <p className="text-sm font-semibold text-foreground capitalize">{tier} · {intervalLabel(intervalMonths)}</p>
-                <p className="text-xs text-muted-foreground mt-0.5">
-                  {selectedPlan.max_employees === 0 ? 'Unlimited' : selectedPlan.max_employees} employees ·{' '}
-                  {selectedPlan.max_students === 0 ? 'Unlimited' : selectedPlan.max_students} students · {selectedPlan.storage_gb} GB
-                </p>
+            <div className="rounded-xl bg-muted/40 border border-border/50 p-5 space-y-3">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-semibold text-foreground capitalize">{tier} · {intervalLabel(intervalMonths)}</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    {selectedPlan.max_employees === 0 ? 'Unlimited' : selectedPlan.max_employees} employees ·{' '}
+                    {selectedPlan.max_students === 0 ? 'Unlimited' : selectedPlan.max_students} students · {selectedPlan.storage_gb} GB
+                  </p>
+                </div>
+                <div className="text-right">
+                  <p className="text-2xl font-bold text-foreground tabular-nums">{Number(selectedPlan.price).toLocaleString()}</p>
+                  <p className="text-xs text-muted-foreground">{selectedPlan.currency}</p>
+                </div>
               </div>
-              <div className="text-right">
-                <p className="text-2xl font-bold text-foreground tabular-nums">{Number(selectedPlan.price).toLocaleString()}</p>
-                <p className="text-xs text-muted-foreground">{selectedPlan.currency}</p>
-              </div>
+              {quote?.current && (
+                <div className="border-t border-border/40 pt-3 space-y-1 text-xs">
+                  <div className="flex items-center justify-between text-muted-foreground">
+                    <span className="capitalize">{quote.direction} from {String(quote.current.plan_code || '').replace('_', ' ')}</span>
+                    <span>Credit −{Number(quote.credit).toLocaleString()} {quote.currency}</span>
+                  </div>
+                  <div className="flex items-center justify-between font-semibold text-foreground">
+                    <span>Due today</span>
+                    <span className="tabular-nums">{Number(quote.amount_due).toLocaleString()} {quote.currency}</span>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
@@ -285,7 +337,7 @@ export default function BillingPage() {
             <div className="flex items-end gap-2">
               <Button className="flex-1 h-10 shadow-glow-primary" onClick={pay} disabled={busy || !selectedPlan}>
                 {busy ? <Spinner className="w-4 h-4" /> : <CreditCard className="w-4 h-4 mr-2" />}
-                Pay with mobile money
+                {quote?.current && Number(quote.amount_due) <= 0 ? 'Switch plan (no charge)' : 'Pay with mobile money'}
               </Button>
             </div>
           </div>

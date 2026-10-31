@@ -254,3 +254,71 @@ function PT_OfficeCanAddChannel($user_id)
         'tier'    => $e->tier,
     ];
 }
+
+/**
+ * Turn a plan's entitlements into concrete artifacts on jackisa.com.
+ *
+ * A tier row on its own changes nothing a customer can see. This is what makes
+ * the plan worth paying for: a Pro plan opens the storefront, a Platinum plan
+ * applies the gold badge and reserves meeting seats. Called by the bridge on
+ * every entitlement sync, and it is idempotent so repeated syncs are safe.
+ *
+ * @param array<string,mixed> $data
+ * @return array<string,mixed> a report of what was created
+ */
+function PT_OfficeMaterializeBenefits($user_id, $tier, $data = array())
+{
+    global $db;
+    $user_id = (int) $user_id;
+    $e = PT_OfficeEntitlement($user_id);
+    if (empty($e)) {
+        return ['ok' => false, 'error' => 'No entitlement row to materialise'];
+    }
+    $created = [];
+
+    // Storefront: a store-enabled plan gets a real shop on jackisa.com.
+    if ((int) $e->store_enabled === 1 && function_exists('PT_StoreSellerByUser')) {
+        $seller = PT_StoreSellerByUser($user_id);
+        if (empty($seller)) {
+            // The plan carries store access, so record the store terms the same
+            // way an in-app seller would, then open the storefront.
+            if (function_exists('PT_StoreAcceptTerms')) {
+                PT_StoreAcceptTerms($user_id, 'seller');
+            }
+            $storeName = !empty($data['store_name']) ? (string) $data['store_name'] : '';
+            $result = PT_StoreCreateSeller($user_id, [
+                'store_name'  => $storeName,
+                'store_type'  => 'business',
+                'description' => 'Published from Jackisa Office.',
+            ]);
+            if (!empty($result['status'])) {
+                $created['store'] = ['seller_id' => $result['seller_id'], 'status' => $result['status']];
+                $seller = PT_StoreSellerById($result['seller_id']);
+            }
+        }
+        // The plan already paid for the storefront, so it goes live now rather
+        // than waiting on a separate seller-approval queue.
+        if (!empty($seller) && ($seller->status ?? '') !== 'active') {
+            $db->where('id', (int) $seller->id)->update(T_STORE_SELLERS, ['status' => 'active', 'updated_at' => time()]);
+            if (isset($created['store'])) {
+                $created['store']['status'] = 'active';
+            } else {
+                $created['store_activated'] = (int) $seller->id;
+            }
+        }
+    }
+
+    // Gold verification badge for a Platinum (verified-company) plan.
+    if ((int) $e->verified_badge === 1) {
+        $db->where('id', $user_id)->update(T_USERS, ['verified' => 1]);
+        $created['badge'] = 'gold';
+    }
+
+    // Meeting seats are reserved, not pre-created; report the allocation so the
+    // office UI can show what is available.
+    if ((int) $e->meeting_seats > 0) {
+        $created['meeting_seats'] = (int) $e->meeting_seats;
+    }
+
+    return ['ok' => true, 'created' => $created];
+}

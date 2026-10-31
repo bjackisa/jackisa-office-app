@@ -106,6 +106,8 @@ final class JackisaBridgeService
             'email'           => $email,
             'jackisa_user_id' => $jackisaUserId,
             'apply_verified'  => $tier === 'platinum',
+            // Used when the plan opens a jackisa.com storefront for the tenant.
+            'store_name'      => $tenant['name'] ?? null,
         ];
         $result = self::post('sync_entitlements', array_filter($payload, static fn ($v) => $v !== null));
 
@@ -121,6 +123,27 @@ final class JackisaBridgeService
     public static function entitlements(string $email): array
     {
         return self::post('entitlements', ['email' => $email]);
+    }
+
+    /**
+     * Turn a tenant's plan into concrete jackisa.com artifacts (storefront,
+     * badge, meeting seats). Best-effort, same as the automatic sync.
+     */
+    public static function materializeBenefits(string $tenantId): array
+    {
+        $app = App::instance();
+        $tenant = $app->one('SELECT * FROM tenants WHERE id = ?', [$tenantId]);
+        if ($tenant === null) {
+            return ['ok' => false, 'error' => 'Tenant not found'];
+        }
+        $email = $tenant['email'] ?? null;
+        if (!$email) {
+            return ['ok' => false, 'error' => 'The tenant has no owner email'];
+        }
+        return self::post('materialize_benefits', [
+            'email'   => $email,
+            'store_name' => $tenant['name'] ?? null,
+        ]);
     }
 
     /** Ask jackisa.com whether a tenant may add another channel. */

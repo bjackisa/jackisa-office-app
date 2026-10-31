@@ -96,6 +96,16 @@ export const lic = {
     return call('/api/v1/office-license/status', { tenant_id: tenantId })
   },
 
+  /** Price a plan change (upgrade/downgrade/interval switch), with credit. */
+  changeQuote(tenantId: string, planCode: string) {
+    return call('/api/v1/office-license/change-quote', { tenant_id: tenantId, plan_code: planCode })
+  },
+
+  /** Apply a plan change after any required payment has settled. */
+  changePlan(tenantId: string, planCode: string, paid = false) {
+    return call('/api/v1/office-license/change', { tenant_id: tenantId, plan_code: planCode, paid: paid ? 1 : 0 })
+  },
+
   fee(amount: number) {
     return call('/api/v1/jpesa-payments/fee', { amount })
   },
@@ -179,6 +189,10 @@ export const lic = {
       badge: params.badge,
       verified: params.verified,
     })
+  },
+  /** Turn this plan into concrete jackisa.com artifacts (storefront, badge). */
+  jackisaMaterialize(tenantId: string) {
+    return call('/api/v1/jackisa/materialize', { tenant_id: tenantId })
   },
 
   /** Ask the hub to run one scheduled job (or all of them). */
