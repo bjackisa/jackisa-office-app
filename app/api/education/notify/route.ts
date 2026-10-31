@@ -94,17 +94,24 @@ export async function POST(req: NextRequest) {
   const waResults: any[] = Array.isArray(delivery?.whatsapp) ? delivery.whatsapp : []
   const emailResults: any[] = Array.isArray(delivery?.email) ? delivery.email : []
   const waUndeliverable = waResults.filter((w) => w?.status === 'undeliverable')
+  const waSent = waResults.filter((w) => w?.status === 'sent')
   const emailSent = emailResults.some((e) => e?.status === 'sent')
-  // A clean send is one the hub accepted where something actually reached someone.
-  // If every WhatsApp number bounced and no email went out, this is a failure;
-  // otherwise it went through, with a note about the unreachable WhatsApp number.
-  const waAllBounced = waResults.length > 0 && waUndeliverable.length === waResults.length
-  const ok = result.api_status === '200' && !(waAllBounced && !emailSent)
-  const deliveryError = waAllBounced && !emailSent
-    ? 'No WhatsApp number or email on record could be reached'
-    : waUndeliverable.length
-      ? `${waUndeliverable.length} WhatsApp number(s) not on WhatsApp; relayed to the school`
-      : (result as any)?.errors?.error_text || 'Delivery failed'
+  // A send counts as delivered only when something actually reached someone:
+  // a 'sent' WhatsApp or email. A WhatsApp that failed (provider error such as
+  // a trial limit, an invalid number) or bounced is not a delivery, even if the
+  // hub accepted the request.
+  const waFailed = waResults.filter((w) => w?.status !== 'sent' && w?.status !== 'undeliverable')
+  const ok = result.api_status === '200' && (waSent.length > 0 || emailSent)
+  const firstWaError = (waFailed[0]?.error || waUndeliverable[0]?.error || '') as string
+  const deliveryError = ok
+    ? undefined
+    : waFailed.length
+      ? `WhatsApp send failed: ${firstWaError || 'provider error'}`
+      : waUndeliverable.length && !emailSent
+        ? 'No WhatsApp number or email on record could be reached'
+        : waUndeliverable.length
+          ? `${waUndeliverable.length} WhatsApp number(s) not on WhatsApp; relayed to the school`
+          : (result as any)?.errors?.error_text || 'Delivery failed'
 
   // Record what happened so the school can see (and re-send) it later.
   try {
