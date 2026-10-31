@@ -1,5 +1,22 @@
 # Jackisa Stream — project memory
 
+## Jackisa Office — ledger / unit-trust / legacy backfill (Oct 31) — see `.openhands/memory/2026-10-31.md`
+- **Fund money never hit the double-entry ledger.** `process_contribution/redemption/
+  process_sale_to_fund_allocation` moved `cash_pool` + `fund_transactions` only.
+  `scripts/office-unit-trust-ledger-v2.sql` re-wires all three to post balanced
+  journals (only net enters the pool) + adds `jo_distribute_dividend`. Keep the
+  signatures byte-identical to the originals or `CREATE OR REPLACE` fails.
+- **`dividends.updated_at` was missing** though `sync_dividend_financials` writes it
+  → every dividend payment insert failed. Added in `office-ledger-trust-hardening-v1.sql`.
+- Apply order matters: `licensing-and-platform-v1.sql` (defines `jo_is_company_member`)
+  must precede `industry-education-and-documents-v1.sql` and `payroll-ledger-and-trust-v1.sql`.
+  Whole set: `scripts/apply-office-sql.sh` (needs `SUPABASE_DB_URL`; office uses Supabase
+  REST, not a direct DB connection).
+- `office-backfill-legacy-v1.sql` + `lic-backend/migrations/006_backfill_legacy.sql`
+  adapt pre-ledger / pre-subscription rows. Hub backfill applied live (`php bin/migrate.php`).
+- Validate with throwaway Postgres + MariaDB containers; Postgres needs Supabase role
+  shims (`anon/authenticated/service_role`, `auth.uid()`), MariaDB needs `mariadb db < file`.
+
 ## Jackisa Office (Oct 2026) — see `.openhands/memory/2026-10-30.md`
 - **Messaging: mirror jackisa.com.** Every transactional message goes out on email
   AND WhatsApp concurrently. `lib/lic/notify.ts` `notify()` (Promise.all) is the entry
