@@ -3,6 +3,7 @@
 import { Suspense, useEffect, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
+import { establishSessionFromJackisa } from '@/lib/auth/sso'
 import { Spinner } from '@/components/ui/spinner'
 import { AlertCircle } from 'lucide-react'
 
@@ -44,45 +45,9 @@ function CallbackInner() {
           throw new Error('No sign-in token was provided. Please try again.')
         }
 
-        const ssoRes = await fetch('/api/auth/jackisa', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ accessToken }),
-        })
-        const ssoJson = await ssoRes.json()
-        if (!ssoJson.ok || !ssoJson.ssoToken) {
-          throw new Error(ssoJson.error || 'Jackisa sign-in failed')
-        }
-
-        const exRes = await fetch('/api/auth/jackisa/exchange', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ ssoToken: ssoJson.ssoToken }),
-        })
-        const exJson = await exRes.json()
-        if (!exJson.ok) {
-          throw new Error(exJson.error || 'Could not complete sign-in')
-        }
-
-        // Preferred: verify the one-time email token in place. This works on any
-        // Supabase project regardless of the magic-link/PKCE setting.
-        if (exJson.tokenHash && exJson.email) {
-          const { error: otpErr } = await supabase.auth.verifyOtp({
-            token_hash: exJson.tokenHash,
-            type: (exJson.otpType || 'email') as any,
-          })
-          if (!otpErr) {
-            await finalize()
-            return
-          }
-          // Fall through to the magic link if the token could not be verified.
-        }
-
-        if (exJson.magicLink) {
-          window.location.href = exJson.magicLink
-          return
-        }
-        throw new Error('Could not complete sign-in')
+        const sso = await establishSessionFromJackisa(accessToken)
+        if (!sso.ok) throw new Error(sso.error || 'Jackisa sign-in failed')
+        await finalize()
       } catch (err: any) {
         setError(err?.message || 'Sign-in failed')
       }

@@ -7,6 +7,7 @@ import { supabase } from '@/lib/supabase'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { ContinueWithJackisa } from '@/components/continue-with-jackisa'
+import { establishSessionFromJackisa } from '@/lib/auth/sso'
 import { Spinner } from '@/components/ui/spinner'
 import { Building2, GraduationCap, AlertCircle, CheckCircle2 } from 'lucide-react'
 
@@ -48,6 +49,15 @@ function JoinInner() {
         setLoading(false)
         return
       }
+
+      // A "Continue with Jackisa" return carries ?access_token=...; exchange it
+      // for a real session before we look up the invite.
+      const accessToken = params.get('access_token')
+      if (accessToken) {
+        const sso = await establishSessionFromJackisa(accessToken)
+        if (!sso.ok) setError(sso.error || 'Jackisa sign-in failed')
+      }
+
       try {
         const endpoint = isStudent ? '/api/students/link' : '/api/companies/members'
         const res = await fetch(`${endpoint}?invite=${encodeURIComponent(token)}`)
@@ -66,6 +76,7 @@ function JoinInner() {
       setLoading(false)
     }
     load()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [inviteToken, studentToken])
 
   const submit = async (e: React.FormEvent) => {
