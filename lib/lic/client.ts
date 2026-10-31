@@ -62,6 +62,47 @@ export const lic = {
     return SHARED_SECRET !== ''
   },
 
+  /** True when the ops catalogue credentials are present (super-admin console). */
+  adminConfigured(): boolean {
+    return Boolean(process.env.LIC_ADMIN_KEY_ID && process.env.LIC_ADMIN_KEY_SECRET)
+  },
+
+  /**
+   * Call an /api/v1/admin/* endpoint with the ops API key. Kept separate from
+   * `call()` because the hub authenticates these with X-Api-Key/X-Api-Secret
+   * rather than the office peer signature.
+   */
+  adminCall<T = any>(path: string, body: Record<string, any> = {}): Promise<LicResponse<T>> {
+    const keyId = process.env.LIC_ADMIN_KEY_ID || ''
+    const secret = process.env.LIC_ADMIN_KEY_SECRET || ''
+    if (!keyId || !secret) {
+      return Promise.resolve({
+        api_status: '500',
+        errors: { error_id: 'config', error_text: 'Catalogue console is not configured (admin key unset)' },
+      } as LicResponse<T>)
+    }
+    return fetch(`${BASE_URL}${path}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Api-Key': keyId,
+        'X-Api-Secret': secret,
+      },
+      body: JSON.stringify(body),
+      cache: 'no-store',
+    })
+      .then((r) => r.json() as Promise<LicResponse<T>>)
+      .catch((err: any) => ({ api_status: '503', errors: { error_id: '503', error_text: err?.message || 'unavailable' } }) as LicResponse<T>)
+  },
+
+  catalogPlans(action: 'list' | 'create' | 'update' | 'deactivate', payload: Record<string, any> = {}) {
+    return lic.adminCall('/api/v1/admin/plans', { action, ...payload })
+  },
+
+  catalogFeatures(action: 'list' | 'create' | 'update' | 'deactivate', payload: Record<string, any> = {}) {
+    return lic.adminCall('/api/v1/admin/features', { action, ...payload })
+  },
+
   plans() {
     return fetch(`${BASE_URL}/api/v1/office-license/plans`, { cache: 'no-store' })
       .then((r) => r.json() as Promise<LicResponse<{ plans: any[]; intervals: number[] }>>)

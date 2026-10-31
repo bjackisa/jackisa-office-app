@@ -90,20 +90,39 @@ function CallbackInner() {
 
     const finalize = async () => {
       // Apply any remembered plan, then head to the app.
+      let completedCompany = false
       try {
         const raw = localStorage.getItem('pendingRegistration')
         if (raw) {
           const pending = JSON.parse(raw)
-          if (pending?.planCode) {
-            await fetch('/api/register/complete', {
+          if (pending?.planCode || pending?.companyName) {
+            const res = await fetch('/api/register/complete', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${(await supabase.auth.getSession()).data.session?.access_token || ''}` },
               body: JSON.stringify(pending),
             })
+            if (res.ok) {
+              completedCompany = true
+              try { localStorage.removeItem('pendingRegistration') } catch {}
+            }
           }
         }
       } catch {}
-      router.replace('/app')
+
+      // A brand-new SSO user with no company yet needs to pick one — send them
+      // to finish setting up rather than into an empty workspace.
+      const { data: employee } = await supabase
+        .from('company_employees')
+        .select('id')
+        .eq('user_id', (await supabase.auth.getUser()).data.user?.id || '')
+        .eq('status', 'active')
+        .maybeSingle()
+
+      if (completedCompany || employee) {
+        router.replace('/app')
+      } else {
+        router.replace('/auth/verify?mode=complete-profile')
+      }
     }
 
     run()

@@ -19,16 +19,29 @@ const JACKISA_LOGO = 'https://jackisa.com/themes/playtag/img/icon.png'
 export function ContinueWithJackisa({
   label = 'Continue with Jackisa',
   redirect,
+  planCode,
   compact = false,
 }: {
   label?: string
   redirect?: string
+  /** The plan the visitor chose, remembered across the whole signup round-trip. */
+  planCode?: string | null
   compact?: boolean
 }) {
   const [loading, setLoading] = useState(false)
 
   const start = () => {
     setLoading(true)
+    // Stash the chosen plan before we leave the origin: the SSO round-trip
+    // returns to /auth/callback in a fresh page load, so localStorage (not
+    // React state) is what survives to finish the signup.
+    try {
+      if (planCode) {
+        const existing = localStorage.getItem('pendingRegistration')
+        const base = existing ? JSON.parse(existing) : {}
+        localStorage.setItem('pendingRegistration', JSON.stringify({ ...base, planCode }))
+      }
+    } catch {}
     const back = redirect || `${window.location.origin}/auth/callback`
     const url = `https://jackisa.com/office_sso.php?redirect=${encodeURIComponent(back)}`
     window.location.href = url

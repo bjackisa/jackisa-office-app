@@ -24,6 +24,7 @@ import {
   Calculator,
   FileText,
   Receipt,
+  Package,
   FileMinus,
   FilePlus,
   Percent,
@@ -305,6 +306,8 @@ interface SidebarNavProps {
   userAvatar?: string | null
   companies?: { id: string; name: string; logo_url: string | null }[]
   onSwitchCompany?: (id: string) => void
+  /** Platform owner — unlocks the package manager console. */
+  isSuperAdmin?: boolean
 }
 
 export function SidebarNav({
@@ -315,6 +318,7 @@ export function SidebarNav({
   userAvatar,
   companies = [],
   onSwitchCompany,
+  isSuperAdmin = false,
 }: SidebarNavProps) {
   const pathname = usePathname()
   const { can, loading: licenseLoading, tier, trial, badge } = useLicense()
@@ -402,6 +406,20 @@ export function SidebarNav({
 
       {/* Navigation */}
       <nav className="flex-1 overflow-y-auto px-3 py-1 space-y-0.5">
+        {isSuperAdmin && (
+          <Link
+            href="/app/admin/catalog"
+            className={cn(
+              'flex items-center gap-2.5 px-3 py-2 rounded-xl text-[13px] font-medium transition-all duration-200',
+              pathname === '/app/admin/catalog'
+                ? 'text-white bg-primary/20 shadow-sm shadow-primary/10'
+                : 'text-amber-300/80 hover:text-amber-200 hover:bg-white/[0.04]'
+            )}
+          >
+            <span className="flex-shrink-0 opacity-80"><Package className="w-[18px] h-[18px]" /></span>
+            <span>Package Manager</span>
+          </Link>
+        )}
         {NAV.map(entry => {
           if (isGroup(entry)) {
             return <NavGroupComponent key={entry.label} group={entry} collapsed={false} />

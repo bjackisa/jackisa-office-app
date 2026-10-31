@@ -63,3 +63,22 @@ export async function requireCompanyAdmin(req: NextRequest, companyId: string): 
   if (!membership || !membership.isAdmin) return { error: 'You do not have permission to manage this company', status: 403 }
   return { caller, membership }
 }
+
+/**
+ * Require a platform super-admin. Used for the package/feature catalogue, which
+ * changes what every tenant can buy — deliberately narrower than a company admin.
+ * A super-admin is a row in `users` with role = 'super_admin' (the enum value),
+ * which is how the platform owner account is flagged.
+ */
+export async function requireSuperAdmin(req: NextRequest): Promise<{ caller: Caller } | { error: string; status: number }> {
+  const caller = await getCaller(req)
+  if (!caller) return { error: 'Not signed in', status: 401 }
+  if (!adminAvailable()) return { error: 'Not configured', status: 500 }
+  const db = adminClient()
+  const { data } = await db.from('users').select('role, is_active').eq('id', caller.id).maybeSingle()
+  const role = String((data as any)?.role || '').toLowerCase()
+  if (role !== 'super_admin' || (data as any)?.is_active === false) {
+    return { error: 'Platform administrator access is required', status: 403 }
+  }
+  return { caller }
+}

@@ -66,6 +66,7 @@ export default function AppLayout({
         userAvatar={user?.avatar_url}
         companies={companies}
         onSwitchCompany={switchCompany}
+        isSuperAdmin={(user as any)?.role === 'super_admin'}
       />
       <div className="flex-1 flex flex-col overflow-hidden min-w-0">
         <TrialBanner />

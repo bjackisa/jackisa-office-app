@@ -8,7 +8,7 @@ import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Spinner } from '@/components/ui/spinner'
-import { CreditCard, Phone, ShieldCheck, Clock, XCircle } from 'lucide-react'
+import { CreditCard, Phone, ShieldCheck, Clock, XCircle, Check } from 'lucide-react'
 
 type Plan = {
   code: string
@@ -24,11 +24,43 @@ type Plan = {
 
 const INTERVALS = [1, 3, 6, 12, 24, 36]
 
+/** What each tier unlocks — mirrors lib/lic/features.ts minTier mapping. */
+const TIER_BENEFITS: Record<string, string[]> = {
+  basic: [
+    'Accounting, invoicing & expenses',
+    'VAT and bookkeeping',
+    'HR, payroll, PAYE & attendance',
+    'Sales, orders & help desk',
+  ],
+  pro: [
+    'Everything in Basic',
+    'Education: students, coursework & grades',
+    'Performance, HR points & commissions',
+    'Investment & funds, affiliate program',
+    'Legal documents, CMS & WhatsApp alerts',
+  ],
+  platinum: [
+    'Everything in Pro',
+    'Unit Trust with full NAV & dividends',
+    'Income Tax Evaluator (URA-ready CSV)',
+    'KYC verification & API access',
+    'Gold company verification badge',
+  ],
+}
+
 function intervalLabel(months: number): string {
   if (months === 12) return '1 year'
   if (months === 24) return '2 years'
   if (months === 36) return '3 years'
   return `${months} month${months === 1 ? '' : 's'}`
+}
+
+/** How much a longer commitment saves against paying monthly. */
+function savingsPercent(monthlyPrice: number, intervalMonths: number, planPrice: number): number {
+  if (intervalMonths <= 1 || monthlyPrice <= 0) return 0
+  const full = monthlyPrice * intervalMonths
+  if (planPrice >= full) return 0
+  return Math.round((1 - planPrice / full) * 100)
 }
 
 export default function BillingPage() {
@@ -269,6 +301,7 @@ export default function BillingPage() {
           <div className="grid grid-cols-3 gap-3">
             {(['basic', 'pro', 'platinum'] as const).map((t) => {
               const monthly = plans.find((p) => p.tier === t && p.interval_months === 1)
+              const benefits = TIER_BENEFITS[t] || []
               return (
                 <button
                   key={t}
@@ -279,21 +312,36 @@ export default function BillingPage() {
                   <p className="text-xs text-muted-foreground mt-1">
                     {monthly ? `${Number(monthly.price).toLocaleString()} UGX/mo` : '—'}
                   </p>
+                  <ul className="mt-3 space-y-1.5">
+                    {benefits.map((b) => (
+                      <li key={b} className="flex items-start gap-1.5 text-[11px] text-muted-foreground leading-snug">
+                        <Check className="w-3 h-3 text-emerald-500 shrink-0 mt-0.5" /> {b}
+                      </li>
+                    ))}
+                  </ul>
                 </button>
               )
             })}
           </div>
 
           <div className="flex flex-wrap gap-2">
-            {INTERVALS.map((m) => (
-              <button
-                key={m}
-                onClick={() => setIntervalMonths(m)}
-                className={`rounded-lg px-3.5 py-2 text-xs font-medium border transition-all duration-200 ${intervalMonths === m ? 'border-primary/50 bg-primary/[0.06] text-foreground' : 'border-border/60 text-muted-foreground hover:border-border'}`}
-              >
-                {intervalLabel(m)}
-              </button>
-            ))}
+            {INTERVALS.map((m) => {
+              const monthly = plans.find((p) => p.tier === tier && p.interval_months === 1)
+              const exact = plans.find((p) => p.tier === tier && p.interval_months === m)
+              const save = exact && monthly ? savingsPercent(Number(monthly.price), m, Number(exact.price)) : 0
+              return (
+                <button
+                  key={m}
+                  onClick={() => setIntervalMonths(m)}
+                  className={`relative rounded-lg px-3.5 py-2 text-xs font-medium border transition-all duration-200 ${intervalMonths === m ? 'border-primary/50 bg-primary/[0.06] text-foreground' : 'border-border/60 text-muted-foreground hover:border-border'}`}
+                >
+                  {intervalLabel(m)}
+                  {save > 0 && (
+                    <span className="ml-1.5 text-[10px] font-bold text-emerald-600">−{save}%</span>
+                  )}
+                </button>
+              )
+            })}
           </div>
 
           {selectedPlan && (
