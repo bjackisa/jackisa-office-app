@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { lic } from '@/lib/lic/client'
 import { adminClient, adminAvailable } from '@/lib/lic/peer'
+import { mirrorLicenseFromHub } from '@/lib/lic/mirror'
 import { getCaller, getMembership } from '@/lib/lic/serverAuth'
 
 export const dynamic = 'force-dynamic'
@@ -69,14 +70,22 @@ export async function POST(req: NextRequest) {
 
       case 'status': {
         const res = await lic.paymentStatus({ payment_id: body?.paymentId, merchant_ref: body?.merchantRef })
-        if (res.api_status === '200' && adminAvailable() && res.data?.status === 'paid' && res.data?.payment_id) {
-          try {
-            await adminClient()
-              .from('license_payments')
-              .update({ status: 'paid', paid_at: new Date().toISOString(), merchant_ref: res.data.merchant_ref || null })
-              .eq('payment_id', res.data.payment_id)
-          } catch (e) {
-            console.error('[payments] status mirror failed', e)
+        if (res.api_status === '200' && res.data?.status === 'paid' && res.data?.payment_id) {
+          if (adminAvailable()) {
+            try {
+              await adminClient()
+                .from('license_payments')
+                .update({ status: 'paid', paid_at: new Date().toISOString(), merchant_ref: res.data.merchant_ref || null })
+                .eq('payment_id', res.data.payment_id)
+            } catch (e) {
+              console.error('[payments] status mirror failed', e)
+            }
+          }
+          // A settled licence payment extends or issues the licence on the hub.
+          // Pull the fresh certificate so the workspace unlocks without a reload.
+          if (companyId) {
+            const lic2 = await lic.licenseStatus(companyId)
+            if (lic2.api_status === '200') await mirrorLicenseFromHub(companyId, lic2.data)
           }
         }
         return NextResponse.json({ ok: res.api_status === '200', data: res.data, error: res.errors?.error_text })

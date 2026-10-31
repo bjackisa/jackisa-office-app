@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { lic } from '@/lib/lic/client'
 import { adminClient, adminAvailable } from '@/lib/lic/peer'
+import { mirrorLicenseFromHub } from '@/lib/lic/mirror'
 
 export const dynamic = 'force-dynamic'
 
@@ -25,7 +26,7 @@ export async function POST(req: NextRequest) {
     switch (action) {
       case 'issue': {
         const res = await lic.issueLicense(companyId, String(body.planCode || 'basic_1m'), body.intervalMonths ? Number(body.intervalMonths) : undefined)
-        await mirrorLicense(companyId, res)
+        if (res.api_status === '200') await mirrorLicenseFromHub(companyId, res.data)
         return NextResponse.json({ ok: res.api_status === '200', data: res.data, error: res.errors?.error_text })
       }
 
@@ -34,14 +35,14 @@ export async function POST(req: NextRequest) {
         if (!fingerprint) return NextResponse.json({ ok: false, error: 'fingerprint is required' }, { status: 400 })
         const res = await lic.startTrial(companyId, fingerprint, { user_id: body.userId, msisdn: body.msisdn })
         if (res.api_status === '200' && res.data?.license) {
-          await mirrorLicense(companyId, { api_status: '200', data: { certificate: res.data.license } })
+          await mirrorLicenseFromHub(companyId, { license: res.data.license })
         }
         return NextResponse.json({ ok: res.api_status === '200', data: res.data, error: res.errors?.error_text })
       }
 
       case 'renew': {
         const res = await lic.renew(String(body.licenseKey || ''), Number(body.intervalMonths || 1), body.planCode)
-        await mirrorLicense(companyId, res)
+        if (res.api_status === '200') await mirrorLicenseFromHub(companyId, res.data)
         return NextResponse.json({ ok: res.api_status === '200', data: res.data, error: res.errors?.error_text })
       }
 
@@ -69,40 +70,7 @@ export async function POST(req: NextRequest) {
   }
 }
 
-/** Copy the certificate the hub returned into the local mirror table. */
-async function mirrorLicense(companyId: string, res: any) {
-  if (!adminAvailable() || res?.api_status !== '200') return
-  const cert = res?.data?.certificate
-  if (!cert?.payload) return
-  const p = cert.payload
-  const db = adminClient()
-  try {
-    await db.from('platform_licenses').update({ is_current: false }).eq('company_id', companyId).eq('is_current', true)
-    await db.from('platform_licenses').insert({
-      company_id: companyId,
-      serial: p.serial,
-      license_key: p.license_key,
-      plan_code: p.plan_code,
-      tier: p.tier,
-      status: p.status,
-      interval_months: p.interval_months,
-      max_employees: p.caps?.max_employees ?? 10,
-      max_students: p.caps?.max_students ?? 0,
-      storage_gb: p.caps?.storage_gb ?? 5,
-      features: p.features ?? {},
-      starts_at: p.starts_at,
-      expires_at: p.expires_at,
-      grace_until: p.grace_until,
-      certificate: JSON.stringify(cert),
-      fingerprint: cert.fingerprint,
-      is_current: true,
-      last_validated_at: new Date().toISOString(),
-    })
-  } catch (e) {
-    console.error('[lic] mirror failed', e)
-  }
-}
-
+/** Record a validation result and refresh the mirrored licence status. */
 async function recordValidation(companyId: string, res: any) {
   if (!adminAvailable() || res?.api_status !== '200') return
   const d = res.data || {}
