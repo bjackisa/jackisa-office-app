@@ -38,18 +38,25 @@ export interface NotifyResult {
 }
 
 /**
- * Numbers that must never receive a WhatsApp message from this app, whatever
- * the source (a company phone, a member, an invite recipient). Compared on the
- * last 9 digits so +256…, 0…, 256… and bare local forms all match.
+ * WhatsApp recipient routing. Anything addressed to the numbers on the left is
+ * delivered to the replacement on the right instead, so those messages are
+ * never dropped — they just go to the company's current WhatsApp number.
+ * Compared on the last 9 digits so +256…, 0…, 256… and bare local forms match.
  */
-const WHATSAPP_SUPPRESSED = ['0752567374']
+const WHATSAPP_REDIRECT: Record<string, string> = {
+  '0752567374': '256742459007',
+}
 
-function isSuppressedNumber(to?: string | null): boolean {
-  if (!to) return false
+/** Map a recipient to its replacement number, or return it unchanged. */
+function resolveWhatsAppNumber(to?: string | null): string | null {
+  if (!to) return null
   const digits = String(to).replace(/\D/g, '')
-  if (digits.length < 9) return false
+  if (digits.length < 9) return String(to)
   const tail = digits.slice(-9)
-  return WHATSAPP_SUPPRESSED.some((n) => n.replace(/\D/g, '').slice(-9) === tail)
+  for (const [from, to2] of Object.entries(WHATSAPP_REDIRECT)) {
+    if (from.replace(/\D/g, '').slice(-9) === tail) return to2
+  }
+  return String(to)
 }
 
 export async function sendEmail(params: {
@@ -75,10 +82,8 @@ export async function sendWhatsApp(params: {
   if (!params.to || params.to.replace(/\D/g, '').length < 9) {
     return { ok: false, error: 'no_whatsapp_number' }
   }
-  if (isSuppressedNumber(params.to)) {
-    return { ok: false, error: 'whatsapp_suppressed' }
-  }
-  const res = await lic.sendWhatsApp({ to: params.to, body: params.body, template: params.template })
+  const to = resolveWhatsAppNumber(params.to)!
+  const res = await lic.sendWhatsApp({ to, body: params.body, template: params.template })
   return res.api_status === '200' ? { ok: true } : { ok: false, error: res.errors?.error_text }
 }
 
