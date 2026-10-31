@@ -98,11 +98,11 @@ const builders: Record<string, Builder> = {
         title: 'Tax Invoice',
         subtitle: `Invoice ${s(data.invoiceNumber, '')} · ${s(companyName)}`,
         status: 'Due',
-        status_tone: 'retake',
+        status_tone: 'due',
         filename: `invoice-${s(data.invoiceNumber, 'invoice')}.pdf`,
         parties: [
-          { label: 'From', lines: [String(companyName || '')] },
-          { label: 'Billed to', lines: [String(data.customerName || ''), data.customerEmail ? String(data.customerEmail) : ''].filter(Boolean) },
+          { label: 'Billed from', lines: [String(companyName || '')] },
+          { label: 'Bill to', lines: [String(data.customerName || ''), data.customerEmail ? String(data.customerEmail) : ''].filter(Boolean) },
         ],
         meta: [
           ['Invoice no.', String(data.invoiceNumber || '')],
