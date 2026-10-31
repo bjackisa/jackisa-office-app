@@ -8,8 +8,9 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
   Plus, Search, Mail, Phone, User,
-  Users, UserCheck, UserX, Building2, Download, UserPlus,
+  Users, UserCheck, UserX, Building2, Download, UserPlus, Pencil,
 } from 'lucide-react'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog'
 import type { EmployeeStatus } from '@/types'
 import { buildTerminationReferenceNumber, openTerminationLetterWindow } from '@/lib/hr-termination-letter'
 
@@ -33,6 +34,10 @@ export default function EmployeesPage() {
     phoneNumber: '',
     employeeIdNumber: '',
   })
+  const [editing, setEditing] = useState<any | null>(null)
+  const [editForm, setEditForm] = useState({ full_name: '', email: '', phone_number: '', employee_id_number: '', department: '', position: '', roleId: '', salary: '' })
+  const [saving, setSaving] = useState(false)
+  const [editError, setEditError] = useState<string | null>(null)
 
   const loadEmployees = async () => {
     try {
@@ -43,7 +48,7 @@ export default function EmployeesPage() {
       const [{ data }, { data: roleData }] = await Promise.all([
         supabase
           .from('company_employees')
-          .select('*, users(full_name, email, avatar_url), company_roles(name)')
+          .select('*, users(full_name, email, phone, avatar_url), company_roles(name)')
           .eq('company_id', context.companyId)
           .order('created_at', { ascending: false }),
         supabase
@@ -267,6 +272,72 @@ export default function EmployeesPage() {
     }
   }
 
+  const openEdit = (emp: any) => {
+    setEditError(null)
+    setEditing(emp)
+    setEditForm({
+      full_name: emp.users?.full_name || '',
+      email: emp.users?.email || '',
+      phone_number: emp.phone_number || '',
+      employee_id_number: emp.employee_id_number || '',
+      department: emp.department || '',
+      position: emp.position || '',
+      roleId: emp.company_role_id || '',
+      salary: emp.salary != null ? String(emp.salary) : '',
+    })
+  }
+
+  /**
+   * Save edits to an employee record, including the fields a legacy member is
+   * missing (name, phone). The name/email live on `users`; the rest on
+   * `company_employees`. Filling in a phone is what lets the app WhatsApp them.
+   */
+  const saveEdit = async () => {
+    if (!editing || !companyId) return
+    if (!editForm.full_name.trim()) {
+      setEditError('Employee name is required.')
+      return
+    }
+    setSaving(true)
+    setEditError(null)
+    try {
+      const email = editForm.email.trim().toLowerCase()
+      const userId = editing.user_id
+
+      if (userId) {
+        const userPatch: Record<string, any> = { full_name: editForm.full_name.trim() }
+        if (email) userPatch.email = email
+        if (editForm.phone_number.trim()) userPatch.phone = editForm.phone_number.trim()
+        const { error: userErr } = await supabase.from('users').update(userPatch).eq('id', userId)
+        if (userErr) throw userErr
+      }
+
+      const { error: empErr } = await supabase
+        .from('company_employees')
+        .update({
+          company_role_id: editForm.roleId || null,
+          department: editForm.department.trim() || null,
+          position: editForm.position.trim() || null,
+          employee_id_number: editForm.employee_id_number.trim() || null,
+          salary: editForm.salary ? Number(editForm.salary) : null,
+          phone_number: editForm.phone_number.trim() || null,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', editing.id)
+        .eq('company_id', companyId)
+      if (empErr) throw empErr
+
+      setEditing(null)
+      setLoading(true)
+      await loadEmployees()
+      setMessage({ type: 'success', text: 'Employee record updated.' })
+    } catch (error: any) {
+      setEditError(error?.message || 'Could not save the employee record.')
+    } finally {
+      setSaving(false)
+    }
+  }
+
   return (
     <div className="p-4 lg:p-6 max-w-[1300px] mx-auto animate-fade-in">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
@@ -374,16 +445,17 @@ export default function EmployeesPage() {
         <table className="premium-table table-fixed w-full">
           <thead>
             <tr>
-              <th className="w-[28%]">Employee</th>
-              <th className="w-[22%]">Role / Department</th>
-              <th className="w-[28%]">Contact</th>
-              <th className="w-[22%]">Status</th>
+              <th className="w-[26%]">Employee</th>
+              <th className="w-[20%]">Role / Department</th>
+              <th className="w-[24%]">Contact</th>
+              <th className="w-[20%]">Status</th>
+              <th className="w-[10%] text-right">Actions</th>
             </tr>
           </thead>
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan={4} className="!py-16 text-center">
+                <td colSpan={5} className="!py-16 text-center">
                   <div className="flex flex-col items-center gap-3">
                     <div className="w-8 h-8 border-2 border-primary/30 border-t-primary rounded-full animate-spin" />
                     <p className="text-sm text-muted-foreground">Loading employees...</p>
@@ -392,7 +464,7 @@ export default function EmployeesPage() {
               </tr>
             ) : filtered.length === 0 ? (
               <tr>
-                <td colSpan={4} className="!py-16 text-center">
+                <td colSpan={5} className="!py-16 text-center">
                   <div className="w-14 h-14 rounded-2xl bg-muted/40 flex items-center justify-center mx-auto mb-4">
                     <Users className="w-6 h-6 text-muted-foreground/25" />
                   </div>
@@ -428,12 +500,14 @@ export default function EmployeesPage() {
                         <Mail className="w-3 h-3 text-muted-foreground/40 flex-shrink-0" />
                         {emp.users?.email || '—'}
                       </p>
-                      {emp.phone_number && (
+                      {emp.phone_number ? (
                         <p className="text-xs text-muted-foreground/50 flex items-center gap-1.5">
                           <Phone className="w-3 h-3 text-muted-foreground/30" />
                           {emp.phone_number}
                         </p>
-                      )}
+                      ) : !emp.users?.phone ? (
+                        <p className="text-[11px] text-amber-600/80">No phone on record</p>
+                      ) : null}
                     </div>
                   </td>
                   <td>
@@ -461,6 +535,11 @@ export default function EmployeesPage() {
                       )}
                     </div>
                   </td>
+                  <td className="text-right">
+                    <Button size="sm" variant="outline" onClick={() => openEdit(emp)}>
+                      <Pencil className="w-3.5 h-3.5 mr-1.5" />Edit
+                    </Button>
+                  </td>
                 </tr>
               ))
             )}
@@ -472,6 +551,61 @@ export default function EmployeesPage() {
           </div>
         )}
       </Card>
+
+      <Dialog open={!!editing} onOpenChange={(open) => !open && setEditing(null)}>
+        <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Edit employee</DialogTitle>
+            <DialogDescription>
+              Fill in missing details for a legacy member — a phone number is what lets the app reach them on WhatsApp.
+            </DialogDescription>
+          </DialogHeader>
+          {editError && (
+            <div className="rounded-xl border border-red-500/20 bg-red-500/5 px-3 py-2 text-sm text-red-600">{editError}</div>
+          )}
+          <div className="grid md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Full name *</label>
+              <Input value={editForm.full_name} onChange={(e) => setEditForm({ ...editForm, full_name: e.target.value })} />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Email</label>
+              <Input type="email" value={editForm.email} onChange={(e) => setEditForm({ ...editForm, email: e.target.value })} />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-muted-foreground mb-1.5">WhatsApp / phone</label>
+              <Input value={editForm.phone_number} onChange={(e) => setEditForm({ ...editForm, phone_number: e.target.value })} placeholder="+256 ..." />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Employee ID number</label>
+              <Input value={editForm.employee_id_number} onChange={(e) => setEditForm({ ...editForm, employee_id_number: e.target.value })} />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Department</label>
+              <Input value={editForm.department} onChange={(e) => setEditForm({ ...editForm, department: e.target.value })} />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Position</label>
+              <Input value={editForm.position} onChange={(e) => setEditForm({ ...editForm, position: e.target.value })} />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Role</label>
+              <select className="form-select w-full" value={editForm.roleId} onChange={(e) => setEditForm({ ...editForm, roleId: e.target.value })}>
+                <option value="">No role</option>
+                {roles.map((role) => <option key={role.id} value={role.id}>{role.name}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Salary</label>
+              <Input type="number" value={editForm.salary} onChange={(e) => setEditForm({ ...editForm, salary: e.target.value })} placeholder="0" />
+            </div>
+          </div>
+          <DialogFooter className="mt-2">
+            <Button variant="outline" onClick={() => setEditing(null)} disabled={saving}>Cancel</Button>
+            <Button onClick={saveEdit} disabled={saving}>{saving ? 'Saving…' : 'Save changes'}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
     </div>
   )

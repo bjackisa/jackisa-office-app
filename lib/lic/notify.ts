@@ -37,6 +37,21 @@ export interface NotifyResult {
   whatsapp: ChannelResult
 }
 
+/**
+ * Numbers that must never receive a WhatsApp message from this app, whatever
+ * the source (a company phone, a member, an invite recipient). Compared on the
+ * last 9 digits so +256…, 0…, 256… and bare local forms all match.
+ */
+const WHATSAPP_SUPPRESSED = ['0752567374']
+
+function isSuppressedNumber(to?: string | null): boolean {
+  if (!to) return false
+  const digits = String(to).replace(/\D/g, '')
+  if (digits.length < 9) return false
+  const tail = digits.slice(-9)
+  return WHATSAPP_SUPPRESSED.some((n) => n.replace(/\D/g, '').slice(-9) === tail)
+}
+
 export async function sendEmail(params: {
   to: string | string[]
   subject: string
@@ -59,6 +74,9 @@ export async function sendWhatsApp(params: {
 }): Promise<ChannelResult> {
   if (!params.to || params.to.replace(/\D/g, '').length < 9) {
     return { ok: false, error: 'no_whatsapp_number' }
+  }
+  if (isSuppressedNumber(params.to)) {
+    return { ok: false, error: 'whatsapp_suppressed' }
   }
   const res = await lic.sendWhatsApp({ to: params.to, body: params.body, template: params.template })
   return res.api_status === '200' ? { ok: true } : { ok: false, error: res.errors?.error_text }

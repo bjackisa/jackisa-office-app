@@ -8,7 +8,8 @@ import { Badge } from '@/components/ui/badge'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Label } from '@/components/ui/label'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
-import { ChevronDown, Plus, Search, Zap, Link2, Copy, CheckCircle, XCircle, GraduationCap } from 'lucide-react'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog'
+import { ChevronDown, Plus, Search, Zap, Link2, Copy, CheckCircle, XCircle, GraduationCap, Pencil } from 'lucide-react'
 import { getSessionContext } from '@/lib/company-context'
 import { supabase } from '@/lib/supabase'
 import { logEcosystemEvent } from '@/lib/ecosystem'
@@ -44,6 +45,10 @@ export default function StudentsPage() {
   const [linkForm, setLinkForm] = useState({ label: '', programme: '', maxUses: '', requiresApproval: true })
   const [copiedLink, setCopiedLink] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
+  const [editing, setEditing] = useState<any | null>(null)
+  const [editForm, setEditForm] = useState({ full_name: '', student_id: '', email: '', phone: '', guardian_name: '', guardian_phone: '', guardian_email: '', tuition_amount: '', status: 'Active' })
+  const [saving, setSaving] = useState(false)
+  const [editError, setEditError] = useState<string | null>(null)
 
   const loadData = async () => {
     const ctx = await getSessionContext()
@@ -178,6 +183,77 @@ export default function StudentsPage() {
     const { error } = await supabase.from('students').update({ status }).eq('id', studentId)
     if (error) {
       await loadData()
+    }
+  }
+
+  const openEdit = (student: any) => {
+    setEditError(null)
+    setEditing(student)
+    setEditForm({
+      full_name: student.full_name || '',
+      student_id: student.student_id || '',
+      email: student.email || '',
+      phone: student.phone || '',
+      guardian_name: student.guardian_name || '',
+      guardian_phone: student.guardian_phone || '',
+      guardian_email: student.guardian_email || '',
+      tuition_amount: student.tuition_amount != null ? String(student.tuition_amount) : '',
+      status: STATUS_OPTIONS.includes(student.status) ? student.status : 'Active',
+    })
+  }
+
+  /**
+   * Save edits to a student record. This is the path that lets a legacy student
+   * (created before contact fields existed) be given an email or WhatsApp
+   * number so a transcript or report card can actually be delivered.
+   */
+  const saveEdit = async () => {
+    if (!editing || !companyId) return
+    if (!editForm.full_name.trim()) {
+      setEditError('Student name is required.')
+      return
+    }
+    setSaving(true)
+    setEditError(null)
+    try {
+      const patch = {
+        full_name: editForm.full_name.trim(),
+        student_id: editForm.student_id.trim() || null,
+        email: editForm.email.trim() || null,
+        phone: editForm.phone.trim() || null,
+        guardian_name: editForm.guardian_name.trim() || null,
+        guardian_phone: editForm.guardian_phone.trim() || null,
+        guardian_email: editForm.guardian_email.trim() || null,
+        tuition_amount: editForm.tuition_amount ? Number(editForm.tuition_amount) : null,
+        status: editForm.status,
+      }
+      const { error } = await supabase.from('students').update(patch).eq('id', editing.id).eq('company_id', companyId)
+      if (error) throw error
+
+      // Re-publish the contact details so the hub can reach the guardian.
+      apiFetch('/api/education/student', {
+        method: 'POST',
+        body: JSON.stringify({
+          companyId,
+          student: {
+            id: editing.id,
+            name: patch.full_name,
+            student_no: patch.student_id,
+            phone: patch.phone,
+            email: patch.email,
+            guardian_name: patch.guardian_name,
+            guardian_phone: patch.guardian_phone,
+            guardian_email: patch.guardian_email,
+          },
+        }),
+      }).catch(() => {})
+
+      setEditing(null)
+      await loadData()
+    } catch (e: any) {
+      setEditError(e?.message || 'Could not save the student record.')
+    } finally {
+      setSaving(false)
     }
   }
 
@@ -429,8 +505,10 @@ export default function StudentsPage() {
               <th>Name</th>
               <th>Student Number</th>
               <th>Modules</th>
+              <th>Contact</th>
               <th>Enrollment Date</th>
               <th>Status</th>
+              <th className="text-right">Actions</th>
             </tr>
           </thead>
           <tbody>
@@ -439,11 +517,31 @@ export default function StudentsPage() {
                 <td>{student.full_name}</td>
                 <td className="font-mono text-xs text-muted-foreground">{student.student_id || 'Auto'}</td>
                 <td>{moduleLabel(student.id)}</td>
+                <td>
+                  {student.email || student.phone || student.guardian_email || student.guardian_phone ? (
+                    <div className="text-xs text-muted-foreground space-y-0.5">
+                      {(student.email || student.phone) && <p>{student.email || student.phone}</p>}
+                      {student.guardian_name && (
+                        <p className="text-muted-foreground/60">
+                          {student.guardian_name}
+                          {student.guardian_phone ? ` · ${student.guardian_phone}` : ''}
+                        </p>
+                      )}
+                    </div>
+                  ) : (
+                    <span className="badge badge-warning" title="No email or WhatsApp number — a transcript cannot be delivered until one is added">No contact</span>
+                  )}
+                </td>
                 <td>{new Date(student.created_at).toLocaleString()}</td>
                 <td>
                   <select className="form-select !py-1 !px-2 !text-xs" value={statuses[student.id] || 'Active'} onChange={(e) => updateStatus(student.id, e.target.value)}>
                     {STATUS_OPTIONS.map((status) => <option key={status} value={status}>{status}</option>)}
                   </select>
+                </td>
+                <td className="text-right">
+                  <Button size="sm" variant="outline" onClick={() => openEdit(student)}>
+                    <Pencil className="w-3.5 h-3.5 mr-1.5" />Edit
+                  </Button>
                 </td>
               </tr>
             ))}
@@ -451,6 +549,64 @@ export default function StudentsPage() {
         </table>
         </div>
       </Card>
+
+      <Dialog open={!!editing} onOpenChange={(open) => !open && setEditing(null)}>
+        <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Edit student</DialogTitle>
+            <DialogDescription>
+              Correct a legacy record or add the contact details a transcript is sent to.
+            </DialogDescription>
+          </DialogHeader>
+          {editError && (
+            <div className="rounded-xl border border-red-500/20 bg-red-500/5 px-3 py-2 text-sm text-red-600">{editError}</div>
+          )}
+          <div className="grid md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Full name *</label>
+              <Input value={editForm.full_name} onChange={(e) => setEditForm({ ...editForm, full_name: e.target.value })} />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Student number</label>
+              <Input value={editForm.student_id} onChange={(e) => setEditForm({ ...editForm, student_id: e.target.value })} placeholder="Auto" />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Student email</label>
+              <Input type="email" value={editForm.email} onChange={(e) => setEditForm({ ...editForm, email: e.target.value })} placeholder="student@example.com" />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Student WhatsApp / phone</label>
+              <Input value={editForm.phone} onChange={(e) => setEditForm({ ...editForm, phone: e.target.value })} placeholder="+256 ..." />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Guardian name</label>
+              <Input value={editForm.guardian_name} onChange={(e) => setEditForm({ ...editForm, guardian_name: e.target.value })} />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Guardian WhatsApp / phone</label>
+              <Input value={editForm.guardian_phone} onChange={(e) => setEditForm({ ...editForm, guardian_phone: e.target.value })} placeholder="+256 ..." />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Guardian email</label>
+              <Input type="email" value={editForm.guardian_email} onChange={(e) => setEditForm({ ...editForm, guardian_email: e.target.value })} />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Tuition amount</label>
+              <Input type="number" value={editForm.tuition_amount} onChange={(e) => setEditForm({ ...editForm, tuition_amount: e.target.value })} placeholder="0" />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Status</label>
+              <select className="form-select w-full" value={editForm.status} onChange={(e) => setEditForm({ ...editForm, status: e.target.value })}>
+                {STATUS_OPTIONS.map((status) => <option key={status} value={status}>{status}</option>)}
+              </select>
+            </div>
+          </div>
+          <DialogFooter className="mt-2">
+            <Button variant="outline" onClick={() => setEditing(null)} disabled={saving}>Cancel</Button>
+            <Button onClick={saveEdit} disabled={saving}>{saving ? 'Saving…' : 'Save changes'}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
