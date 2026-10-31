@@ -78,40 +78,37 @@ export function computeStanding(input: {
     const days = courseworkDays.filter((d) => d.module_id === mod.id)
     const modExams = exams.filter((e) => e.module_id === mod.id)
 
+    // Sum every coursework row the student has for this module's days — a
+    // retake adds another row and both count, exactly as the Grades screen does.
+    const dayById = new Map(days.map((d) => [d.id, d]))
+    const graded = courseworkGrades.filter((g) => dayById.has(g.coursework_day_id))
     let cwSum = 0
     let cwMax = 0
-    let missed = 0
-    for (const day of days) {
-      const grade = courseworkGrades.find((g) => g.coursework_day_id === day.id)
-      const max = Number(day.max_marks || 20)
-      if (!grade || Number(grade.marks_obtained) <= 0) {
-        missed += 1
-        cwMax += max
-        continue
-      }
-      cwSum += Number(grade.marks_obtained)
-      cwMax += max
+    for (const g of graded) {
+      cwSum += Number(g.marks_obtained || 0)
+      cwMax += Number(dayById.get(g.coursework_day_id)?.max_marks || 20)
     }
+    const gradedDayIds = new Set(graded.map((g) => g.coursework_day_id))
+    const missed = days.filter((d) => !gradedDayIds.has(d.id)).length
     missedTotal += missed
-
-    let exSum = 0
-    let exMax = 0
-    for (const exam of modExams) {
-      const grade = examGrades.find((g) => g.final_exam_id === exam.id)
-      const max = Number(exam.max_marks || 100)
-      exMax += max
-      if (grade) exSum += Number(grade.marks_obtained)
-    }
 
     // Coursework half: raw marks scaled to 50 points; 0 when nothing is
     // recorded, matching the Grades screen.
     const coursework = cwMax > 0
       ? round1(Math.min((cwSum / cwMax) * COURSEWORK_POINTS, COURSEWORK_POINTS))
       : 0
-    // Exam half: out of 50, or null when the paper was not sat (a paper sat but
-    // scored zero still counts as 0).
-    const examSat = examGrades.some((g) => modExams.some((e) => e.id === g.final_exam_id))
-    const exam = exMax > 0 && examSat ? round1((exSum / exMax) * EXAM_POINTS) : null
+
+    // Exam half: out of 50. Each mark entry creates its own final_exams row, so
+    // pick this student's paper (latest by exam_date, as the Grades screen does)
+    // rather than summing every exam row on the module.
+    const satRows = modExams
+      .map((e) => ({ e, g: examGrades.find((g) => g.final_exam_id === e.id) }))
+      .filter((x) => x.g)
+      .sort((a, b) => String(b.e.exam_date || '').localeCompare(String(a.e.exam_date || '')))
+    const sat = satRows[0]
+    const exam = sat
+      ? round1((Number(sat.g.marks_obtained) / Number(sat.e.max_marks || 100)) * EXAM_POINTS)
+      : null
     const total = totalFor(coursework, exam)
 
     rows.push({
