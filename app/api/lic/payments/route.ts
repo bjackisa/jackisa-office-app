@@ -53,6 +53,8 @@ export async function POST(req: NextRequest) {
           interval_months: body?.intervalMonths ? Number(body.intervalMonths) : undefined,
           purpose: body?.purpose || 'license',
           description: body?.description,
+          coupon_code: body?.couponCode ? String(body.couponCode) : undefined,
+          apply_auto_coupon: body?.applyAutoCoupon === true,
         })
         if (res.api_status === '200' && adminAvailable() && res.data?.payment_id) {
           try {
@@ -64,12 +66,15 @@ export async function POST(req: NextRequest) {
               provider: 'jpesa',
               channel: body?.method || 'mobile_money',
               msisdn: String(body?.msisdn || ''),
-              amount: Number(body?.amount || 0),
+              amount: res.data?.waived ? 0 : Number(body?.amount || 0),
               currency: 'UGX',
               plan_code: body?.planCode || null,
               interval_months: body?.intervalMonths ? Number(body.intervalMonths) : null,
               purpose: body?.purpose || 'license',
-              status: 'pending',
+              status: res.data?.waived ? 'paid' : 'pending',
+              paid_at: res.data?.waived ? new Date().toISOString() : null,
+              coupon_code: res.data?.coupon_code || null,
+              coupon_discount: Number(res.data?.discount || 0),
               raw: res.data,
             })
           } catch (e) {

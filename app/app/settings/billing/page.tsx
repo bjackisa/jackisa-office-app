@@ -11,7 +11,7 @@ import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Spinner } from '@/components/ui/spinner'
-import { CreditCard, Phone, ShieldCheck, Clock, XCircle, Check } from 'lucide-react'
+import { CreditCard, Phone, ShieldCheck, Clock, XCircle, Check, Ticket, BadgePercent } from 'lucide-react'
 
 type Plan = {
   code: string
@@ -77,6 +77,10 @@ export default function BillingPage() {
   const [message, setMessage] = useState<{ kind: 'ok' | 'error'; text: string } | null>(null)
   const [payments, setPayments] = useState<any[]>([])
   const [quote, setQuote] = useState<any | null>(null)
+  const [couponCode, setCouponCode] = useState('')
+  const [coupon, setCoupon] = useState<any | null>(null)
+  const [couponMsg, setCouponMsg] = useState<{ kind: 'ok' | 'error'; text: string } | null>(null)
+  const [checkingCoupon, setCheckingCoupon] = useState(false)
 
   useEffect(() => {
     const load = async () => {
@@ -137,6 +141,65 @@ export default function BillingPage() {
     return () => { active = false }
   }, [companyId, selectedPlan?.code])
 
+  // Auto-apply coupons (no code needed) are quoted whenever the selection
+  // changes, so an account-targeted campaign shows up without the user typing.
+  useEffect(() => {
+    if (!companyId || !selectedPlan?.code) return
+    let active = true
+    apiFetch('/api/lic/coupons', {
+      method: 'POST',
+      body: JSON.stringify({ action: 'quote', companyId, planCode: selectedPlan.code, intervalMonths, amount: Number(selectedPlan.price) }),
+    })
+      .then((r) => r.json())
+      .then((j) => {
+        if (!active) return
+        const q = j?.data?.quote
+        if (q?.coupon) {
+          setCoupon({ ...q.coupon, ...q.price })
+        } else if (!couponCode) {
+          setCoupon(null)
+        }
+      })
+      .catch(() => {})
+    return () => { active = false }
+  }, [companyId, selectedPlan?.code, intervalMonths, couponCode])
+
+  const applyCoupon = async () => {
+    if (!companyId || !selectedPlan || !couponCode.trim()) return
+    setCheckingCoupon(true)
+    setCouponMsg(null)
+    try {
+      const res = await apiFetch('/api/lic/coupons', {
+        method: 'POST',
+        body: JSON.stringify({ action: 'validate', companyId, code: couponCode.trim(), planCode: selectedPlan.code, intervalMonths, amount: Number(selectedPlan.price) }),
+      })
+      const json = await res.json()
+      if (json.ok && json.data?.price) {
+        setCoupon({ ...json.data.coupon, ...json.data.price })
+        setCouponMsg({ kind: 'ok', text: `Coupon applied — you save ${Number(json.data.price.discount).toLocaleString()} ${json.data.price.currency}.` })
+      } else {
+        setCoupon(null)
+        setCouponMsg({ kind: 'error', text: json.error || 'That coupon could not be applied.' })
+      }
+    } finally {
+      setCheckingCoupon(false)
+    }
+  }
+
+  const removeCoupon = () => {
+    setCoupon(null)
+    setCouponCode('')
+    setCouponMsg(null)
+  }
+
+  // The amount actually payable: the plan price minus any coupon discount.
+  const payableAmount = useMemo(() => {
+    const base = quote?.amount_due !== undefined ? Number(quote.amount_due) : Number(selectedPlan?.price || 0)
+    if (!coupon) return base
+    const disc = Number(coupon.discount || 0)
+    return Math.max(0, Math.round((base - disc) * 100) / 100)
+  }, [quote, selectedPlan?.price, coupon])
+
   const pollStatus = async (ref: string) => {
     for (let i = 0; i < 40; i++) {
       await new Promise((r) => setTimeout(r, 6000))
@@ -182,14 +245,16 @@ export default function BillingPage() {
 
   const pay = async () => {
     if (!companyId || !selectedPlan) return
-    if (!msisdn || msisdn.replace(/\D/g, '').length < 9) {
+    const due = payableAmount
+    // A coupon can cover the whole charge — no mobile-money step is needed.
+    const coveredByCoupon = Boolean(coupon) && due <= 0
+    if (!coveredByCoupon && (!msisdn || msisdn.replace(/\D/g, '').length < 9)) {
       setMessage({ kind: 'error', text: 'Enter a valid mobile money number (e.g. 256700000000).' })
       return
     }
-    const due = quote?.amount_due !== undefined ? Number(quote.amount_due) : Number(selectedPlan.price)
     const isChange = Boolean(quote?.current) && due < Number(selectedPlan.price) + 0.001
     // A change fully covered by credit needs no mobile-money step.
-    if (isChange && due <= 0) {
+    if (isChange && due <= 0 && !coveredByCoupon) {
       setBusy(true)
       setMessage(null)
       try {
@@ -220,11 +285,18 @@ export default function BillingPage() {
           planCode: selectedPlan.code,
           intervalMonths,
           purpose: isChange ? 'change' : 'license',
+          couponCode: coupon?.code || undefined,
+          applyAutoCoupon: !coupon?.code,
           description: isChange ? `Change to ${selectedPlan.name}` : `${selectedPlan.name} licence`,
         }),
       })
       const json = await res.json()
       if (json.ok) {
+        if (json.data?.waived || json.data?.status === 'paid') {
+          setMessage({ kind: 'ok', text: 'Your coupon covers this plan in full — the licence is active.' })
+          await license.refresh()
+          return
+        }
         const ref = json.data?.payment_id || json.data?.merchant_ref || null
         setMessage({ kind: 'ok', text: 'Check your phone and approve the payment prompt. Your plan activates as soon as it is confirmed.' })
         if (ref) pollStatus(ref)
@@ -380,8 +452,73 @@ export default function BillingPage() {
                   </div>
                 </div>
               )}
+
+              {coupon && (
+                <div className="border-t border-border/40 pt-3 space-y-1 text-xs">
+                  <div className="flex items-center justify-between text-emerald-600">
+                    <span className="flex items-center gap-1.5">
+                      <BadgePercent className="w-3.5 h-3.5" />
+                      {coupon.name || coupon.code || 'Coupon'}
+                    </span>
+                    <span>−{Number(coupon.discount || 0).toLocaleString()} {coupon.currency || selectedPlan.currency}</span>
+                  </div>
+                  {Number(coupon.extra_days || 0) > 0 && (
+                    <div className="flex items-center justify-between text-muted-foreground">
+                      <span>Bonus days</span>
+                      <span>+{coupon.extra_days} days</span>
+                    </div>
+                  )}
+                  <div className="flex items-center justify-between font-semibold text-foreground">
+                    <span>You pay</span>
+                    <span className="tabular-nums">{Number(payableAmount).toLocaleString()} {coupon.currency || selectedPlan.currency}</span>
+                  </div>
+                </div>
+              )}
             </div>
           )}
+
+          {/* Coupon */}
+          <div className="rounded-xl border border-border/50 p-4">
+            <div className="flex items-center justify-between mb-2">
+              <label className="text-xs font-semibold text-foreground flex items-center gap-1.5">
+                <Ticket className="w-3.5 h-3.5" /> Coupon
+              </label>
+              {coupon && (
+                <button className="text-[11px] text-muted-foreground underline underline-offset-2" onClick={removeCoupon}>
+                  Remove
+                </button>
+              )}
+            </div>
+            {coupon ? (
+              <div className="rounded-lg bg-emerald-500/[0.06] border border-emerald-500/20 px-3 py-2 text-sm text-emerald-700 dark:text-emerald-300 flex items-center gap-2">
+                <Check className="w-4 h-4" />
+                <span>
+                  {coupon.name || coupon.code} applied — {Number(coupon.discount || 0).toLocaleString()} {coupon.currency || selectedPlan?.currency} off
+                  {coupon.duration === 'forever' ? ' on every payment' : coupon.duration === 'cycles' ? ` for ${coupon.duration_cycles} payments` : ' on this payment'}.
+                </span>
+              </div>
+            ) : (
+              <div className="flex gap-2">
+                <Input
+                  placeholder="Enter a coupon code"
+                  value={couponCode}
+                  onChange={(e) => setCouponCode(e.target.value.toUpperCase())}
+                  onKeyDown={(e) => { if (e.key === 'Enter') applyCoupon() }}
+                />
+                <Button variant="outline" onClick={applyCoupon} disabled={checkingCoupon || !couponCode.trim()}>
+                  {checkingCoupon ? <Spinner className="w-4 h-4" /> : 'Apply'}
+                </Button>
+              </div>
+            )}
+            {couponMsg && (
+              <p className={`text-[11px] mt-2 ${couponMsg.kind === 'ok' ? 'text-emerald-600' : 'text-destructive'}`}>{couponMsg.text}</p>
+            )}
+            {!coupon && !couponMsg && (
+              <p className="text-[11px] text-muted-foreground mt-2">
+                Have a code, or a coupon set up for your account? It is applied automatically where it qualifies.
+              </p>
+            )}
+          </div>
 
           <div className="grid sm:grid-cols-2 gap-3">
             <div>
@@ -394,7 +531,11 @@ export default function BillingPage() {
             <div className="flex items-end gap-2">
               <Button className="flex-1 h-10 shadow-glow-primary" onClick={pay} disabled={busy || !selectedPlan}>
                 {busy ? <Spinner className="w-4 h-4" /> : <CreditCard className="w-4 h-4 mr-2" />}
-                {quote?.current && Number(quote.amount_due) <= 0 ? 'Switch plan (no charge)' : 'Pay with mobile money'}
+                {coupon && payableAmount <= 0
+                  ? 'Activate with coupon (free)'
+                  : quote?.current && payableAmount <= 0
+                    ? 'Switch plan (no charge)'
+                    : `Pay ${Number(payableAmount).toLocaleString()} ${selectedPlan?.currency || 'UGX'}`}
               </Button>
             </div>
           </div>

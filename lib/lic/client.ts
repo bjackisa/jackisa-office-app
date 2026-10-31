@@ -103,6 +103,26 @@ export const lic = {
     return lic.adminCall('/api/v1/admin/features', { action, ...payload })
   },
 
+  /** Coupon management (super-admin console). */
+  catalogCoupons(action: 'list' | 'get' | 'create' | 'update' | 'archive' | 'redemptions', payload: Record<string, any> = {}) {
+    return lic.adminCall('/api/v1/admin/coupons', { action, ...payload })
+  },
+
+  /** Coupons a tenant may use right now (code or auto-apply). */
+  availableCoupons(tenantId: string, opts: { plan_code?: string; interval_months?: number } = {}) {
+    return call('/api/v1/coupons/available', { tenant_id: tenantId, ...opts })
+  },
+
+  /** Validate a code and price a selection with it. */
+  validateCoupon(params: { tenant_id: string; code: string; plan_code?: string; interval_months?: number; amount: number }) {
+    return call('/api/v1/coupons/validate', params)
+  },
+
+  /** The best auto-apply coupon for a selection (or a specific code). */
+  quoteCoupon(params: { tenant_id: string; code?: string; plan_code?: string; interval_months?: number; amount: number }) {
+    return call('/api/v1/coupons/quote', params)
+  },
+
   plans() {
     return fetch(`${BASE_URL}/api/v1/office-license/plans`, { cache: 'no-store' })
       .then((r) => r.json() as Promise<LicResponse<{ plans: any[]; intervals: number[] }>>)
@@ -164,6 +184,8 @@ export const lic = {
     interval_months?: number
     purpose?: string
     description?: string
+    coupon_code?: string
+    apply_auto_coupon?: boolean
   }) {
     return call('/api/v1/jpesa-payments/initiate', params)
   },

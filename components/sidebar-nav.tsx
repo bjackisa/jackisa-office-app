@@ -58,6 +58,7 @@ import {
   MessageSquareQuote,
   Lock,
   ShieldCheck,
+  Ticket,
 } from 'lucide-react'
 import { useState, useMemo } from 'react'
 import { useLicense } from '@/lib/lic/useLicense'
@@ -418,6 +419,20 @@ export function SidebarNav({
           >
             <span className="flex-shrink-0 opacity-80"><Package className="w-[18px] h-[18px]" /></span>
             <span>Package Manager</span>
+          </Link>
+        )}
+        {isSuperAdmin && (
+          <Link
+            href="/app/admin/coupons"
+            className={cn(
+              'flex items-center gap-2.5 px-3 py-2 rounded-xl text-[13px] font-medium transition-all duration-200',
+              pathname === '/app/admin/coupons'
+                ? 'text-white bg-primary/20 shadow-sm shadow-primary/10'
+                : 'text-amber-300/80 hover:text-amber-200 hover:bg-white/[0.04]'
+            )}
+          >
+            <span className="flex-shrink-0 opacity-80"><Ticket className="w-[18px] h-[18px]" /></span>
+            <span>Coupons</span>
           </Link>
         )}
         {NAV.map(entry => {
