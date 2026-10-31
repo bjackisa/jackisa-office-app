@@ -1,5 +1,20 @@
 # Jackisa Stream — project memory
 
+## Jackisa Office (Oct 2026) — see `.openhands/memory/2026-10-30.md`
+- **Feature gating failed for two separate reasons.** (1) `companies.kind` was never
+  written by any code path, so business-type gating never fired — now set at signup
+  (register page selector), in `/api/register/complete`, and in settings/company.
+  (2) `company_role_features` had no UI — `app/app/settings/roles` now has a per-role
+  feature-grant editor (upserts `company_role_features`).
+- **A paid licence did not unlock the app**: the office never pulled the certificate lic
+  issued after a settled payment. `lib/lic/mirror.ts` `mirrorLicenseFromHub()` mirrors
+  `platform_licenses`; called from `app/api/lic/license` (issue/trial/renew) and
+  `app/api/lic/payments` (status=paid re-pulls `licenseStatus`).
+- **Blocker**: `LIC_OFFICE_SECRET` must be set in Vercel = lic `peers.office.shared_secret`,
+  else office signs office→lic with an empty secret. Only the user can set it.
+- Join/invite flow is already implemented: `/auth/join`, `app/api/companies/members`,
+  `app/api/students/link`.
+
 ## Articles (Oct 2026)
 - Articles broke three ways (list 500, read 500, no mobile articles). Full detail
   in `.openhands/memory/2026-10-27.md`. Key points:

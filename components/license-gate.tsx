@@ -9,7 +9,8 @@ import { Button } from '@/components/ui/button'
 import { Lock, ArrowUpRight, ShieldAlert } from 'lucide-react'
 
 /** Routes that must always stay reachable so a user can fix their licence. */
-const UNGATED = ['/app/settings', '/app', '/app/helpdesk']
+const UNGATED = ['/app/settings', '/app/helpdesk']
+const UNGATED_EXACT = ['/app', '/app/']
 
 /**
  * Route-aware gate. Reads the current path, maps it to a feature slug and
@@ -18,6 +19,7 @@ const UNGATED = ['/app/settings', '/app', '/app/helpdesk']
  */
 export function RouteLicenseGate({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
+  if (UNGATED_EXACT.includes(pathname)) return <>{children}</>
   if (UNGATED.some((p) => pathname === p || pathname.startsWith(p + '/'))) {
     return <>{children}</>
   }
