@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { adminClient, adminAvailable } from '@/lib/lic/peer'
-import { getCaller, requireCompanyAdmin } from '@/lib/lic/serverAuth'
+import { getCaller, getMembership, requireCompanyAdmin } from '@/lib/lic/serverAuth'
 import { checkStudentCap } from '@/lib/lic/caps'
 import crypto from 'crypto'
 
@@ -156,6 +156,10 @@ export async function POST(req: NextRequest) {
       }
 
       case 'list_students': {
+        const caller = await getCaller(req)
+        if (!caller) return NextResponse.json({ ok: false, error: 'Not signed in' }, { status: 401 })
+        const membership = await getMembership(caller.id, companyId)
+        if (!membership) return NextResponse.json({ ok: false, error: 'You are not a member of this institution' }, { status: 403 })
         const { data } = await db
           .from('student_user_links')
           .select('*, students(full_name, email, student_id), users(full_name, avatar_url)')

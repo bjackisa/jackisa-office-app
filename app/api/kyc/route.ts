@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { lic } from '@/lib/lic/client'
 import { adminClient, adminAvailable } from '@/lib/lic/peer'
+import { requireCompanyAdmin } from '@/lib/lic/serverAuth'
 import { hitIp } from '@/lib/security/rate-limit'
 
 export const dynamic = 'force-dynamic'
@@ -88,6 +90,10 @@ export async function POST(req: NextRequest) {
     const companyId = String(body?.companyId || '')
     if (!companyId) return NextResponse.json({ ok: false, error: 'companyId is required' }, { status: 400 })
 
+    // Only a company admin may request verification for the company.
+    const guard = await requireCompanyAdmin(req, companyId)
+    if ('error' in guard) return NextResponse.json({ ok: false, error: guard.error }, { status: guard.status })
+
     const { data: company } = await db.from('companies').select('id, verified').eq('id', companyId).maybeSingle()
     if (!company) return NextResponse.json({ ok: false, error: 'Company not found' }, { status: 404 })
     if (company.verified) return NextResponse.json({ ok: true, alreadyVerified: true })
@@ -117,11 +123,19 @@ export async function POST(req: NextRequest) {
 
   if (action === 'auto_individual') {
     // An individual already verified on jackisa.com is auto-verified here. The
-    // hub is the source of truth; we only mirror a verified result.
+    // hub is the source of truth: we re-verify the caller's jackisa.com session
+    // server-side and only mirror a *confirmed* verified result. A client
+    // boolean is never trusted, or any signed-in user could self-assert a badge.
     const userId = String(body?.userId || '')
-    const verifiedOnJackisa = Boolean(body?.verifiedOnJackisa)
+    const accessToken = String(body?.accessToken || '')
     if (!userId) return NextResponse.json({ ok: false, error: 'userId is required' }, { status: 400 })
-    if (!verifiedOnJackisa) return NextResponse.json({ ok: false, error: 'Not verified on jackisa.com' }, { status: 403 })
+    if (!accessToken) return NextResponse.json({ ok: false, error: 'A jackisa.com session is required' }, { status: 403 })
+
+    const verified = await lic.ssoJackisa(accessToken)
+    const profile = verified.data?.profile
+    if (verified.api_status !== '200' || !profile?.verified) {
+      return NextResponse.json({ ok: false, error: 'Not verified on jackisa.com' }, { status: 403 })
+    }
 
     await db.from('users').update({ kyc_status: 'verified' }).eq('id', userId)
     const { data: existing } = await db
