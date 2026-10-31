@@ -4,6 +4,7 @@ import { Suspense, useEffect, useState } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
+import { apiFetch } from '@/lib/api'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { ContinueWithJackisa } from '@/components/continue-with-jackisa'
@@ -60,7 +61,7 @@ function JoinInner() {
 
       try {
         const endpoint = isStudent ? '/api/students/link' : '/api/companies/members'
-        const res = await fetch(`${endpoint}?invite=${encodeURIComponent(token)}`)
+        const res = await apiFetch(`${endpoint}?invite=${encodeURIComponent(token)}`)
         const json = await res.json()
         if (json.ok) setInvite(json.invite)
         else setError(json.error || 'This invite is not valid')
@@ -79,12 +80,70 @@ function JoinInner() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [inviteToken, studentToken])
 
+  /** Submit the join request for the signed-in user. Returns true on success. */
+  const submitRequest = async (): Promise<boolean> => {
+    const endpoint = isStudent ? '/api/students/link' : '/api/companies/members'
+    const body = isStudent
+      ? {
+          action: 'request_join',
+          inviteToken: studentToken,
+          companyId: invite?.company_id,
+          firstName: fullName.split(' ')[0],
+          lastName: fullName.split(' ').slice(1).join(' '),
+          programme,
+          studentNumber,
+        }
+      : {
+          action: 'request_join',
+          inviteToken,
+          companyId: invite?.company_id,
+          position: invite?.position || undefined,
+          department: invite?.department || undefined,
+        }
+
+    const res = await apiFetch(endpoint, { method: 'POST', body: JSON.stringify(body) })
+    const json = await res.json()
+    if (!json.ok) throw new Error(json.error || 'Could not submit your request')
+    setDone({ status: json.autoApproved ? 'active' : 'pending' })
+    if (json.autoApproved) setTimeout(() => router.replace('/app'), 1500)
+    return true
+  }
+
+  // If the user confirmed their email on another tab/device and came back
+  // signed in, finish the join they started before the confirmation screen.
+  useEffect(() => {
+    if (loading || done || submitting) return
+    const token = inviteToken || studentToken
+    if (!token) return
+    let pending: any = null
+    try {
+      pending = JSON.parse(localStorage.getItem('pendingInvite') || 'null')
+    } catch {}
+    if (!pending || (pending.inviteToken !== inviteToken && pending.studentToken !== studentToken)) return
+
+    const finish = async () => {
+      const { data } = await supabase.auth.getUser()
+      if (!data?.user) return
+      setSignedIn(true)
+      setSubmitting(true)
+      try {
+        await submitRequest()
+        localStorage.removeItem('pendingInvite')
+      } catch (err: any) {
+        setError(err?.message || 'Could not complete your request')
+      } finally {
+        setSubmitting(false)
+      }
+    }
+    finish()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading, done, submitting, inviteToken, studentToken])
+
   const submit = async (e: React.FormEvent) => {
     e.preventDefault()
     setSubmitting(true)
     setError(null)
     try {
-      let userId: string | null = null
       if (!signedIn) {
         if (!email || !password || password.length < 8) {
           throw new Error('Enter an email and a password of at least 8 characters.')
@@ -95,7 +154,6 @@ function JoinInner() {
           options: { data: { full_name: fullName } },
         })
         if (signErr) throw signErr
-        userId = data.user?.id || null
         if (!data.session) {
           // Email confirmation required — remember the invite so they finish later.
           localStorage.setItem('pendingInvite', JSON.stringify({ inviteToken, studentToken, fullName }))
@@ -104,37 +162,7 @@ function JoinInner() {
         }
       }
 
-      const endpoint = isStudent ? '/api/students/link' : '/api/companies/members'
-      const body = isStudent
-        ? {
-            action: 'request_join',
-            inviteToken: studentToken,
-            companyId: invite?.company_id,
-            firstName: fullName.split(' ')[0],
-            lastName: fullName.split(' ').slice(1).join(' '),
-            programme,
-            studentNumber,
-          }
-        : {
-            action: 'request_join',
-            inviteToken,
-            companyId: invite?.company_id,
-            position: invite?.position || undefined,
-            department: invite?.department || undefined,
-          }
-
-      const res = await fetch(endpoint, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-      })
-      const json = await res.json()
-      if (!json.ok) throw new Error(json.error || 'Could not submit your request')
-
-      setDone({ status: json.autoApproved ? 'active' : 'pending' })
-      if (json.autoApproved) {
-        setTimeout(() => router.replace('/app'), 1500)
-      }
+      await submitRequest()
     } catch (err: any) {
       setError(err?.message || 'Something went wrong')
     } finally {

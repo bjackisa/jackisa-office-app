@@ -4,6 +4,7 @@ import { Suspense, useEffect, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { establishSessionFromJackisa } from '@/lib/auth/sso'
+import { apiFetch } from '@/lib/api'
 import { Spinner } from '@/components/ui/spinner'
 import { AlertCircle } from 'lucide-react'
 
@@ -62,9 +63,8 @@ function CallbackInner() {
         if (raw) {
           const pending = JSON.parse(raw)
           if (pending?.planCode || pending?.companyName) {
-            const res = await fetch('/api/register/complete', {
+            const res = await apiFetch('/api/register/complete', {
               method: 'POST',
-              headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${(await supabase.auth.getSession()).data.session?.access_token || ''}` },
               body: JSON.stringify(pending),
             })
             if (res.ok) {

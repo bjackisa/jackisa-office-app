@@ -226,6 +226,25 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ ok: true, members: data || [] })
       }
 
+      case 'search_companies': {
+        // Any signed-in user may search for a workspace to request to join.
+        const caller = await getCaller(req)
+        if (!caller) return NextResponse.json({ ok: false, error: 'Not signed in' }, { status: 401 })
+        const q = String(body?.query || '').trim()
+        if (q.length < 2) return NextResponse.json({ ok: true, companies: [] })
+
+        const { data: mine } = await db.from('company_employees').select('company_id').eq('user_id', caller.id)
+        const exclude = new Set((mine || []).map((m: any) => m.company_id))
+
+        const { data } = await db
+          .from('companies')
+          .select('id, name, logo_url, kind, verified, industry')
+          .ilike('name', `%${q}%`)
+          .limit(15)
+        const companies = (data || []).filter((c: any) => !exclude.has(c.id))
+        return NextResponse.json({ ok: true, companies })
+      }
+
       case 'set_role': {
         const guard = await requireCompanyAdmin(req, companyId)
         if ('error' in guard) return NextResponse.json({ ok: false, error: guard.error }, { status: guard.status })

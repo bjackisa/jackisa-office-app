@@ -10,6 +10,7 @@ import { Spinner } from '@/components/ui/spinner'
 import { ContinueWithJackisa } from '@/components/continue-with-jackisa'
 import { INDUSTRIES } from '@/lib/industries'
 import { rememberPlan, parsePlanCode } from '@/lib/lic/planMemory'
+import { apiFetch } from '@/lib/api'
 import { AlertCircle, Building2, Lock, Mail, User } from 'lucide-react'
 
 const TIERS = [
@@ -68,6 +69,22 @@ function RegisterInner() {
       setIntervalMonths(parsed.months)
       rememberPlan(chosen)
     }
+
+    // Coming back from "Continue with Jackisa" on a page that already captured
+    // the company details (e.g. an invite link) — skip the company step.
+    try {
+      const raw = localStorage.getItem('pendingRegistration')
+      if (raw) {
+        const pending = JSON.parse(raw)
+        if (pending?.companyName || pending?.companyId) {
+          setCompanyName(pending.companyName || '')
+          setCompanyEmail(pending.companyEmail || '')
+          setIndustry(pending.industry || '')
+          if (pending.companyKind) setCompanyKind(pending.companyKind)
+          setStep('account')
+        }
+      }
+    } catch {}
   }, [searchParams])
 
   const selectPlan = (tier: 'basic' | 'pro' | 'platinum') => {
@@ -164,9 +181,8 @@ function RegisterInner() {
         localStorage.setItem('pendingRegistration', JSON.stringify(pending))
         // Persist the chosen plan on the server so it is remembered even if the
         // visitor verifies email on another device.
-        fetch('/api/signup-intent', {
+        apiFetch('/api/signup-intent', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ email, planCode, intervalMonths, tier: packageTier, companyName, companyEmail, industry: industryLabel, industrySlug: industry, companyKind, intent: companyKind === 'institution' ? 'create_institution' : 'create_company' }),
         }).catch(() => {})
       } catch {}

@@ -1,6 +1,7 @@
 'use client'
 
 import { supabase } from '@/lib/supabase'
+import { apiFetch } from '@/lib/api'
 
 /**
  * Completes a "Continue with Jackisa" hand-off, wherever it landed.
@@ -16,7 +17,7 @@ import { supabase } from '@/lib/supabase'
  */
 export async function establishSessionFromJackisa(accessToken: string): Promise<{ ok: boolean; error?: string }> {
   try {
-    const ssoRes = await fetch('/api/auth/jackisa', {
+    const ssoRes = await apiFetch('/api/auth/jackisa', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ accessToken }),
@@ -26,7 +27,7 @@ export async function establishSessionFromJackisa(accessToken: string): Promise<
       return { ok: false, error: ssoJson.error || 'Jackisa sign-in failed' }
     }
 
-    const exRes = await fetch('/api/auth/jackisa/exchange', {
+    const exRes = await apiFetch('/api/auth/jackisa/exchange', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ ssoToken: ssoJson.ssoToken }),
