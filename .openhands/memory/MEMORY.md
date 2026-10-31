@@ -1,6 +1,19 @@
 # Jackisa Stream — project memory
 
 ## Jackisa Office (Oct 2026) — see `.openhands/memory/2026-10-30.md`
+- **Messaging: mirror jackisa.com.** Every transactional message goes out on email
+  AND WhatsApp concurrently. `lib/lic/notify.ts` `notify()` (Promise.all) is the entry
+  point; `lib/lic/html-to-text.ts` flattens the email HTML for the WhatsApp copy;
+  `lib/lic/messages.ts` holds the branded templates. Whapi.Cloud is the WhatsApp rail
+  (lic `/api/v1/whapi/send`), same SMTP via lic `/api/v1/mail/send`.
+- **Invites were created but never sent.** The team page inserted
+  `employee_invitations` and nothing emailed. It now calls the
+  `create_invite` API (`app/api/companies/members`), which mints a
+  `company_invite_links` token and emails+WhatsApps the link. `decide_request` also
+  notifies the applicant.
+- **lic `CronService::remindTrials` read `u.phone` but the trial number is in
+  `trials.msisdn`** — the WhatsApp reminder silently never fired; now
+  `COALESCE(u.phone, t.msisdn)`. Renewal reminders also mirror to WhatsApp.
 - **Feature gating failed for two separate reasons.** (1) `companies.kind` was never
   written by any code path, so business-type gating never fired — now set at signup
   (register page selector), in `/api/register/complete`, and in settings/company.
