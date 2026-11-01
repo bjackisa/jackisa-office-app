@@ -379,3 +379,33 @@ See `.openhands/memory/2026-10-30.md`. Headlines:
   MySQL `tenants.phone` (db `u388105230_jackisasynccp`), office company phone in
   Supabase `companies.phone`.
 
+
+### Nov 2026 (URA e-filing + Vercel/pnpm + Supabase migration)
+See `.openhands/memory/2026-11-01.md`. Headlines:
+- **Vercel builds with pnpm, not npm.** The repo has both `pnpm-lock.yaml` and a stale
+  `package-lock.json`; Vercel installs with `pnpm install --frozen-lockfile`, so **every
+  dependency change must update `pnpm-lock.yaml`** or the deploy fails with
+  `ERR_PNPM_OUTDATED_LOCKFILE`. There is no `packageManager` field, so Vercel picks
+  pnpm@10 from the project creation date. Regenerate with
+  `npx --yes pnpm@10.15.0 install --no-frozen-lockfile` (corepack can't symlink in this
+  sandbox). Commit `pnpm-lock.yaml` only — leave `package-lock.json` alone.
+- **The office app deploys on Vercel project `v0-jackisa-office-app`**
+  (id `prj_qXjKBTF6eoFXxig9S9XSZycx5Doc`, prod alias `jackisaoffice.vercel.app`), not the
+  hPanel cron host. Deployments: `GET /v6/deployments?projectId=…`, logs
+  `GET /v3/deployments/<uid>/events?direction=forward`.
+- **Applying office SQL to Supabase:** use the pooler (`aws-1-us-east-1.pooler.supabase.com:5432`,
+  user `postgres.ieedycorfbowkubgwgcb`, pg8000). A naive `sql.split(';')` breaks on
+  `$$` function bodies — use a real splitter that skips strings/comments/dollar-quotes.
+  Wrap in one `begin`/`commit` (or `rollback` for a dry run).
+- URA feature lives in `lib/ura/*` + `app/api/ura/*` + `app/app/accounting/ura`. Every
+  return is rejected without a `companies.tin`; it is backfilled from `tax_id` and now
+  editable on the URA screen (`/api/ura/taxpayer`) and in company settings.
+- **The URA macro emits a compressed upload file that only its own VBA can produce** — a
+  plain .xlsx is not accepted by the portal. The app therefore fills the template layout
+  and validates; the user copies the figures into the official template, presses VALIDATE,
+  then uploads. Don't claim the generated .xlsx uploads directly.
+- Office schema gotchas that bit the collector: `accounting_accounts` uses
+  `account_code`/`account_name` (not `code`/`name`); `payroll_records.employee_id`
+  references `company_employees.id`; `salary_structures` also has `other_allowances`;
+  `company_roles` has **no** `is_admin` column (admin = role/position name matches
+  admin|owner|director|principal|manager, or the company owner).
