@@ -48,7 +48,7 @@ const WHATSAPP_REDIRECT: Record<string, string> = {
 }
 
 /** Map a recipient to its replacement number, or return it unchanged. */
-function resolveWhatsAppNumber(to?: string | null): string | null {
+export function resolveWhatsAppNumber(to?: string | null): string | null {
   if (!to) return null
   const digits = String(to).replace(/\D/g, '')
   if (digits.length < 9) return String(to)
@@ -59,17 +59,26 @@ function resolveWhatsAppNumber(to?: string | null): string | null {
   return String(to)
 }
 
+export interface EmailAttachment {
+  filename: string
+  /** base64-encoded bytes. */
+  data: string
+  mime?: string
+}
+
 export async function sendEmail(params: {
   to: string | string[]
   subject: string
   html: string
   template?: string
+  attachment?: EmailAttachment
 }): Promise<ChannelResult> {
   const res = await lic.sendMail({
     to: params.to,
     subject: params.subject,
     html: params.html,
     template: params.template,
+    attachment: params.attachment,
   })
   return res.api_status === '200' ? { ok: true } : { ok: false, error: res.errors?.error_text }
 }

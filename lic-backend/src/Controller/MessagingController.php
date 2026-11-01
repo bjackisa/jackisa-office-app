@@ -27,9 +27,22 @@ final class MessagingController
         if (!$to || $subject === '' || $html === '') {
             Response::error('422', 'to, subject and html are required', 422);
         }
+        $attachment = null;
+        $raw = $request->input('attachment');
+        if (is_array($raw) && !empty($raw['data'])) {
+            $decoded = base64_decode((string) $raw['data'], true);
+            if ($decoded !== false) {
+                $attachment = [
+                    'filename' => (string) ($raw['filename'] ?? 'attachment.pdf'),
+                    'mime'     => (string) ($raw['mime'] ?? 'application/octet-stream'),
+                    'data'     => $decoded,
+                ];
+            }
+        }
         $result = MailService::send($to, $subject, $html, self::recipients($request->input('cc')), [
-            'template' => $request->string('template') ?: null,
-            'html'     => $request->bool('raw', false),
+            'template'   => $request->string('template') ?: null,
+            'html'       => $request->bool('raw', false),
+            'attachment' => $attachment,
         ]);
         Response::ok($result, $result['status'] === 'sent' ? '200' : '502');
     }

@@ -377,7 +377,7 @@ export const lic = {
     return call('/api/v1/sync/student', params)
   },
 
-  sendMail(params: { to: string | string[]; subject: string; html: string; template?: string; raw?: boolean }) {
+  sendMail(params: { to: string | string[]; subject: string; html: string; template?: string; raw?: boolean; attachment?: { filename: string; data: string; mime?: string } }) {
     return call('/api/v1/mail/send', params)
   },
 

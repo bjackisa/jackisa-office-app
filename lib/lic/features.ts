@@ -40,6 +40,7 @@ export const FEATURES: Record<string, { name: string; category: string; minTier:
   invoicing:    { name: 'Invoicing',            category: 'finance',    minTier: 'basic',    route: '/app/accounting/invoices' },
   expenses:     { name: 'Expenses',             category: 'finance',    minTier: 'basic',    route: '/app/accounting/expenses' },
   vat:          { name: 'VAT Management',       category: 'finance',    minTier: 'basic',    route: '/app/accounting/vat' },
+  ura_efiling:  { name: 'URA e-Filing',         category: 'finance',    minTier: 'basic',    route: '/app/accounting/ura' },
   bookkeeping:  { name: 'Bookkeeping',          category: 'finance',    minTier: 'basic',    route: '/app/accounting/bookkeeping' },
   hr:           { name: 'HR & Payroll',         category: 'hr',         minTier: 'basic',    route: '/app/hr' },
   payroll:      { name: 'Payroll',              category: 'hr',         minTier: 'basic',    route: '/app/hr/payroll' },

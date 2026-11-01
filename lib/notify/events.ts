@@ -43,6 +43,7 @@ export type NotifyEvent =
   | 'student.enrolled'
   | 'license.expiring'
   | 'account.statement'
+  | 'tax.filing'
   | 'generic'
 
 export interface DocumentSpec {

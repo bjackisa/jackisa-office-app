@@ -316,6 +316,61 @@ const builders: Record<string, Builder> = {
     text: `Your licence for ${companyName} expires in ${data.daysLeft} day(s) on ${data.expiresAt}.`,
     template: 'license_expiring',
   }),
+
+  'tax.filing': ({ companyName, data }) => {
+    const returnName = String(data.returnName || (data.returnType === 'paye' ? 'PAYE Return (DT2008)' : 'Income Tax Return (DT20002)'))
+    const period = String(data.period || '')
+    const tin = String(data.tin || '')
+    const tax = money(data.taxPayable, 'UGX')
+    const validation = data.validationOk ? 'Passed validation' : 'Needs attention'
+    return {
+      subject: `${returnName} for ${s(period)} — ready to file`,
+      html:
+        p(`Hello,`) +
+        p(`The <strong>${s(returnName)}</strong> for <strong>${s(companyName)}</strong> covering <strong>${s(period)}</strong> has been prepared and validated by Jackisa Office.`) +
+        table(
+          row('TIN', s(tin)) +
+          row('Period', s(period)) +
+          (data.chargeableIncome !== undefined ? row('Chargeable income', money(data.chargeableIncome, 'UGX')) : '') +
+          (data.grossSalary !== undefined ? row('Gross payroll', money(data.grossSalary, 'UGX')) : '') +
+          row('Tax payable', `<strong>${tax}</strong>`) +
+          row('Validation', s(validation)),
+        ) +
+        p('The completed URA workbook is attached. Upload it at ura.go.ug under e-Returns.') +
+        (data.dueDate ? p(`Filing deadline: <strong>${s(data.dueDate)}</strong>.`) : ''),
+      text: `${returnName} for ${companyName} (${period}) is ready. Tax payable ${tax}. ${validation}. The URA workbook is attached.`,
+      document: {
+        kind: 'tax_return',
+        eyebrow: 'Tax filing',
+        title: returnName,
+        subtitle: `${s(companyName)} · ${s(period)}`,
+        status: data.validationOk ? 'Ready' : 'Draft',
+        status_tone: data.validationOk ? 'pass' : 'due',
+        filename: `ura-${data.returnType === 'paye' ? 'paye' : 'income-tax'}-${s(period, 'return').replace(/\s+/g, '-')}.xlsx`,
+        meta: [
+          ['Taxpayer', String(companyName || '')],
+          ['TIN', tin],
+          ['Period', period],
+          ['Return', returnName],
+          ...(data.dueDate ? [['Due date', String(data.dueDate)] as [string, string]] : []),
+        ],
+        tables: [{
+          title: 'Summary',
+          columns: [{ label: 'Item' }, { label: 'Amount', align: 'right' }],
+          rows: [
+            ...(data.chargeableIncome !== undefined ? [['Chargeable income', money(data.chargeableIncome, 'UGX')]] : []),
+            ...(data.grossSalary !== undefined ? [['Gross payroll', money(data.grossSalary, 'UGX')]] : []),
+            ...(data.employees !== undefined ? [['Employees', String(data.employees)]] : []),
+            [{ text: 'Tax payable', strong: true }, { text: tax, strong: true }],
+          ],
+        }],
+        note: data.validationOk
+          ? 'Validated against URA return checks. Upload the attached workbook at ura.go.ug.'
+          : 'Some checks need attention — review the attached workbook before filing.',
+      },
+      template: 'tax_filing',
+    }
+  },
 }
 
 /** Build a message for an event, falling back to a safe generic template. */
