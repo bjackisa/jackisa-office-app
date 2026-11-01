@@ -52,7 +52,8 @@ export async function POST(req: NextRequest) {
       <h2 style="margin:0 0 4px">${returnName}</h2>
       <p style="margin:0 0 16px;color:#475569;font-size:14px">${bundle.taxpayer.name} · ${bundle.period.label}</p>
       <p style="font-size:14px;color:#475569">The return below was prepared and validated by Jackisa Office.
-      Upload the attached workbook at <strong>ura.go.ug</strong> under e-Returns.</p>
+      Open the official URA template for this return, copy these figures in, press <strong>VALIDATE</strong>,
+      then upload the generated file at <strong>ura.go.ug</strong> under e-Returns.</p>
       <table style="width:100%;border-collapse:collapse;font-size:14px;margin:12px 0">
         <tr><td style="padding:6px 0;color:#94a3b8">TIN</td><td style="text-align:right">${bundle.taxpayer.tin || '—'}</td></tr>
         <tr><td style="padding:6px 0;color:#94a3b8">Period</td><td style="text-align:right">${bundle.period.start} to ${bundle.period.end}</td></tr>
@@ -69,7 +70,7 @@ export async function POST(req: NextRequest) {
     (isPaye ? `PAYE payable: ${ugx(summary.taxPayable)}\n` : `Chargeable income: ${ugx(summary.chargeableIncome)}\nTax payable: ${ugx(summary.taxPayable)}\n`) +
     `Validation: ${validation.ok ? 'Passed' : `${validation.errors} error(s)`}\n` +
     (bundle.period.dueDate ? `Deadline: ${bundle.period.dueDate}\n` : '') +
-    `The URA workbook has been emailed. Upload it at ura.go.ug under e-Returns.`
+    `The completed URA workbook has been emailed. Copy the figures into the official URA template, press VALIDATE, then upload the generated file at ura.go.ug under e-Returns.`
 
   const [email, whatsapp] = await Promise.all([
     recipients.emails.length

@@ -43,6 +43,9 @@ export default function UraFilingPage() {
   const [filings, setFilings] = useState<any[]>([])
   const [delivering, setDelivering] = useState(false)
   const [notice, setNotice] = useState<string | null>(null)
+  const [taxpayer, setTaxpayer] = useState<any>(null)
+  const [tinInput, setTinInput] = useState('')
+  const [savingTin, setSavingTin] = useState(false)
 
   const [newKind, setNewKind] = useState('addition')
   const [newLabel, setNewLabel] = useState('')
@@ -67,6 +70,37 @@ export default function UraFilingPage() {
 
   useEffect(() => { loadAdjustments() }, [loadAdjustments])
   useEffect(() => { loadFilings() }, [loadFilings])
+
+  const loadTaxpayer = useCallback(async () => {
+    if (!companyId) return
+    const res = await apiJson<{ ok: boolean; data?: any }>(`/api/ura/taxpayer?companyId=${companyId}`)
+    if (res.ok && res.data) {
+      setTaxpayer(res.data)
+      setTinInput(res.data.tin || '')
+    }
+  }, [companyId])
+
+  useEffect(() => { loadTaxpayer() }, [loadTaxpayer])
+
+  const saveTin = async () => {
+    if (!companyId) return
+    setSavingTin(true); setError(null); setNotice(null)
+    try {
+      const res = await apiJson<{ ok: boolean; data?: any; error?: string }>('/api/ura/taxpayer', {
+        method: 'PATCH',
+        body: JSON.stringify({ companyId, tin: tinInput }),
+      })
+      if (res.ok && res.data) {
+        setTaxpayer(res.data)
+        setNotice('TIN saved. Prepare the return again to pick it up.')
+        setPreview(null); setValidation(null)
+      } else {
+        setError(res.error || 'Could not save the TIN')
+      }
+    } finally {
+      setSavingTin(false)
+    }
+  }
 
   const compute = useCallback(async () => {
     if (!companyId) return
@@ -106,7 +140,7 @@ export default function UraFilingPage() {
       a.download = `ura-${returnType === 'paye' ? 'paye' : 'income-tax'}-${periodStart}-to-${periodEnd}.xlsx`
       a.click()
       URL.revokeObjectURL(url)
-      setNotice('Workbook generated. Upload it at ura.go.ug under e-Returns.')
+      setNotice('Workbook generated. Copy the figures into the official URA template, press VALIDATE, then upload the generated file at ura.go.ug.')
       loadFilings()
     } finally {
       setBusy(false)
@@ -227,6 +261,45 @@ export default function UraFilingPage() {
       {notice && (
         <div className="rounded-xl bg-emerald-500/[0.07] border border-emerald-500/20 p-4 text-sm text-emerald-700 flex items-center gap-2">
           <CheckCircle2 className="w-4 h-4" />{notice}
+        </div>
+      )}
+
+      {/* Taxpayer identity — a return is rejected without a TIN */}
+      {taxpayer && !taxpayer.tin && (
+        <Card className="p-5 border-amber-500/30 bg-amber-500/[0.04]">
+          <div className="flex items-start gap-3">
+            <AlertTriangle className="w-5 h-5 text-amber-500 mt-0.5 shrink-0" />
+            <div className="flex-1 space-y-3">
+              <div>
+                <h2 className="text-sm font-semibold text-foreground">Add your TIN to file</h2>
+                <p className="text-sm text-muted-foreground mt-0.5">
+                  URA rejects any return without a Tax Identification Number. Enter it once — it is saved
+                  on your company and used on every return.
+                </p>
+              </div>
+              <div className="flex flex-wrap items-end gap-3">
+                <div className="flex-1 min-w-[220px]">
+                  <label className="block text-xs font-medium text-muted-foreground mb-1.5">TIN</label>
+                  <Input
+                    value={tinInput}
+                    onChange={(e) => setTinInput(e.target.value)}
+                    placeholder="e.g. 1001234567"
+                  />
+                </div>
+                <Button onClick={saveTin} disabled={savingTin || !tinInput.trim()} className="gap-2">
+                  {savingTin ? <Spinner size="sm" /> : <ShieldCheck className="w-4 h-4" />} Save TIN
+                </Button>
+              </div>
+            </div>
+          </div>
+        </Card>
+      )}
+
+      {taxpayer?.tin && (
+        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+          <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
+          Filing as <span className="font-medium text-foreground">{taxpayer.name}</span>
+          <span className="text-muted-foreground/50">·</span> TIN <span className="font-mono">{taxpayer.tin}</span>
         </div>
       )}
 

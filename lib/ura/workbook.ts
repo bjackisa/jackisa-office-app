@@ -83,8 +83,14 @@ function helpSheet(wb: ExcelJS.Workbook, returnType: 'income_tax' | 'paye', vali
     'How to use it:',
     '1. Review the Return Details sheet and correct any taxpayer details.',
     '2. Check the schedule sheets — every line came from your invoices, expenses, notes and payroll.',
-    '3. Read the Validation sheet. It runs the same checks the URA macro performs.',
-    '4. When there are no errors, upload this file at ura.go.ug under e-Returns.',
+    '3. Read the Validation sheet. It runs the same checks the URA macro performs before it',
+    '   will generate an upload file.',
+    '4. Open the official URA template for this return, copy these figures in, then press VALIDATE',
+    '   and answer YES to generate the upload file. Upload that file at ura.go.ug under e-Returns.',
+    '',
+    'Why the extra step: the URA macro emits a compressed upload file that only its own VBA can',
+    'produce, so a plain .xlsx is not accepted by the portal. This workbook gives you the filled,',
+    'validated figures in the template order so the copy-in is quick and error-free.',
     '',
     'The formulas are live: edit a line and the totals and tax computation update.',
   ]
@@ -206,7 +212,17 @@ function buildIncomeTaxSheets(wb: ExcelJS.Workbook, bundle: UraReturnBundle, val
   for (const a of balRows) {
     bal.addRow([a.kind === 'asset' ? 'Asset' : 'Liability', a.label, a.reference || '', round2(a.amount), a.notes || ''])
   }
-  if (!balRows.length) bal.addRow(['', 'No assets or liabilities added', '', 0, ''])
+  // Balances carried from the chart of accounts, so the sheet reconciles with
+  // the totals the summary and validation use.
+  if (data.totals.accountsAssets) {
+    bal.addRow(['Asset', 'Balance per chart of accounts', '', round2(data.totals.accountsAssets), 'From accounting accounts'])
+  }
+  if (data.totals.accountsLiabilities) {
+    bal.addRow(['Liability', 'Balance per chart of accounts', '', round2(data.totals.accountsLiabilities), 'From accounting accounts'])
+  }
+  if (!balRows.length && !data.totals.accountsAssets && !data.totals.accountsLiabilities) {
+    bal.addRow(['', 'No assets or liabilities added', '', 0, ''])
+  }
   const balEnd = bal.lastRow!.number
   for (let r = balStart; r <= balEnd; r++) bal.getCell(r, 4).numFmt = MONEY
   totalRow(bal, 'Total assets', 3, { formula: `SUMIF(A${balStart}:A${balEnd},"Asset",D${balStart}:D${balEnd})` })

@@ -82,8 +82,17 @@ function validateIncomeTax(bundle: UraReturnBundle, add: Add) {
   if (computation.taxPayable > 0) {
     add('pass', 'TAX_COMPUTED', `Tax payable computed at ${(computation.rate * 100).toFixed(0)}%.`, 'Tax Computation')
   }
-  if (Math.abs(totals.totalAssets - data.adjustments.filter((a) => a.kind === 'asset').reduce((s, a) => s + Number(a.amount || 0), 0)) > 0.5) {
-    add('warning', 'ASSETS_MISMATCH', 'Statement of assets does not reconcile with the added asset rows.', 'Schedule D')
+  // The balance sheet combines chart-of-accounts balances with rows the user
+  // added, so compare against that combined figure.
+  const addedAssets = round2(data.adjustments.filter((a) => a.kind === 'asset').reduce((s, a) => s + Number(a.amount || 0), 0))
+  const expectedAssets = round2((totals.accountsAssets || 0) + addedAssets)
+  if (Math.abs(totals.totalAssets - expectedAssets) > 0.5) {
+    add('warning', 'ASSETS_MISMATCH', 'Statement of assets does not reconcile with the chart of accounts and added asset rows.', 'Schedule D')
+  }
+  const addedLiabilities = round2(data.adjustments.filter((a) => a.kind === 'liability').reduce((s, a) => s + Number(a.amount || 0), 0))
+  const expectedLiabilities = round2((totals.accountsLiabilities || 0) + addedLiabilities)
+  if (Math.abs(totals.totalLiabilities - expectedLiabilities) > 0.5) {
+    add('warning', 'LIABILITIES_MISMATCH', 'Statement of liabilities does not reconcile with the chart of accounts and added liability rows.', 'Schedule D')
   }
 }
 

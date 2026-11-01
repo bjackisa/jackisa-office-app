@@ -71,8 +71,11 @@ export interface UraIncomeTaxData {
     allowableExpenses: number
     additions: number
     deductions: number
+    /** Balance-sheet totals, combining chart-of-accounts balances and added rows. */
     totalAssets: number
     totalLiabilities: number
+    accountsAssets: number
+    accountsLiabilities: number
   }
   computation: IncomeTaxResult
 }

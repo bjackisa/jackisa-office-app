@@ -62,6 +62,10 @@ export default function CompanySettings() {
           city: company.city,
           industry: company.industry,
           kind: (company as any).kind,
+          // URA returns need a TIN. Keep the legacy tax_id column in step so
+          // every tax screen sees the same number.
+          tax_id: company.tax_id,
+          tin: company.tax_id,
         })
         .eq('id', company.id)
 
@@ -140,6 +144,20 @@ export default function CompanySettings() {
                     onChange={(e) => setCompany({ ...company, industry: e.target.value })}
                     placeholder="e.g. Technology, Finance"
                   />
+                </div>
+                <div>
+                  <label htmlFor="tax_id" className="block text-xs font-medium text-muted-foreground mb-1.5">
+                    TIN (URA Tax Identification Number)
+                  </label>
+                  <Input
+                    id="tax_id"
+                    value={company.tax_id || ''}
+                    onChange={(e) => setCompany({ ...company, tax_id: e.target.value })}
+                    placeholder="e.g. 1001234567"
+                  />
+                  <p className="text-[11px] text-muted-foreground/60 mt-1.5">
+                    Required on every URA return. Find it on your URA portal profile or TIN certificate.
+                  </p>
                 </div>
                 <div>
                   <label htmlFor="kind" className="block text-xs font-medium text-muted-foreground mb-1.5">

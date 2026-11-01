@@ -155,7 +155,7 @@ export async function collectIncomeTax(args: CollectArgs): Promise<UraIncomeTaxD
     debitNotes: debitLines,
     adjustments,
     vat: { outputVat, inputVat, netVat: round2(outputVat - inputVat) },
-    totals: { grossIncome, allowableExpenses, additions, deductions, totalAssets, totalLiabilities },
+    totals: { grossIncome, allowableExpenses, additions, deductions, totalAssets, totalLiabilities, accountsAssets: acctAssets, accountsLiabilities: acctLiabilities },
     computation,
   }
 }
