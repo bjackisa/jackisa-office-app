@@ -409,3 +409,17 @@ See `.openhands/memory/2026-11-01.md`. Headlines:
   references `company_employees.id`; `salary_structures` also has `other_allowances`;
   `company_roles` has **no** `is_admin` column (admin = role/position name matches
   admin|owner|director|principal|manager, or the company owner).
+
+### Nov 2026 (maintenance mode) — see `.openhands/memory/2026-11-03.md`
+- **Next.js 16 renamed `middleware.ts` → `proxy.ts`** (export `proxy`, Node.js
+  runtime, no `runtime` export allowed). Use it, not `middleware.ts`.
+- **Maintenance gate**: `MAINTENANCE_MODE=on` closes the whole site via `proxy.ts`
+  → `public/maintenance.html` (HTML rewrite; 503 for `/api/*` and non-HTML). Only a
+  `super_admin` passes, after `POST /api/maintenance/unlock` with
+  `MAINTENANCE_BYPASS_KEY` + their own credentials; mints the `jo_maint_bypass`
+  cookie. Unlinked form: `/unlock.html`. `MAINTENANCE_MODE=off` disables the gate.
+- **Vercel env vars are captured at build creation.** The upsert
+  (`/v10/projects/{id}/env?upsert=true`) does not rebuild; force one with
+  `POST /v13/deployments?teamId=…&forceNew=1` `{name,deploymentId,target:'production'}`.
+- The template's CDN Lottie is blocked by the app CSP, so the runtime is inlined
+  into `public/maintenance.html`.
