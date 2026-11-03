@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Administrator access · Jackisa Office</title>
+<style>
+  :root {
+    --bg: #060606;
+    --surface: rgba(255,255,255,.055);
+    --surface-2: rgba(255,255,255,.07);
+    --hairline: rgba(255,255,255,.11);
+    --highlight: rgba(255,255,255,.20);
+    --text: #f5f5f5;
+    --text-2: rgba(245,245,245,.62);
+    --text-3: rgba(245,245,245,.38);
+    --accent: #ffffff;
+    --accent-ink: #000000;
+    --danger: #ff6b6b;
+    --font: "Segoe UI Variable Display","SF Pro Display",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  }
+  @media (prefers-color-scheme: light) {
+    :root {
+      --bg: #f3f3f4;
+      --surface: rgba(255,255,255,.62);
+      --surface-2: rgba(0,0,0,.04);
+      --hairline: rgba(0,0,0,.09);
+      --highlight: rgba(255,255,255,.95);
+      --text: #0b0b0b;
+      --text-2: rgba(11,11,11,.62);
+      --text-3: rgba(11,11,11,.4);
+      --accent: #000000;
+      --accent-ink: #ffffff;
+      --danger: #b3261e;
+    }
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body {
+    font-family: var(--font); background: var(--bg); color: var(--text);
+    display: grid; place-items: center; padding: 24px;
+    -webkit-font-smoothing: antialiased;
+  }
+  .card {
+    width: min(100%, 420px); padding: 32px; border-radius: 24px;
+    background: linear-gradient(180deg, rgba(255,255,255,.07), transparent 38%), var(--surface);
+    box-shadow: inset 0 0 0 1px var(--hairline), inset 0 1px 0 var(--highlight), 0 40px 80px -30px rgba(0,0,0,.8);
+  }
+  h1 { margin: 0; font-size: 1.4rem; letter-spacing: -.02em; font-weight: 650; }
+  p.sub { margin: 8px 0 0; font-size: .9rem; line-height: 1.55; color: var(--text-2); }
+  label { display: block; margin: 18px 0 6px; font-size: .78rem; letter-spacing: .04em; text-transform: uppercase; color: var(--text-3); }
+  input {
+    width: 100%; padding: 12px 14px; border-radius: 12px; font-size: .95rem; color: var(--text);
+    background: var(--surface-2); border: 1px solid var(--hairline); outline: none;
+  }
+  input:focus { border-color: var(--text-3); }
+  button {
+    width: 100%; margin-top: 22px; padding: 13px; border: 0; border-radius: 999px; cursor: pointer;
+    background: var(--accent); color: var(--accent-ink); font-weight: 650; font-size: .95rem;
+  }
+  button:disabled { opacity: .55; cursor: default; }
+  .msg { margin-top: 16px; font-size: .85rem; line-height: 1.5; min-height: 1.2em; }
+  .msg.err { color: var(--danger); }
+  .msg.ok { color: var(--text); }
+</style>
+</head>
+<body>
+  <form class="card" id="form" autocomplete="off">
+    <h1>Administrator access</h1>
+    <p class="sub">Jackisa Office is closed for maintenance. Sign in with a platform administrator account to preview the live app.</p>
+
+    <label for="email">Email</label>
+    <input id="email" name="email" type="email" required autocomplete="username">
+
+    <label for="password">Password</label>
+    <input id="password" name="password" type="password" required autocomplete="current-password">
+
+    <label for="key">Maintenance key</label>
+    <input id="key" name="key" type="password" required autocomplete="off">
+
+    <button type="submit" id="submit">Unlock</button>
+    <div class="msg" id="msg" role="status" aria-live="polite"></div>
+  </form>
+
+  <script>
+    const form = document.getElementById('form')
+    const msg = document.getElementById('msg')
+    const btn = document.getElementById('submit')
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault()
+      msg.className = 'msg'
+      msg.textContent = 'Verifying…'
+      btn.disabled = true
+      try {
+        const res = await fetch('/api/maintenance/unlock', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            email: document.getElementById('email').value,
+            password: document.getElementById('password').value,
+            key: document.getElementById('key').value,
+          }),
+        })
+        const data = await res.json().catch(() => ({}))
+        if (!res.ok) {
+          msg.className = 'msg err'
+          msg.textContent = data.error || 'Could not unlock.'
+          return
+        }
+        msg.className = 'msg ok'
+        msg.textContent = 'Unlocked. Redirecting…'
+        window.location.replace('/app')
+      } catch (err) {
+        msg.className = 'msg err'
+        msg.textContent = 'Something went wrong. Please try again.'
+      } finally {
+        btn.disabled = false
+      }
+    })
+  </script>
+</body>
+</html>
