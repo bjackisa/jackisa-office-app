@@ -423,6 +423,14 @@ See `.openhands/memory/2026-11-01.md`. Headlines:
   data URI — Dompdf keeps `isRemoteEnabled=false`. Monogram is the fallback.
 - Dompdf: `inline-block` + `line-height` centring drops text low in small badges; use a
   one-cell table with `vertical-align: middle` (see `.cr-seal`).
+- **lic server is now a git checkout** (`~/domains/lic.jackisa.com/app`, tracking
+  `bjackisa/jackisa-license-hub` `origin/main`, server push creds in `~/.git-credentials`).
+  Deploy = push to the hub repo, then on the server `cd ~/domains/lic.jackisa.com/app &&
+  git pull --ff-only` (+ `php bin/migrate.php` if migrations changed). Check `git status` is
+  clean first — anything edited on the server must be committed, not overwritten. Runtime
+  files are gitignored; old top-level duplicates (`Controller/`, `Service/`…) are in
+  `.git/info/exclude`. The security replication code (SecurityService etc.) lived only on
+  the server until commit `134aa8d`.
 
 ### Nov 2026 (maintenance mode) — see `.openhands/memory/2026-11-03.md`
 - **Next.js 16 renamed `middleware.ts` → `proxy.ts`** (export `proxy`, Node.js
