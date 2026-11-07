@@ -73,7 +73,7 @@ export async function POST(req: NextRequest) {
           company_phone: company?.phone || undefined,
           company_logo_url: company?.logo_url || undefined,
           student: studentPayload,
-          modules: ctx.standing.modules.map((m) => ({ code: m.code, name: m.name, coursework: m.coursework, exam: m.exam, total: m.total, grade: m.grade })),
+          modules: ctx.standing.modules.map((m) => ({ code: m.code, name: m.name, coursework: m.coursework, exam: m.exam, retake: m.retake, total: m.total, grade: m.grade })),
           summary: { average: ctx.standing.average, points: ctx.standing.points },
           recipients,
         })

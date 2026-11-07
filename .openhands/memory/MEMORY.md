@@ -410,6 +410,20 @@ See `.openhands/memory/2026-11-01.md`. Headlines:
   `company_roles` has **no** `is_admin` column (admin = role/position name matches
   admin|owner|director|principal|manager, or the company owner).
 
+### Nov 2026 (exam retakes + document masthead) — Nov 7
+- **Retakes are derived, not stored.** Every exam mark is its own `student_grades_final_exam`
+  row (no unique key). Per student+module, sittings ordered by the mark's `created_at`:
+  first = Exam, any later = Retake; the latest retake replaces the exam in the total
+  (50% coursework + 50% retake). Shared helpers `examAttempts` / `examAndRetake` in
+  `lib/education/standings.ts` drive Grades, Exams and the transcript payload (`retake`).
+  The Exams screen never reuses a paper the student already sat (no overwrite).
+- Hub transcript adds a Retake column only when a module was retaken (exam struck through).
+- **PDF masthead now shows the company logo**: hub fetches `company_logo_url` server-side,
+  normalises to PNG, caches in `storage/logos` (1 day; `.miss` marker 1 h) and inlines a
+  data URI — Dompdf keeps `isRemoteEnabled=false`. Monogram is the fallback.
+- Dompdf: `inline-block` + `line-height` centring drops text low in small badges; use a
+  one-cell table with `vertical-align: middle` (see `.cr-seal`).
+
 ### Nov 2026 (maintenance mode) — see `.openhands/memory/2026-11-03.md`
 - **Next.js 16 renamed `middleware.ts` → `proxy.ts`** (export `proxy`, Node.js
   runtime, no `runtime` export allowed). Use it, not `middleware.ts`.

@@ -8,6 +8,11 @@ import type { SupabaseClient } from '@supabase/supabase-js'
  * notification and the report card. Coursework and the final exam each carry 50%
  * of a module and the module total is their sum. Keep this in step with the
  * Grades screen (app/app/education/grades/page.tsx), which is the reference.
+ *
+ * Retakes: the first exam mark entered for a student on a module is the Exam;
+ * any later entry is a Retake. When a retake exists the module total is
+ * 50% coursework + 50% of the (latest) retake — the original exam is still
+ * reported, it just no longer counts.
  */
 
 export const COURSEWORK_WEIGHT = 0.5
@@ -23,9 +28,11 @@ export interface ModuleStanding {
   name: string
   /** The coursework half's contribution to the module total (0–50), or null when nothing was graded. */
   coursework: number | null
-  /** The exam half's contribution (0–50), or null when the paper was not sat. */
+  /** The first exam sitting's contribution (0–50), or null when the paper was not sat. */
   exam: number | null
-  /** Module total out of 100 — coursework + exam. */
+  /** The latest retake's contribution (0–50), or null when there was no retake. */
+  retake: number | null
+  /** Module total out of 100 — coursework + retake when retaken, else coursework + exam. */
   total: number | null
   grade: string
   missed_days: number
@@ -51,6 +58,42 @@ export function gradeFor(pct: number | null): string {
 }
 
 const round1 = (n: number): number => Math.round(n * 10) / 10
+
+export interface ExamAttempt {
+  grade: any
+  exam: any
+  /** Raw percentage for the sitting (marks / max × 100). */
+  percent: number
+}
+
+/**
+ * A student's exam sittings on one module, oldest first. Entry order
+ * (`created_at` of the mark) decides which is the exam and which the retake;
+ * exam_date breaks ties for legacy rows recorded without a timestamp.
+ */
+export function examAttempts(exams: any[], examGrades: any[], studentId: string | null, moduleId: string): ExamAttempt[] {
+  const examById = new Map(exams.filter((e) => e.module_id === moduleId).map((e) => [e.id, e]))
+  return examGrades
+    .filter((g) => (studentId === null || g.student_id === studentId) && examById.has(g.final_exam_id))
+    .map((g) => {
+      const exam = examById.get(g.final_exam_id)
+      return { grade: g, exam, percent: (Number(g.marks_obtained) / Number(exam?.max_marks || 100)) * 100 }
+    })
+    .sort((a, b) =>
+      String(a.grade.created_at || '').localeCompare(String(b.grade.created_at || '')) ||
+      String(a.exam?.exam_date || '').localeCompare(String(b.exam?.exam_date || '')),
+    )
+}
+
+/** Split sittings into the original exam and the latest retake, each as 0–50 points. */
+export function examAndRetake(attempts: ExamAttempt[]): { exam: number | null; retake: number | null; retakes: number } {
+  const toPoints = (a?: ExamAttempt) => (a ? round1((a.percent / 100) * EXAM_POINTS) : null)
+  return {
+    exam: toPoints(attempts[0]),
+    retake: attempts.length > 1 ? toPoints(attempts[attempts.length - 1]) : null,
+    retakes: Math.max(0, attempts.length - 1),
+  }
+}
 
 export function totalFor(coursework: number | null, exam: number | null): number | null {
   if (coursework === null && exam === null) return null
@@ -102,18 +145,10 @@ export function computeStanding(input: {
       ? round1(Math.min((cwSum / cwMax) * COURSEWORK_POINTS, COURSEWORK_POINTS))
       : null
 
-    // Exam half: out of 50. Each mark entry creates its own final_exams row, so
-    // pick this student's paper (latest by exam_date, as the Grades screen does)
-    // rather than summing every exam row on the module.
-    const satRows = modExams
-      .map((e) => ({ e, g: examGrades.find((g) => g.final_exam_id === e.id) }))
-      .filter((x) => x.g)
-      .sort((a, b) => String(b.e.exam_date || '').localeCompare(String(a.e.exam_date || '')))
-    const sat = satRows[0]
-    const exam = sat
-      ? round1((Number(sat.g.marks_obtained) / Number(sat.e.max_marks || 100)) * EXAM_POINTS)
-      : null
-    const total = totalFor(coursework, exam)
+    // Exam half: out of 50. The first sitting is the exam; a later entry is a
+    // retake, and when there is one it replaces the exam in the total.
+    const { exam, retake } = examAndRetake(examAttempts(modExams, examGrades, null, mod.id))
+    const total = totalFor(coursework, retake ?? exam)
 
     rows.push({
       module_id: mod.id,
@@ -121,6 +156,7 @@ export function computeStanding(input: {
       name: mod.module_name || '',
       coursework,
       exam,
+      retake,
       total,
       grade: gradeFor(total),
       missed_days: missed,
@@ -173,7 +209,7 @@ export async function loadStudentContext(db: SupabaseClient, companyId: string, 
       db.from('coursework_days').select('id, module_id, day_number, title, max_marks'),
       db.from('student_grades_coursework').select('coursework_day_id, marks_obtained').eq('student_id', studentId),
       db.from('final_exams').select('id, module_id, exam_date, max_marks'),
-      db.from('student_grades_final_exam').select('final_exam_id, marks_obtained').eq('student_id', studentId),
+      db.from('student_grades_final_exam').select('final_exam_id, marks_obtained, created_at').eq('student_id', studentId),
     ])
 
   const companyModules = modules || []

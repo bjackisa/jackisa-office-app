@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button'
 import { getSessionContext } from '@/lib/company-context'
 import { supabase } from '@/lib/supabase'
 import { notifyStudent } from '@/lib/education/notify-client'
-import { gradeFor, totalFor } from '@/lib/education/standings'
+import { examAndRetake, examAttempts, gradeFor, totalFor } from '@/lib/education/standings'
 
 const STATUS_OPTIONS = ['Pending', 'Active', 'Failed', 'Suspended', 'Deceased', 'Graduated']
 
@@ -26,8 +26,8 @@ export default function GradesPage() {
       supabase.from('education_modules').select('id, module_code, module_name').eq('company_id', ctx.companyId).order('module_code'),
       supabase.from('coursework_days').select('id, module_id, max_marks'),
       supabase.from('student_grades_coursework').select('student_id, coursework_day_id, marks_obtained'),
-      supabase.from('final_exams').select('id, module_id, exam_date').order('exam_date', { ascending: false }),
-      supabase.from('student_grades_final_exam').select('student_id, final_exam_id, marks_obtained'),
+      supabase.from('final_exams').select('id, module_id, exam_date, max_marks').order('exam_date', { ascending: false }),
+      supabase.from('student_grades_final_exam').select('student_id, final_exam_id, marks_obtained, created_at'),
     ])
 
     const students = studentsRes.data || []
@@ -78,11 +78,11 @@ export default function GradesPage() {
 
       const coursework50 = courseworkMax > 0 ? Math.round(Math.min((courseworkTotalRaw / courseworkMax) * 50, 50) * 10) / 10 : null
 
-      const moduleExamIds = exams.filter((exam) => exam.module_id === module.id).map((exam) => exam.id)
-      const examRow = examGrades.find((grade) => grade.student_id === student.id && moduleExamIds.includes(grade.final_exam_id))
-      const examMarks = examRow ? Number(examRow.marks_obtained) : null
-      const exam50 = examMarks === null ? null : Math.round((examMarks / 100) * 50 * 10) / 10
-      const total = totalFor(coursework50, exam50)
+      // First sitting = Exam, any later entry = Retake; a retake replaces the exam in the total.
+      const attempts = examAttempts(exams, examGrades, student.id, module.id)
+      const { exam: exam50, retake: retake50, retakes } = examAndRetake(attempts)
+      const examMarks = attempts.length ? Number(attempts[0].grade.marks_obtained) : null
+      const total = totalFor(coursework50, retake50 ?? exam50)
 
       report.push({
         studentPk: student.id,
@@ -96,6 +96,8 @@ export default function GradesPage() {
         coursework50,
         examMarks,
         exam50,
+        retake50,
+        retakes,
         total,
         grade: gradeFor(total),
         status: 'Active',
@@ -144,7 +146,7 @@ export default function GradesPage() {
     <div className="p-6 lg:p-8 max-w-[1400px] mx-auto animate-fade-in space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-foreground tracking-tight">Grades</h1>
-        <p className="text-sm text-muted-foreground mt-0.5">50% coursework + 50% exam</p>
+        <p className="text-sm text-muted-foreground mt-0.5">50% coursework + 50% exam — when a student retakes, the retake replaces the exam</p>
       </div>
 
       {message && <div className="rounded-xl p-4 text-sm bg-primary/[0.06] border border-primary/15 text-foreground">{message}</div>}
@@ -160,6 +162,7 @@ export default function GradesPage() {
               <th className="text-center">Coursework Raw</th>
               <th className="text-center">Coursework (50%)</th>
               <th className="text-center">Exam (50%)</th>
+              <th className="text-center">Retake (50%)</th>
               <th className="text-center">Overall Grade</th>
               <th className="text-center">Grade</th>
               <th>Status</th>
@@ -177,7 +180,15 @@ export default function GradesPage() {
                 <td className="font-mono text-xs text-muted-foreground">{row.studentID}</td>
                 <td className="text-center tabular-nums">{row.courseworkMax > 0 ? `${row.courseworkTotalRaw} / ${row.courseworkMax}` : '—'}</td>
                 <td className="text-center tabular-nums">{row.coursework50 === null ? '—' : row.coursework50.toFixed(1)}</td>
-                <td className="text-center tabular-nums">{row.exam50 === null ? '—' : row.exam50.toFixed(1)}</td>
+                <td className={`text-center tabular-nums ${row.retake50 !== null ? 'text-muted-foreground line-through decoration-muted-foreground/50' : ''}`} title={row.retake50 !== null ? 'Superseded by the retake' : undefined}>{row.exam50 === null ? '—' : row.exam50.toFixed(1)}</td>
+                <td className="text-center tabular-nums">
+                  {row.retake50 === null ? '—' : (
+                    <span className="inline-flex items-center gap-1.5">
+                      {row.retake50.toFixed(1)}
+                      <span className="rounded-full bg-amber-500/10 text-amber-700 dark:text-amber-400 px-1.5 py-0.5 text-[10px] font-semibold">{row.retakes > 1 ? `R${row.retakes}` : 'R'}</span>
+                    </span>
+                  )}
+                </td>
                 <td className="text-center font-bold tabular-nums">{row.total === null ? '— / 100' : `${row.total.toFixed(1)} / 100`}</td>
                 <td className="text-center font-semibold">{row.grade}</td>
                 <td>
@@ -197,7 +208,7 @@ export default function GradesPage() {
                 </td>
               </tr>
             ))}
-            {sortedRows.length === 0 && <tr><td className="!py-12 text-center text-muted-foreground/60" colSpan={10}>No enrolled students found.</td></tr>}
+            {sortedRows.length === 0 && <tr><td className="!py-12 text-center text-muted-foreground/60" colSpan={11}>No enrolled students found.</td></tr>}
           </tbody>
         </table>
         </div>

@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { getSessionContext } from '@/lib/company-context'
 import { supabase } from '@/lib/supabase'
 import { notifyStudent } from '@/lib/education/notify-client'
+import { examAttempts } from '@/lib/education/standings'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -21,7 +22,7 @@ export default function ExamsPage() {
     if (!ctx?.companyId) return
     const [mRes, eRes, sRes , cwRes, egRes] = await Promise.all([
       supabase.from('education_modules').select('id, module_code, module_name').eq('company_id', ctx.companyId).order('module_code'),
-      supabase.from('final_exams').select('id, module_id, exam_date').order('exam_date', { ascending: false }),
+      supabase.from('final_exams').select('id, module_id, exam_date, max_marks').order('exam_date', { ascending: false }),
       supabase.from('students').select('id, student_id, full_name').eq('company_id', ctx.companyId),
       supabase.from('student_grades_coursework').select('student_id, coursework_day_id, marks_obtained'),
       supabase.from('student_grades_final_exam').select('id, student_id, final_exam_id, marks_obtained, created_at').order('created_at', { ascending: false }),
@@ -41,19 +42,31 @@ export default function ExamsPage() {
     return misses < 3
   }), [students, courseworkMarks])
 
+  // A student who already has an exam mark on this module is sitting a retake.
+  const priorAttempts = useMemo(
+    () => (form.student_id && form.module_id ? examAttempts(exams, examGrades, form.student_id, form.module_id) : []),
+    [form.student_id, form.module_id, exams, examGrades],
+  )
+  const isRetake = priorAttempts.length > 0
+
   const addExamResult = async () => {
     const { data: sessionData } = await supabase.auth.getSession()
     const userId = sessionData.session?.user.id
     if (!userId || !form.module_id || !form.student_id || !form.exam_date || form.marks_obtained === '') return
 
-    let finalExamId: string | null = exams.find((exam) => exam.module_id === form.module_id && exam.exam_date === form.exam_date)?.id || null
+    // Reuse the module's paper for this date, but never one this student already
+    // has a mark on — a retake is always its own sitting and never overwrites the exam.
+    const satExamIds = new Set(priorAttempts.map((a) => a.grade.final_exam_id))
+    let finalExamId: string | null = exams.find(
+      (exam) => exam.module_id === form.module_id && exam.exam_date === form.exam_date && !satExamIds.has(exam.id),
+    )?.id || null
     if (!finalExamId) {
       const { data: createdExam } = await supabase.from('final_exams').insert({ module_id: form.module_id, exam_date: form.exam_date, max_marks: 100 }).select('id').single()
       finalExamId = createdExam?.id || null
     }
     if (!finalExamId) return
 
-    await supabase.from('student_grades_final_exam').upsert({
+    await supabase.from('student_grades_final_exam').insert({
       student_id: form.student_id,
       final_exam_id: finalExamId,
       marks_obtained: Number(form.marks_obtained),
@@ -69,8 +82,8 @@ export default function ExamsPage() {
         kind: 'marks',
         module: { code: mod?.module_code, name: mod?.module_name },
         assessment: {
-          kind: 'exam',
-          title: 'Final exam',
+          kind: isRetake ? 'retake' : 'exam',
+          title: isRetake ? 'Retake exam' : 'Final exam',
           marks_obtained: Number(form.marks_obtained),
           max_marks: 100,
         },
@@ -85,7 +98,9 @@ export default function ExamsPage() {
     const student = students.find((s) => s.id === row.student_id)
     const exam = exams.find((e) => e.id === row.final_exam_id)
     const module = modules.find((m) => m.id === exam?.module_id)
+    const attempt = exam ? examAttempts(exams, examGrades, row.student_id, exam.module_id).findIndex((a) => a.grade.id === row.id) : 0
     return {
+      attempt: Math.max(0, attempt),
       id: row.id,
       studentName: student?.full_name || 'Unknown',
       studentNumber: student?.student_id || '-',
@@ -124,8 +139,15 @@ export default function ExamsPage() {
           <Input type="date" value={form.exam_date} onChange={e => setForm({ ...form, exam_date: e.target.value })} />
           <Input type="number" min={0} max={100} placeholder="Exam marks (100%)" value={form.marks_obtained} onChange={e => setForm({ ...form, marks_obtained: e.target.value })} />
         </div>
+        {isRetake && (
+          <div className="rounded-xl px-4 py-3 text-xs bg-amber-500/[0.08] border border-amber-500/25 text-amber-800 dark:text-amber-300">
+            <b>This will be recorded as a retake.</b> This student already has an exam mark of{' '}
+            <b>{Number(priorAttempts[0].grade.marks_obtained)}%</b> on this module. The original exam stays on the transcript, and the module
+            total becomes 50% coursework + 50% of this retake.
+          </div>
+        )}
         <div className="pt-3 border-t border-border/30">
-          <Button size="sm" onClick={addExamResult}>Save Exam Result</Button>
+          <Button size="sm" onClick={addExamResult}>{isRetake ? 'Save Retake Result' : 'Save Exam Result'}</Button>
         </div>
       </Card>
 
@@ -138,7 +160,8 @@ export default function ExamsPage() {
               <th>Student Number</th>
               <th>Module</th>
               <th>Date</th>
-              <th className="text-center">Exam Marks (100%)</th>
+              <th>Sitting</th>
+              <th className="text-center">Marks (100%)</th>
             </tr>
           </thead>
           <tbody>
@@ -148,10 +171,15 @@ export default function ExamsPage() {
                 <td className="font-mono text-xs text-muted-foreground">{row.studentNumber}</td>
                 <td>{row.moduleName}</td>
                 <td>{row.examDate}</td>
+                <td>
+                  {row.attempt === 0
+                    ? <span className="rounded-full bg-primary/10 text-primary px-2 py-0.5 text-[11px] font-semibold">Exam</span>
+                    : <span className="rounded-full bg-amber-500/10 text-amber-700 dark:text-amber-400 px-2 py-0.5 text-[11px] font-semibold">Retake{row.attempt > 1 ? ` ${row.attempt}` : ''}</span>}
+                </td>
                 <td className="text-center font-bold tabular-nums">{row.marks}%</td>
               </tr>
             ))}
-            {examRows.length === 0 && <tr><td className="!py-12 text-center text-muted-foreground/60" colSpan={5}>No exam results recorded yet.</td></tr>}
+            {examRows.length === 0 && <tr><td className="!py-12 text-center text-muted-foreground/60" colSpan={6}>No exam results recorded yet.</td></tr>}
           </tbody>
         </table>
         </div>
