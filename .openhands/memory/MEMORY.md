@@ -6,7 +6,7 @@
   `coupon_code`/`apply_auto_coupon`. Sending a pre-discounted amount double-
   discounts; sending `0` is rejected before the coupon is seen.
 - **Legacy `coupons.max_uses_per_tenant = 1` is treated as unlimited** unless
-  `duration = 'once'`; duration governs. New rows default to 0 (migration 009).
+  `duration = 'once'`; duration governs. New rows default to 0 (migration 011).
 - **Redemptions are recorded at fulfilment**, not initiation:
   `PaymentService::fulfill()` → `CouponService::recordPayment()` (idempotent on
   `payment_id`), so partial discounts finally count and a `once` coupon cannot
