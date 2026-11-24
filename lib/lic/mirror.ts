@@ -44,6 +44,20 @@ export async function mirrorLicenseFromHub(companyId: string, data: any): Promis
     last_validated_at: new Date().toISOString(),
   }
 
+  // A paid licence supersedes any local trial record. Without this the billing
+  // page keeps showing "free trial active" beside the active plan.
+  if (['active', 'grace'].includes(String(row.status)) && !String(row.plan_code || '').startsWith('trial')) {
+    try {
+      await db
+        .from('trial_registrations')
+        .update({ status: 'converted', converted_at: new Date().toISOString() })
+        .eq('company_id', companyId)
+        .in('status', ['active', 'reminded'])
+    } catch (e) {
+      console.error('[lic] trial conversion mirror failed', e)
+    }
+  }
+
   try {
     // Update the current row in place when it is the same licence, so a repeated
     // sync (e.g. the twice-daily status check) does not pile up dead rows.
