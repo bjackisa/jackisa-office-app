@@ -264,7 +264,6 @@ export default function BillingPage() {
       }).then((r) => r.json()).catch(() => null)
       if (res?.data?.status === 'paid') {
         setMessage({ kind: 'ok', text: 'Payment confirmed. Your licence is now active.' })
-        removeCoupon()
         await license.refresh()
         return
       }
@@ -351,7 +350,6 @@ export default function BillingPage() {
       if (json.ok) {
         if (json.data?.waived || json.data?.status === 'paid') {
           setMessage({ kind: 'ok', text: 'Your coupon covers this plan in full — the licence is active.' })
-          removeCoupon()
           await license.refresh()
           return
         }
