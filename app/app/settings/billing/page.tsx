@@ -115,6 +115,27 @@ export default function BillingPage() {
     if (license.valid && license.status !== 'trial') clearPlan()
   }, [license.valid, license.status])
 
+  // The hub owns the licence. Pull its current state when this page opens so a
+  // plan changed by a coupon or a settled payment is reflected immediately,
+  // even when the local mirror still has the old row.
+  const refreshLicense = license.refresh
+  useEffect(() => {
+    if (!companyId) return
+    let cancelled = false
+    ;(async () => {
+      try {
+        await apiFetch('/api/lic/license', {
+          method: 'POST',
+          body: JSON.stringify({ action: 'status', companyId }),
+        })
+        if (!cancelled) await refreshLicense()
+      } catch {
+        // The local mirror remains usable if the hub is unreachable.
+      }
+    })()
+    return () => { cancelled = true }
+  }, [companyId, refreshLicense])
+
   // Pick the plan row that matches tier + interval, falling back to a derived
   // price when a longer interval has no explicit row.
   const selectedPlan = useMemo(() => {

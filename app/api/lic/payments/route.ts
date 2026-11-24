@@ -81,6 +81,17 @@ export async function POST(req: NextRequest) {
             console.error('[payments] mirror failed', e)
           }
         }
+        // A coupon that covers the whole charge is fulfilled immediately on the
+        // hub. There is no JPesa callback to pull the new certificate later, so
+        // mirror it now or the workspace keeps showing the old plan.
+        if (res.api_status === '200' && (res.data?.waived || res.data?.status === 'paid')) {
+          try {
+            const licStatus = await lic.licenseStatus(companyId)
+            if (licStatus.api_status === '200') await mirrorLicenseFromHub(companyId, licStatus.data)
+          } catch (e) {
+            console.error('[payments] waived licence mirror failed', e)
+          }
+        }
         return NextResponse.json({ ok: res.api_status === '200', data: res.data, error: res.errors?.error_text })
       }
 
