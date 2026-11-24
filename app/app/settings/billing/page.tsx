@@ -264,6 +264,7 @@ export default function BillingPage() {
       }).then((r) => r.json()).catch(() => null)
       if (res?.data?.status === 'paid') {
         setMessage({ kind: 'ok', text: 'Payment confirmed. Your licence is now active.' })
+        removeCoupon()
         await license.refresh()
         return
       }
@@ -350,6 +351,7 @@ export default function BillingPage() {
       if (json.ok) {
         if (json.data?.waived || json.data?.status === 'paid') {
           setMessage({ kind: 'ok', text: 'Your coupon covers this plan in full — the licence is active.' })
+          removeCoupon()
           await license.refresh()
           return
         }
@@ -357,7 +359,13 @@ export default function BillingPage() {
         setMessage({ kind: 'ok', text: 'Check your phone and approve the payment prompt. Your plan activates as soon as it is confirmed.' })
         if (ref) pollStatus(ref)
       } else {
-        setMessage({ kind: 'error', text: json.error || 'Payment could not be started' })
+        const error = json.error || 'Payment could not be started'
+        setMessage({ kind: 'error', text: error })
+        // A rejected coupon must stop looking "applied" in the summary above.
+        if (/coupon|already been used|not available|expired|limit|not active/i.test(error)) {
+          removeCoupon()
+          setCouponMsg({ kind: 'error', text: error })
+        }
       }
     } finally {
       setBusy(false)
