@@ -1,6 +1,12 @@
 # Jackisa Stream — project memory
 
 ## Coupons (Nov 24) — see `.openhands/memory/2026-11-24.md`
+- **Hub production checkout is `~/domains/lic.jackisa.com/app`** on
+  `u388105230@82.29.199.107:65002`. The web root
+  `~/domains/lic.jackisa.com/public_html/index.php` just requires
+  `../app/public_html/index.php`. Deploy with
+  `cd ~/domains/lic.jackisa.com/app && git pull --ff-only && php bin/migrate.php`.
+  `009_security.sql` already exists, so coupon migrations start at 011.
 - **The hub prices every coupon.** The office must send the *undiscounted* base
   (`quote.amount_due` for a plan change, plan price otherwise) plus
   `coupon_code`/`apply_auto_coupon`. Sending a pre-discounted amount double-
