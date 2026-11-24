@@ -21,6 +21,11 @@
   billing interval is parsed from the plan code when not supplied.
 - **Full-waiver coupons need no mobile number**; the hub validates `msisdn`
   only when the post-coupon amount is above zero.
+- **A waived payment has no JPesa callback.** Mirror the hub licence inside
+  `/api/lic/payments` initiate, and have the billing page pull `action=status`
+  on open; otherwise the hub activates the plan but the office UI keeps the old
+  one. A rejected `once` coupon must also clear the "applied" summary, or the
+  error and the green coupon box contradict each other.
 - Admin console account targeting uses `/api/admin/companies` (search or ids)
   and plan chips; operators never paste tenant UUIDs.
 
