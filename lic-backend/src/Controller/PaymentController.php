@@ -29,6 +29,8 @@ final class PaymentController
                 'msisdn'          => $request->string('msisdn'),
                 'interval_months' => $request->int('interval_months') ?: null,
                 'plan_code'       => $request->string('plan_code') ?: null,
+                'coupon_code'     => $request->string('coupon_code') ?: null,
+                'apply_auto_coupon' => $request->bool('apply_auto_coupon', false),
                 'description'     => $request->string('description', 'Jackisa Office licence payment'),
             ]);
             Response::ok($result, $result['success'] ? '200' : '400');

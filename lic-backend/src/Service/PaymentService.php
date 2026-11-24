@@ -65,8 +65,44 @@ final class PaymentService
         if ($amount <= 0 || $amount > 10000000) {
             throw new \InvalidArgumentException('Enter a valid amount.');
         }
+        $baseAmount = $amount;
 
         $msisdn = self::normalizeMsisdn((string) ($params['msisdn'] ?? ''));
+
+        // Coupons are priced by the hub, never by the caller: the amount that
+        // arrives is the undiscounted plan price, and any code is validated and
+        // applied here so a client cannot invent a discount.
+        $couponCode = trim((string) ($params['coupon_code'] ?? ''));
+        $couponId = null;
+        $couponDiscount = 0.0;
+        $couponExtraDays = 0;
+        if ($couponCode !== '' || !empty($params['apply_auto_coupon'])) {
+            $quote = CouponService::quote(
+                (string) ($params['tenant_id'] ?? ''),
+                (string) ($params['plan_code'] ?? ''),
+                isset($params['interval_months']) ? (int) $params['interval_months'] : null,
+                $couponCode !== '' ? $couponCode : null,
+                $amount,
+                $currency
+            );
+            if ($quote !== null) {
+                $couponId = $quote['coupon']['id'];
+                $couponDiscount = (float) $quote['price']['discount'];
+                $couponExtraDays = (int) $quote['price']['extra_days'];
+                $amount = (float) $quote['price']['amount'];
+            }
+            // When a code was supplied, quote() throws for an unknown or
+            // ineligible code rather than returning null, so a bad code is
+            // reported instead of silently charging full price.
+        }
+
+        // A coupon can cover the whole charge. When it does there is nothing to
+        // debit, so the licence is fulfilled directly with a zero-amount record.
+        if ($couponId !== null && $amount <= 0.0) {
+            return self::redeemFreeLicense($params, $couponId, $couponExtraDays, $currency, $baseAmount);
+        }
+
+        // Only a charge that still needs money needs a mobile-money number.
         if ($msisdn === null) {
             throw new \InvalidArgumentException('Enter a valid Uganda or Kenya mobile number.');
         }
@@ -78,8 +114,9 @@ final class PaymentService
         $app->run(
             'INSERT INTO payments
               (id, tenant_id, user_id, subscription_id, purpose, channel, provider, amount, charged_amount, fee,
-               currency, msisdn, interval_months, plan_code, merchant_ref, status, raw_request)
-             VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
+               currency, msisdn, interval_months, plan_code, merchant_ref, status, raw_request,
+               coupon_id, coupon_code, coupon_discount)
+             VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
             [
                 $id,
                 $params['tenant_id'] ?? null,
@@ -94,6 +131,7 @@ final class PaymentService
                 $params['plan_code'] ?? null,
                 $merchantRef, 'pending',
                 json_encode(['plan_code' => $params['plan_code'] ?? null, 'purpose' => $params['purpose'] ?? 'license']),
+                $couponId, $couponCode !== '' ? $couponCode : null, $couponDiscount,
             ]
         );
 
@@ -136,6 +174,8 @@ final class PaymentService
             'fee'           => $split['fee'],
             'currency'      => $currency,
             'status'        => 'processing',
+            'coupon_code'   => $couponCode !== '' ? $couponCode : null,
+            'coupon_discount' => $couponDiscount,
             'message'       => 'Payment request sent. Approve the prompt on your phone to continue.',
         ];
     }
@@ -230,6 +270,10 @@ final class PaymentService
         if ((int) $payment['fulfilled'] === 1) {
             return;
         }
+
+        // Count the coupon now that money has actually been taken. This is
+        // idempotent, so a retried fulfilment never double-counts.
+        CouponService::recordPayment($payment);
 
         $months = (int) ($payment['interval_months'] ?? 0);
         $tenantId = (string) ($payment['tenant_id'] ?? '');
@@ -343,6 +387,96 @@ final class PaymentService
             'template' => 'payment_receipt',
             'tenant_id' => $tenantId,
         ]);
+    }
+
+    /**
+     * Settle a licence that a coupon fully covered. There is nothing to debit,
+     * so we record a zero-amount paid payment (the ledger stays complete and
+     * the redemption is auditable), issue/extend the licence, and hand the
+     * amount to fulfill() so the usual receipt and subscription logic runs.
+     *
+     * @param array<string,mixed> $params
+     * @return array<string,mixed>
+     */
+    private static function redeemFreeLicense(array $params, string $couponId, int $extraDays, string $currency, float $baseAmount): array
+    {
+        $app = App::instance();
+        $tenantId = (string) ($params['tenant_id'] ?? '');
+        if ($tenantId === '') {
+            throw new \InvalidArgumentException('tenant_id is required to apply a coupon.');
+        }
+        $months = (int) ($params['interval_months'] ?? 1);
+
+        $paymentId = Ids::uuid();
+        $merchantRef = 'CPN-' . strtoupper(bin2hex(random_bytes(6)));
+        $coupon = $app->one('SELECT * FROM coupons WHERE id = ?', [$couponId]);
+        $couponCode = $coupon['code'] ?? null;
+
+        // Apply the coupon first: this re-checks eligibility and records the
+        // redemption. A free-days coupon still carries the plan's months.
+        CouponService::redeem(
+            $coupon,
+            $tenantId,
+            (string) ($params['plan_code'] ?? ''),
+            isset($params['interval_months']) ? (int) $params['interval_months'] : null,
+            $baseAmount,
+            $currency
+        );
+
+        $app->run(
+            'INSERT INTO payments
+              (id, tenant_id, user_id, subscription_id, purpose, channel, provider, amount, charged_amount, fee,
+               currency, msisdn, interval_months, plan_code, merchant_ref, status, completed_at, raw_request,
+               coupon_id, coupon_code, coupon_discount)
+             VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
+            [
+                $paymentId, $tenantId, $params['user_id'] ?? null, $params['subscription_id'] ?? null,
+                in_array($params['purpose'] ?? 'license', ['license','subscription','topup','invoice','other','change'], true) ? $params['purpose'] : 'license',
+                'coupon', 'coupon', 0, 0, 0,
+                $currency, $params['msisdn'] ?? null,
+                $months, $params['plan_code'] ?? null, $merchantRef, 'paid', date('Y-m-d H:i:s'),
+                json_encode(['coupon' => $couponCode, 'waived' => true, 'extra_days' => $extraDays]),
+                $couponId, $couponCode, $baseAmount,
+            ]
+        );
+
+        $app->run('UPDATE coupon_redemptions SET payment_id = ? WHERE coupon_id = ? AND tenant_id = ? AND payment_id IS NULL ORDER BY created_at DESC LIMIT 1', [$paymentId, $couponId, $tenantId]);
+
+        // fulfil() issues/extends the licence and sends the receipt.
+        $payment = $app->one('SELECT * FROM payments WHERE id = ?', [$paymentId]);
+        if ($payment !== null) {
+            self::fulfill($payment);
+        }
+
+        // A free-days coupon adds bonus days on top of the paid period.
+        if ($extraDays > 0) {
+            $lic = $app->one('SELECT * FROM licenses WHERE tenant_id = ? ORDER BY created_at DESC LIMIT 1', [$tenantId]);
+            if ($lic !== null) {
+                $newExpiry = (new \DateTimeImmutable((string) $lic['expires_at']))->modify('+' . $extraDays . ' days');
+                $app->run(
+                    'UPDATE licenses SET expires_at = ?, grace_until = ?, updated_at = NOW() WHERE id = ?',
+                    [
+                        $newExpiry->format('Y-m-d H:i:s'),
+                        $newExpiry->modify('+' . LicenseService::graceDays() . ' days')->format('Y-m-d H:i:s'),
+                        $lic['id'],
+                    ]
+                );
+                LicenseService::certify((string) $lic['id']);
+            }
+        }
+
+        return [
+            'success'      => true,
+            'waived'       => true,
+            'payment_id'   => $paymentId,
+            'merchant_ref' => $merchantRef,
+            'amount'       => 0,
+            'currency'     => $currency,
+            'status'       => 'paid',
+            'coupon_code'  => $couponCode,
+            'coupon_discount' => $baseAmount,
+            'message'      => 'This coupon covers the plan in full — your licence is active.',
+        ];
     }
 
     /**

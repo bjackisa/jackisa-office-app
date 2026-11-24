@@ -11,6 +11,7 @@ require_once dirname(__DIR__) . '/src/bootstrap.php';
 use Jackisa\Lic\App;
 use Jackisa\Lic\Controller\AuthController;
 use Jackisa\Lic\Controller\CatalogController;
+use Jackisa\Lic\Controller\CouponController;
 use Jackisa\Lic\Controller\CronController;
 use Jackisa\Lic\Controller\EducationController;
 use Jackisa\Lic\Controller\JackisaController;
@@ -139,6 +140,12 @@ $router->post('/api/v1/education/transcript',   fn(Request $r) => EducationContr
 // ---- Admin: package/feature catalogue (API-key protected) ------------------
 $router->post('/api/v1/admin/plans',    fn(Request $r) => CatalogController::plans($r));
 $router->post('/api/v1/admin/features', fn(Request $r) => CatalogController::features($r));
+
+// ---- Coupons: account-targeted discounts and waivers ----------------------
+$router->post('/api/v1/coupons/available', fn(Request $r) => CouponController::available($r));
+$router->post('/api/v1/coupons/validate',  fn(Request $r) => CouponController::validate($r));
+$router->post('/api/v1/coupons/quote',     fn(Request $r) => CouponController::quote($r));
+$router->post('/api/v1/admin/coupons',     fn(Request $r) => CouponController::admin($r));
 
 // ---- Cron: scheduled maintenance, driven by a signed peer ------------------
 $router->post('/api/v1/cron/run', fn(Request $r) => CronController::run($r));

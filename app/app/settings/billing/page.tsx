@@ -78,6 +78,7 @@ export default function BillingPage() {
   const [payments, setPayments] = useState<any[]>([])
   const [quote, setQuote] = useState<any | null>(null)
   const [couponCode, setCouponCode] = useState('')
+  const [appliedCode, setAppliedCode] = useState<string | null>(null)
   const [coupon, setCoupon] = useState<any | null>(null)
   const [couponMsg, setCouponMsg] = useState<{ kind: 'ok' | 'error'; text: string } | null>(null)
   const [checkingCoupon, setCheckingCoupon] = useState(false)
@@ -127,6 +128,12 @@ export default function BillingPage() {
     return null
   }, [plans, tier, intervalMonths])
 
+  // The hub applies a coupon to the undiscounted charge. For a plan change that
+  // is the prorated amount due, not the full plan price.
+  const baseAmount = useMemo(() => {
+    return quote?.amount_due !== undefined ? Number(quote.amount_due) : Number(selectedPlan?.price || 0)
+  }, [quote, selectedPlan?.price])
+
   // A live quote for moving to the selected plan (credit for unused time).
   useEffect(() => {
     if (!companyId || !selectedPlan?.code) return
@@ -142,13 +149,15 @@ export default function BillingPage() {
   }, [companyId, selectedPlan?.code])
 
   // Auto-apply coupons (no code needed) are quoted whenever the selection
-  // changes, so an account-targeted campaign shows up without the user typing.
+  // changes. A code the user typed or applied always wins, so the auto quote
+  // never overwrites their choice.
   useEffect(() => {
     if (!companyId || !selectedPlan?.code) return
+    if (appliedCode || couponCode.trim()) return
     let active = true
     apiFetch('/api/lic/coupons', {
       method: 'POST',
-      body: JSON.stringify({ action: 'quote', companyId, planCode: selectedPlan.code, intervalMonths, amount: Number(selectedPlan.price) }),
+      body: JSON.stringify({ action: 'quote', companyId, planCode: selectedPlan.code, intervalMonths, amount: baseAmount }),
     })
       .then((r) => r.json())
       .then((j) => {
@@ -156,13 +165,36 @@ export default function BillingPage() {
         const q = j?.data?.quote
         if (q?.coupon) {
           setCoupon({ ...q.coupon, ...q.price })
-        } else if (!couponCode) {
+        } else {
           setCoupon(null)
         }
       })
       .catch(() => {})
     return () => { active = false }
-  }, [companyId, selectedPlan?.code, intervalMonths, couponCode])
+  }, [companyId, selectedPlan?.code, intervalMonths, couponCode, appliedCode, baseAmount])
+
+  // Keep an applied code honest when the user switches plan or billing period.
+  useEffect(() => {
+    if (!appliedCode || !companyId || !selectedPlan?.code) return
+    let active = true
+    apiFetch('/api/lic/coupons', {
+      method: 'POST',
+      body: JSON.stringify({ action: 'validate', companyId, code: appliedCode, planCode: selectedPlan.code, intervalMonths, amount: baseAmount }),
+    })
+      .then((r) => r.json())
+      .then((json) => {
+        if (!active) return
+        if (json.ok && json.data?.price) {
+          setCoupon({ ...json.data.coupon, ...json.data.price })
+        } else {
+          setCoupon(null)
+          setAppliedCode(null)
+          setCouponMsg({ kind: 'error', text: json.error || 'That coupon is not valid for the new plan. Re-apply it or choose another plan.' })
+        }
+      })
+      .catch(() => {})
+    return () => { active = false }
+  }, [companyId, selectedPlan?.code, intervalMonths, appliedCode, baseAmount])
 
   const applyCoupon = async () => {
     if (!companyId || !selectedPlan || !couponCode.trim()) return
@@ -171,14 +203,16 @@ export default function BillingPage() {
     try {
       const res = await apiFetch('/api/lic/coupons', {
         method: 'POST',
-        body: JSON.stringify({ action: 'validate', companyId, code: couponCode.trim(), planCode: selectedPlan.code, intervalMonths, amount: Number(selectedPlan.price) }),
+        body: JSON.stringify({ action: 'validate', companyId, code: couponCode.trim(), planCode: selectedPlan.code, intervalMonths, amount: baseAmount }),
       })
       const json = await res.json()
       if (json.ok && json.data?.price) {
         setCoupon({ ...json.data.coupon, ...json.data.price })
+        setAppliedCode(couponCode.trim())
         setCouponMsg({ kind: 'ok', text: `Coupon applied — you save ${Number(json.data.price.discount).toLocaleString()} ${json.data.price.currency}.` })
       } else {
         setCoupon(null)
+        setAppliedCode(null)
         setCouponMsg({ kind: 'error', text: json.error || 'That coupon could not be applied.' })
       }
     } finally {
@@ -188,17 +222,17 @@ export default function BillingPage() {
 
   const removeCoupon = () => {
     setCoupon(null)
+    setAppliedCode(null)
     setCouponCode('')
     setCouponMsg(null)
   }
 
   // The amount actually payable: the plan price minus any coupon discount.
   const payableAmount = useMemo(() => {
-    const base = quote?.amount_due !== undefined ? Number(quote.amount_due) : Number(selectedPlan?.price || 0)
-    if (!coupon) return base
+    if (!coupon) return baseAmount
     const disc = Number(coupon.discount || 0)
-    return Math.max(0, Math.round((base - disc) * 100) / 100)
-  }, [quote, selectedPlan?.price, coupon])
+    return Math.max(0, Math.round((baseAmount - disc) * 100) / 100)
+  }, [baseAmount, coupon])
 
   const pollStatus = async (ref: string) => {
     for (let i = 0; i < 40; i++) {
@@ -246,15 +280,16 @@ export default function BillingPage() {
   const pay = async () => {
     if (!companyId || !selectedPlan) return
     const due = payableAmount
+    const isChange = Boolean(quote?.current)
     // A coupon can cover the whole charge — no mobile-money step is needed.
-    const coveredByCoupon = Boolean(coupon) && due <= 0
-    if (!coveredByCoupon && (!msisdn || msisdn.replace(/\D/g, '').length < 9)) {
+    const coveredByCoupon = Boolean(coupon) && due <= 0 && baseAmount > 0
+    // A change fully covered by credit needs no mobile-money step either.
+    const coveredByCredit = isChange && due <= 0 && !coveredByCoupon
+    if (!coveredByCoupon && !coveredByCredit && (!msisdn || msisdn.replace(/\D/g, '').length < 9)) {
       setMessage({ kind: 'error', text: 'Enter a valid mobile money number (e.g. 256700000000).' })
       return
     }
-    const isChange = Boolean(quote?.current) && due < Number(selectedPlan.price) + 0.001
-    // A change fully covered by credit needs no mobile-money step.
-    if (isChange && due <= 0 && !coveredByCoupon) {
+    if (coveredByCredit) {
       setBusy(true)
       setMessage(null)
       try {
@@ -280,7 +315,7 @@ export default function BillingPage() {
         body: JSON.stringify({
           action: 'initiate',
           companyId,
-          amount: due,
+          amount: baseAmount,
           msisdn,
           planCode: selectedPlan.code,
           intervalMonths,

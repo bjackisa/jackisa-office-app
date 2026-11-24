@@ -37,6 +37,31 @@ type Coupon = {
   status: 'draft' | 'active' | 'paused' | 'archived'
 }
 
+type PlanOption = {
+  code: string
+  name: string
+  tier: string
+  interval_months: number
+  price: number
+  currency: string
+  is_active?: boolean
+}
+
+type AccountOption = {
+  id: string
+  tenant_id: string
+  name: string
+  email: string | null
+  owner_name: string | null
+  owner_email: string | null
+  industry: string | null
+  country: string | null
+  kind: string | null
+  tier: string | null
+  plan_code: string | null
+  license_status: string | null
+}
+
 const TIERS = ['basic', 'pro', 'platinum', 'enterprise']
 const INTERVALS = [1, 3, 6, 12, 24, 36]
 const BENEFITS = [
@@ -47,7 +72,7 @@ const BENEFITS = [
 ]
 const AUDIENCES = [
   { value: 'all', label: 'Any account' },
-  { value: 'list', label: 'Specific accounts (a list)' },
+  { value: 'list', label: 'Specific accounts (pick from the list)' },
   { value: 'new', label: 'New accounts' },
   { value: 'legacy', label: 'Legacy accounts (before a date)' },
   { value: 'country', label: 'Accounts in a country' },
@@ -71,6 +96,23 @@ async function authedFetch(body: any) {
   return res.json()
 }
 
+async function adminFetch(path: string, body: any) {
+  const { data: { session } } = await supabase.auth.getSession()
+  const res = await fetch(path, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session?.access_token || ''}` },
+    body: JSON.stringify(body),
+  })
+  return res.json()
+}
+
+/** Keep the per-account cap aligned with the duration the operator picked. */
+function perTenantForDuration(duration: string, cycles: number): number {
+  if (duration === 'forever') return 0
+  if (duration === 'cycles') return Math.max(1, cycles || 1)
+  return 1
+}
+
 const EMPTY = {
   name: '', code: '', description: '',
   benefit_type: 'percent', discount_percent: 10, discount_amount: 0, free_days: 0,
@@ -79,6 +121,16 @@ const EMPTY = {
   applies_plan_codes: [] as string[], applies_intervals: [] as number[],
   auto_apply: true, max_uses: '', max_uses_per_tenant: 1,
   starts_at: '', expires_at: '', status: 'active',
+}
+
+function parseTenantIds(value: string): string[] {
+  return value.split(/[\s,]+/).map((id) => id.trim()).filter(Boolean)
+}
+
+function planScopeLabel(c: Coupon): string {
+  const plans = c.applies_plan_codes || []
+  if (plans.length === 0) return 'any plan'
+  return plans.map((p) => p.replace(/_/g, ' ')).join(', ')
 }
 
 function benefitLabel(c: Coupon): string {
@@ -126,6 +178,11 @@ export default function CouponsPage() {
   const [editId, setEditId] = useState<string | null>(null)
   const [form, setForm] = useState({ ...EMPTY })
   const [redemptions, setRedemptions] = useState<any[] | null>(null)
+  const [plans, setPlans] = useState<PlanOption[]>([])
+  const [accounts, setAccounts] = useState<AccountOption[]>([])
+  const [accountsLoading, setAccountsLoading] = useState(false)
+  const [accountQuery, setAccountQuery] = useState('')
+  const [manualAccountId, setManualAccountId] = useState('')
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -136,11 +193,45 @@ export default function CouponsPage() {
     setLoading(false)
   }, [])
 
+  const loadPlans = useCallback(async () => {
+    const res = await adminFetch('/api/admin/catalog', { kind: 'plans', action: 'list' })
+    if (res.ok) setPlans((res.data?.plans || []).filter((p: PlanOption) => p.is_active !== false))
+  }, [])
+
+  const loadAccounts = useCallback(async (search = '') => {
+    setAccountsLoading(true)
+    const res = await adminFetch('/api/admin/companies', { action: 'list', search })
+    if (res.ok) {
+      const fetched: AccountOption[] = res.data?.companies || []
+      setAccounts((prev) => {
+        const merged = new Map(prev.map((a) => [a.id, a]))
+        fetched.forEach((a) => merged.set(a.id, a))
+        return Array.from(merged.values())
+      })
+    }
+    setAccountsLoading(false)
+  }, [])
+
+  const resolveAccounts = useCallback(async (ids: string[]) => {
+    if (ids.length === 0) return
+    const res = await adminFetch('/api/admin/companies', { action: 'list', ids })
+    if (!res.ok) return
+    const fetched: AccountOption[] = res.data?.companies || []
+    setAccounts((prev) => {
+      const merged = new Map(prev.map((a) => [a.id, a]))
+      fetched.forEach((a) => merged.set(a.id, a))
+      return Array.from(merged.values())
+    })
+  }, [])
+
   useEffect(() => { load() }, [load])
+  useEffect(() => { loadPlans(); loadAccounts() }, [loadPlans, loadAccounts])
 
   const openCreate = () => {
     setEditId(null)
     setForm({ ...EMPTY })
+    setAccountQuery('')
+    setManualAccountId('')
     setError(null)
     setOpen(true)
   }
@@ -164,11 +255,14 @@ export default function CouponsPage() {
       audience_tenants: (c.audience_tenants || []).join('\n'),
       applies_plan_codes: c.applies_plan_codes || [], applies_intervals: c.applies_intervals || [],
       auto_apply: c.auto_apply, max_uses: c.max_uses === null ? '' : String(c.max_uses),
-      max_uses_per_tenant: c.max_uses_per_tenant,
+      max_uses_per_tenant: c.max_uses_per_tenant === 1 && c.duration !== 'once' ? 0 : c.max_uses_per_tenant,
       starts_at: c.starts_at ? c.starts_at.slice(0, 16).replace(' ', 'T') : '',
       expires_at: c.expires_at ? c.expires_at.slice(0, 16).replace(' ', 'T') : '',
       status: c.status,
     })
+    setAccountQuery('')
+    setManualAccountId('')
+    void resolveAccounts(c.audience_tenants || [])
     setError(null)
     setOpen(true)
   }
@@ -180,7 +274,15 @@ export default function CouponsPage() {
     }
     if (form.benefit_type === 'amount' && form.discount_amount <= 0) { setError('Enter an amount above zero.'); return }
     if (form.benefit_type === 'free_days' && form.free_days <= 0) { setError('Enter at least one free day.'); return }
-    if (form.audience_type === 'list' && !form.audience_tenants.trim()) { setError('Add at least one account id.'); return }
+    if (!form.code.trim() && !form.auto_apply) {
+      setError('Add a code or turn on auto-apply, otherwise the coupon cannot be used.'); return
+    }
+    if (form.audience_type === 'list' && parseTenantIds(form.audience_tenants).length === 0) {
+      setError('Pick at least one account for this coupon.'); return
+    }
+    if (!['all', 'list'].includes(form.audience_type) && !form.audience_value.trim()) {
+      setError('Fill in the audience value for the group you selected.'); return
+    }
 
     setBusy(true)
     setError(null)
@@ -201,7 +303,7 @@ export default function CouponsPage() {
         ? null
         : form.audience_value.split(',').map((s) => s.trim()).filter(Boolean),
       audience_tenant_ids: form.audience_type === 'list'
-        ? form.audience_tenants.split(/[\s,]+/).map((s) => s.trim()).filter(Boolean)
+        ? parseTenantIds(form.audience_tenants)
         : undefined,
       applies_plan_codes: form.applies_plan_codes,
       applies_intervals: form.applies_intervals,
@@ -238,6 +340,82 @@ export default function CouponsPage() {
   }
 
   const liveCount = useMemo(() => coupons.filter((c) => c.status === 'active').length, [coupons])
+
+  const tenantIds = useMemo(() => parseTenantIds(form.audience_tenants), [form.audience_tenants])
+  const accountById = useMemo(() => new Map(accounts.map((a) => [a.id, a])), [accounts])
+  const filteredAccounts = useMemo(() => {
+    const q = accountQuery.trim().toLowerCase()
+    const rows = q
+      ? accounts.filter((a) => [a.name, a.email, a.owner_name, a.owner_email, a.id]
+          .some((value) => (value || '').toLowerCase().includes(q)))
+      : accounts
+    return rows.slice(0, 40)
+  }, [accounts, accountQuery])
+
+  const tierOptions = useMemo(() => {
+    const fromPlans = Array.from(new Set(plans.map((p) => p.tier).filter(Boolean)))
+    return fromPlans.length ? fromPlans : TIERS
+  }, [plans])
+
+  const planGroups = useMemo(() => {
+    const groups = new Map<string, PlanOption[]>()
+    for (const plan of plans) {
+      const tier = plan.tier || 'other'
+      if (!groups.has(tier)) groups.set(tier, [])
+      groups.get(tier)!.push(plan)
+    }
+    return Array.from(groups.entries()).sort(([a], [b]) => a.localeCompare(b))
+  }, [plans])
+
+  const togglePlanCode = (value: string) => {
+    setForm((f) => {
+      const set = new Set(f.applies_plan_codes)
+      if (set.has(value)) set.delete(value)
+      else set.add(value)
+      return { ...f, applies_plan_codes: Array.from(set) }
+    })
+  }
+
+  const toggleTenant = (id: string) => {
+    setForm((f) => {
+      const set = new Set(parseTenantIds(f.audience_tenants))
+      if (set.has(id)) set.delete(id)
+      else set.add(id)
+      return { ...f, audience_tenants: Array.from(set).join('\n') }
+    })
+  }
+
+  const addManualAccount = () => {
+    const id = manualAccountId.trim()
+    if (!id) return
+    toggleTenant(id)
+    setManualAccountId('')
+    void resolveAccounts([id])
+  }
+
+  const generateCode = () => {
+    const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
+    const bytes = new Uint32Array(8)
+    crypto.getRandomValues(bytes)
+    const code = Array.from(bytes, (b) => alphabet[b % alphabet.length]).join('')
+    setForm((f) => ({ ...f, code }))
+  }
+
+  const changeDuration = (duration: string) => {
+    setForm((f) => ({
+      ...f,
+      duration,
+      max_uses_per_tenant: perTenantForDuration(duration, f.duration_cycles),
+    }))
+  }
+
+  const changeCycles = (cycles: number) => {
+    setForm((f) => ({
+      ...f,
+      duration_cycles: cycles,
+      max_uses_per_tenant: f.duration === 'cycles' ? perTenantForDuration('cycles', cycles) : f.max_uses_per_tenant,
+    }))
+  }
 
   return (
     <div className="p-6 max-w-6xl mx-auto">
@@ -284,7 +462,7 @@ export default function CouponsPage() {
                   <span className={`text-[11px] px-1.5 py-0.5 rounded-full ${c.status === 'active' ? 'bg-emerald-500/10 text-emerald-600' : 'bg-muted text-muted-foreground'}`}>{c.status}</span>
                 </div>
                 <p className="text-xs text-muted-foreground mt-1">
-                  {benefitLabel(c)} · {durationLabel(c)} · {audienceLabel(c)}
+                  {benefitLabel(c)} · {durationLabel(c)} · {audienceLabel(c)} · {planScopeLabel(c)}
                   {c.expires_at ? ` · expires ${new Date(c.expires_at).toLocaleDateString()}` : ''}
                   {c.max_uses ? ` · ${c.current_uses}/${c.max_uses} used` : ` · ${c.current_uses} used`}
                 </p>
@@ -327,8 +505,11 @@ export default function CouponsPage() {
             </div>
             <div>
               <label className="block text-xs font-medium text-muted-foreground mb-1.5">Code (optional)</label>
-              <Input value={form.code} onChange={(e) => setForm({ ...form, code: e.target.value.toUpperCase() })} placeholder="UG-LAUNCH50" />
-              <p className="text-[11px] text-muted-foreground mt-1">Leave blank for an auto-apply coupon.</p>
+              <div className="flex gap-2">
+                <Input value={form.code} onChange={(e) => setForm({ ...form, code: e.target.value.toUpperCase() })} placeholder="UG-LAUNCH50" />
+                <Button type="button" variant="outline" size="sm" onClick={generateCode}>Generate</Button>
+              </div>
+              <p className="text-[11px] text-muted-foreground mt-1">Leave blank only when auto-apply is on.</p>
             </div>
 
             <div>
@@ -363,14 +544,14 @@ export default function CouponsPage() {
 
             <div>
               <label className="block text-xs font-medium text-muted-foreground mb-1.5">Lasts for</label>
-              <select className="form-select w-full" value={form.duration} onChange={(e) => setForm({ ...form, duration: e.target.value })}>
+              <select className="form-select w-full" value={form.duration} onChange={(e) => changeDuration(e.target.value)}>
                 {DURATIONS.map((d) => <option key={d.value} value={d.value}>{d.label}</option>)}
               </select>
             </div>
             {form.duration === 'cycles' && (
               <div>
                 <label className="block text-xs font-medium text-muted-foreground mb-1.5">Number of payments</label>
-                <Input type="number" value={form.duration_cycles} onChange={(e) => setForm({ ...form, duration_cycles: Number(e.target.value) })} />
+                <Input type="number" min={1} value={form.duration_cycles} onChange={(e) => changeCycles(Number(e.target.value))} />
               </div>
             )}
 
@@ -402,7 +583,7 @@ export default function CouponsPage() {
                   </label>
                   {form.audience_type === 'tier' ? (
                     <div className="flex flex-wrap gap-1.5">
-                      {TIERS.map((t) => {
+                      {tierOptions.map((t) => {
                         const on = form.audience_value.split(',').map((s) => s.trim()).includes(t)
                         return (
                           <button key={t} type="button"
@@ -427,45 +608,128 @@ export default function CouponsPage() {
             </div>
 
             {form.audience_type === 'list' && (
-              <div className="md:col-span-2">
-                <label className="block text-xs font-medium text-muted-foreground mb-1.5">Account ids (one per line, or comma separated)</label>
-                <textarea
-                  className="w-full min-h-[80px] rounded-md border border-border bg-background p-3 text-sm font-mono"
-                  value={form.audience_tenants}
-                  onChange={(e) => setForm({ ...form, audience_tenants: e.target.value })}
-                  placeholder="96d34668-85bb-43bf-b517-1e1166782fcd"
-                />
-                <p className="text-[11px] text-muted-foreground mt-1">These are the company ids from the accounts you want to include.</p>
+              <div className="md:col-span-2 rounded-xl border border-border/60 p-3">
+                <div className="flex items-center justify-between gap-3 mb-2">
+                  <label className="block text-xs font-medium text-muted-foreground">Accounts that can use this coupon</label>
+                  <span className="text-[11px] text-muted-foreground">{tenantIds.length} selected</span>
+                </div>
+
+                {tenantIds.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5 mb-3">
+                    {tenantIds.map((id) => {
+                      const account = accountById.get(id)
+                      return (
+                        <span key={id} className="inline-flex items-center gap-1.5 rounded-full bg-primary/[0.08] px-2.5 py-1 text-[11px] text-foreground">
+                          <span className="max-w-[220px] truncate">{account ? account.name : id}</span>
+                          {account?.owner_email && <span className="text-muted-foreground max-w-[160px] truncate">{account.owner_email}</span>}
+                          <button type="button" onClick={() => toggleTenant(id)} className="text-muted-foreground hover:text-destructive" aria-label="Remove account">×</button>
+                        </span>
+                      )
+                    })}
+                  </div>
+                )}
+
+                <div className="flex gap-2 mb-2">
+                  <Input
+                    value={accountQuery}
+                    onChange={(e) => setAccountQuery(e.target.value)}
+                    placeholder="Search accounts by name, owner or email"
+                  />
+                  <Button type="button" variant="outline" size="sm" onClick={() => loadAccounts(accountQuery)} disabled={accountsLoading}>
+                    {accountsLoading ? 'Searching…' : 'Search'}
+                  </Button>
+                </div>
+
+                <div className="max-h-44 overflow-y-auto divide-y divide-border/40 rounded-lg border border-border/40">
+                  {filteredAccounts.length === 0 ? (
+                    <p className="p-3 text-xs text-muted-foreground">No accounts matched. Paste an account id below.</p>
+                  ) : filteredAccounts.map((account) => {
+                    const on = tenantIds.includes(account.id)
+                    return (
+                      <button key={account.id} type="button" onClick={() => toggleTenant(account.id)}
+                        className={`w-full text-left px-3 py-2 flex items-center justify-between gap-3 hover:bg-muted/50 ${on ? 'bg-primary/[0.05]' : ''}`}>
+                        <span className="min-w-0">
+                          <span className="block text-sm text-foreground truncate">{account.name}</span>
+                          <span className="block text-[11px] text-muted-foreground truncate">
+                            {[account.owner_email || account.email, account.tier ? `${account.tier} plan` : null, account.country]
+                              .filter(Boolean).join(' · ')}
+                          </span>
+                        </span>
+                        <span className={`text-[11px] flex-shrink-0 ${on ? 'text-primary' : 'text-muted-foreground'}`}>{on ? 'Selected' : 'Add'}</span>
+                      </button>
+                    )
+                  })}
+                </div>
+
+                <div className="flex gap-2 mt-2">
+                  <Input
+                    value={manualAccountId}
+                    onChange={(e) => setManualAccountId(e.target.value)}
+                    placeholder="Or paste an account id"
+                    className="font-mono text-xs"
+                    onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addManualAccount() } }}
+                  />
+                  <Button type="button" variant="outline" size="sm" onClick={addManualAccount}>Add id</Button>
+                </div>
+                <p className="text-[11px] text-muted-foreground mt-1">The coupon is valid only for the accounts selected here.</p>
               </div>
             )}
 
-            <div className="md:col-span-2">
-              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Applies to plans (blank = any)</label>
+            <div className="md:col-span-2 rounded-xl border border-border/60 p-3">
+              <div className="flex items-center justify-between gap-3 mb-2">
+                <label className="block text-xs font-medium text-muted-foreground">Which packages can use it</label>
+                <span className="text-[11px] text-muted-foreground">
+                  {form.applies_plan_codes.length === 0 ? 'Any plan' : `${form.applies_plan_codes.length} selected`}
+                </span>
+              </div>
+
+              <p className="text-[11px] text-muted-foreground mb-1.5">Package (covers every billing period)</p>
               <div className="flex flex-wrap gap-1.5">
-                {TIERS.map((t) => {
-                  const on = form.applies_plan_codes.includes(t)
+                {tierOptions.map((tier) => {
+                  const on = form.applies_plan_codes.includes(tier)
                   return (
-                    <button key={t} type="button"
-                      onClick={() => {
-                        const set = new Set(form.applies_plan_codes)
-                        on ? set.delete(t) : set.add(t)
-                        setForm({ ...form, applies_plan_codes: Array.from(set) })
-                      }}
+                    <button key={tier} type="button" onClick={() => togglePlanCode(tier)}
                       className={`px-2.5 py-1 rounded-lg text-xs border capitalize ${on ? 'border-primary/50 bg-primary/[0.06]' : 'border-border/60 text-muted-foreground'}`}>
-                      {on && <Check className="w-3 h-3 inline mr-1" />}{t}
+                      {on && <Check className="w-3 h-3 inline mr-1" />}{tier}
                     </button>
                   )
                 })}
               </div>
-              <p className="text-[11px] text-muted-foreground mt-1.5">Applies to intervals (blank = any)</p>
-              <div className="flex flex-wrap gap-1.5 mt-1.5">
+
+              {plans.length > 0 && (
+                <>
+                  <p className="text-[11px] text-muted-foreground mt-3 mb-1.5">Or pin an exact plan</p>
+                  <div className="max-h-36 overflow-y-auto space-y-2 rounded-lg border border-border/40 p-2">
+                    {planGroups.map(([tier, rows]) => (
+                      <div key={tier}>
+                        <p className="text-[10px] uppercase tracking-wide text-muted-foreground mb-1">{tier}</p>
+                        <div className="flex flex-wrap gap-1.5">
+                          {rows.map((plan) => {
+                            const on = form.applies_plan_codes.includes(plan.code)
+                            return (
+                              <button key={plan.code} type="button" onClick={() => togglePlanCode(plan.code)}
+                                className={`px-2 py-0.5 rounded-md text-[11px] border ${on ? 'border-primary/50 bg-primary/[0.06] text-foreground' : 'border-border/60 text-muted-foreground'}`}>
+                                {plan.name} · {plan.interval_months}m
+                              </button>
+                            )
+                          })}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </>
+              )}
+
+              <p className="text-[11px] text-muted-foreground mt-3 mb-1.5">Billing period (optional — blank = any)</p>
+              <div className="flex flex-wrap gap-1.5">
                 {INTERVALS.map((m) => {
                   const on = form.applies_intervals.includes(m)
                   return (
                     <button key={m} type="button"
                       onClick={() => {
                         const set = new Set(form.applies_intervals)
-                        on ? set.delete(m) : set.add(m)
+                        if (on) set.delete(m)
+                        else set.add(m)
                         setForm({ ...form, applies_intervals: Array.from(set) })
                       }}
                       className={`px-2.5 py-1 rounded-lg text-xs border ${on ? 'border-primary/50 bg-primary/[0.06]' : 'border-border/60 text-muted-foreground'}`}>
@@ -474,6 +738,7 @@ export default function CouponsPage() {
                   )
                 })}
               </div>
+              <p className="text-[11px] text-muted-foreground mt-1">Leave both blank to let the coupon work on every plan.</p>
             </div>
 
             <div>
@@ -481,8 +746,9 @@ export default function CouponsPage() {
               <Input type="number" value={form.max_uses} onChange={(e) => setForm({ ...form, max_uses: e.target.value })} placeholder="unlimited" />
             </div>
             <div>
-              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Uses per account</label>
-              <Input type="number" value={form.max_uses_per_tenant} onChange={(e) => setForm({ ...form, max_uses_per_tenant: Number(e.target.value) })} />
+              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Uses per account (0 = no limit)</label>
+              <Input type="number" min={0} value={form.max_uses_per_tenant} onChange={(e) => setForm({ ...form, max_uses_per_tenant: Number(e.target.value) })} />
+              <p className="text-[11px] text-muted-foreground mt-1">Set automatically from “Lasts for”; raise it only if you need a hard cap.</p>
             </div>
 
             <div>
@@ -506,6 +772,22 @@ export default function CouponsPage() {
                   {['draft', 'active', 'paused', 'archived'].map((s) => <option key={s} value={s}>{s}</option>)}
                 </select>
               </div>
+            </div>
+
+            <div className="md:col-span-2 rounded-lg bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
+              <span className="font-medium text-foreground">Summary: </span>
+              {form.benefit_type === 'waiver' ? '100% off' :
+               form.benefit_type === 'percent' ? `${form.discount_percent}% off` :
+               form.benefit_type === 'amount' ? `UGX ${Number(form.discount_amount).toLocaleString()} off` :
+               `+${form.free_days} free days`}
+              {' for '}
+              {form.audience_type === 'list'
+                ? `${tenantIds.length} selected account${tenantIds.length === 1 ? '' : 's'}`
+                : (AUDIENCES.find((a) => a.value === form.audience_type)?.label || 'any account')}
+              {' on '}
+              {form.applies_plan_codes.length === 0 ? 'any plan' : form.applies_plan_codes.map((p) => p.replace(/_/g, ' ')).join(', ')}
+              {', lasting '}
+              {form.duration === 'forever' ? 'every payment' : form.duration === 'cycles' ? `${form.duration_cycles} payments` : 'the first payment'}.
             </div>
           </div>
 

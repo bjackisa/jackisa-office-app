@@ -9,7 +9,7 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { Label } from '@/components/ui/label'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog'
-import { ChevronDown, Plus, Search, Zap, Link2, Copy, CheckCircle, XCircle, GraduationCap, Pencil } from 'lucide-react'
+import { ChevronDown, Plus, Search, Zap, Link2, Copy, CheckCircle, XCircle, GraduationCap, Pencil, Trash2, AlertTriangle } from 'lucide-react'
 import { getSessionContext } from '@/lib/company-context'
 import { supabase } from '@/lib/supabase'
 import { logEcosystemEvent } from '@/lib/ecosystem'
@@ -49,6 +49,11 @@ export default function StudentsPage() {
   const [editForm, setEditForm] = useState({ full_name: '', student_id: '', email: '', phone: '', guardian_name: '', guardian_phone: '', guardian_email: '', tuition_amount: '', status: 'Active' })
   const [saving, setSaving] = useState(false)
   const [editError, setEditError] = useState<string | null>(null)
+  const [editModuleIds, setEditModuleIds] = useState<string[]>([])
+  const [editModuleSearch, setEditModuleSearch] = useState('')
+  const [deleting, setDeleting] = useState<any | null>(null)
+  const [deleteBusy, setDeleteBusy] = useState(false)
+  const [deleteError, setDeleteError] = useState<string | null>(null)
 
   const loadData = async () => {
     const ctx = await getSessionContext()
@@ -200,6 +205,75 @@ export default function StudentsPage() {
       tuition_amount: student.tuition_amount != null ? String(student.tuition_amount) : '',
       status: STATUS_OPTIONS.includes(student.status) ? student.status : 'Active',
     })
+    setEditModuleIds(enrollments.filter((e) => e.student_id === student.id).map((e) => e.module_id))
+    setEditModuleSearch('')
+  }
+
+  /** Apply the ticked modules to a student without touching unaffected rows. */
+  const syncEnrollments = async (studentId: string, desiredModuleIds: string[]) => {
+    if (!companyId) return
+    const current = enrollments.filter((e) => e.student_id === studentId).map((e) => e.module_id)
+    const toAdd = desiredModuleIds.filter((id) => !current.includes(id))
+    const toRemove = current.filter((id) => !desiredModuleIds.includes(id))
+
+    if (toRemove.length > 0) {
+      const { error } = await supabase
+        .from('student_enrollments')
+        .delete()
+        .eq('student_id', studentId)
+        .in('module_id', toRemove)
+      if (error) throw error
+    }
+
+    if (toAdd.length > 0) {
+      const { error } = await supabase
+        .from('student_enrollments')
+        .insert(toAdd.map((moduleId) => ({ student_id: studentId, module_id: moduleId, company_id: companyId })))
+      // 23505 = the student was already enrolled by someone else; that is the
+      // state we wanted anyway.
+      if (error && error.code !== '23505') {
+        const retry = await supabase
+          .from('student_enrollments')
+          .insert(toAdd.map((moduleId) => ({ student_id: studentId, module_id: moduleId })))
+        if (retry.error && retry.error.code !== '23505') throw retry.error
+      }
+    }
+  }
+
+  const openDelete = (student: any) => {
+    setDeleteError(null)
+    setDeleting(student)
+  }
+
+  /**
+   * Remove a student and everything that hangs off the record. Enrollments,
+   * grades and account links cascade at the database level; the explicit
+   * delete keeps the action correct if an older deployment lacks the cascade.
+   */
+  const removeStudent = async () => {
+    if (!deleting || !companyId) return
+    setDeleteBusy(true)
+    setDeleteError(null)
+    try {
+      const { data, error } = await supabase
+        .from('students')
+        .delete()
+        .eq('id', deleting.id)
+        .eq('company_id', companyId)
+        .select('id')
+      if (error) throw error
+      if (!data || data.length === 0) throw new Error('You do not have permission to delete this student.')
+      await supabase.from('student_enrollments').delete().eq('student_id', deleting.id)
+      const name = deleting.full_name
+      setDeleting(null)
+      setEcosystemMsg(`${name} and their enrollment records were removed.`)
+      setTimeout(() => setEcosystemMsg(null), 5000)
+      await loadData()
+    } catch (e: any) {
+      setDeleteError(e?.message || 'Could not delete this student.')
+    } finally {
+      setDeleteBusy(false)
+    }
   }
 
   /**
@@ -229,6 +303,8 @@ export default function StudentsPage() {
       }
       const { error } = await supabase.from('students').update(patch).eq('id', editing.id).eq('company_id', companyId)
       if (error) throw error
+
+      await syncEnrollments(editing.id, editModuleIds)
 
       // Re-publish the contact details so the hub can reach the guardian.
       apiFetch('/api/education/student', {
@@ -332,6 +408,21 @@ export default function StudentsPage() {
         ? prev.module_ids.filter((id) => id !== moduleId)
         : [...prev.module_ids, moduleId],
     }))
+  }
+
+  const filteredEditModules = useMemo(() => {
+    const searchTerm = editModuleSearch.trim().toLowerCase()
+    if (!searchTerm) return modules
+
+    return modules.filter((module) =>
+      `${module.module_code} ${module.module_name}`.toLowerCase().includes(searchTerm),
+    )
+  }, [modules, editModuleSearch])
+
+  const toggleEditModule = (moduleId: string) => {
+    setEditModuleIds((prev) =>
+      prev.includes(moduleId) ? prev.filter((id) => id !== moduleId) : [...prev, moduleId],
+    )
   }
 
   return (
@@ -516,7 +607,17 @@ export default function StudentsPage() {
               <tr key={student.id} >
                 <td>{student.full_name}</td>
                 <td className="font-mono text-xs text-muted-foreground">{student.student_id || 'Auto'}</td>
-                <td>{moduleLabel(student.id)}</td>
+                <td>
+                  <button
+                    type="button"
+                    onClick={() => openEdit(student)}
+                    className="text-left group"
+                    title={`Change the courses ${student.full_name} is enrolled for`}
+                  >
+                    <span className="block">{moduleLabel(student.id)}</span>
+                    <span className="block text-[10px] text-muted-foreground/60 group-hover:text-primary transition-colors">Manage courses</span>
+                  </button>
+                </td>
                 <td>
                   {student.email || student.phone || student.guardian_email || student.guardian_phone ? (
                     <div className="text-xs text-muted-foreground space-y-0.5">
@@ -539,12 +640,31 @@ export default function StudentsPage() {
                   </select>
                 </td>
                 <td className="text-right">
-                  <Button size="sm" variant="outline" onClick={() => openEdit(student)}>
-                    <Pencil className="w-3.5 h-3.5 mr-1.5" />Edit
-                  </Button>
+                  <div className="flex items-center justify-end gap-2">
+                    <Button size="sm" variant="outline" onClick={() => openEdit(student)}>
+                      <Pencil className="w-3.5 h-3.5 mr-1.5" />Edit
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="text-red-600 border-red-200 hover:bg-red-50 hover:text-red-700"
+                      onClick={() => openDelete(student)}
+                      title={`Delete ${student.full_name}`}
+                      aria-label={`Delete ${student.full_name}`}
+                    >
+                      <Trash2 className="w-3.5 h-3.5 mr-1.5" />Delete
+                    </Button>
+                  </div>
                 </td>
               </tr>
             ))}
+            {students.length === 0 && (
+              <tr>
+                <td colSpan={7} className="py-8 text-center text-sm text-muted-foreground">
+                  No students yet. Add one above or share an enrollment link.
+                </td>
+              </tr>
+            )}
           </tbody>
         </table>
         </div>
@@ -555,7 +675,7 @@ export default function StudentsPage() {
           <DialogHeader>
             <DialogTitle>Edit student</DialogTitle>
             <DialogDescription>
-              Correct a legacy record or add the contact details a transcript is sent to.
+              Correct a legacy record, change the courses this student is enrolled for, or fix the contact details a transcript is sent to.
             </DialogDescription>
           </DialogHeader>
           {editError && (
@@ -600,10 +720,83 @@ export default function StudentsPage() {
                 {STATUS_OPTIONS.map((status) => <option key={status} value={status}>{status}</option>)}
               </select>
             </div>
+            <div className="md:col-span-2 rounded-xl border p-3 space-y-3">
+              <div className="flex flex-wrap items-start justify-between gap-2">
+                <div>
+                  <p className="text-xs font-medium text-muted-foreground">Enrolled courses</p>
+                  <p className="text-[11px] text-muted-foreground/60">Tick or untick modules to change what this student is enrolled for.</p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Button type="button" variant="outline" size="sm" onClick={() => setEditModuleIds(modules.map((module) => module.id))}>Select all</Button>
+                  <Button type="button" variant="ghost" size="sm" onClick={() => setEditModuleIds([])}>Clear</Button>
+                </div>
+              </div>
+
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                <Input className="pl-9" placeholder="Search courses by code or name" value={editModuleSearch} onChange={(e) => setEditModuleSearch(e.target.value)} />
+              </div>
+
+              <div className="max-h-48 overflow-y-auto border border-input rounded-xl divide-y">
+                {filteredEditModules.map((module) => {
+                  const checked = editModuleIds.includes(module.id)
+                  return (
+                    <div key={module.id} className="flex items-center gap-3 px-3 py-2 hover:bg-muted/40 transition-colors">
+                      <Checkbox id={`edit-module-${module.id}`} checked={checked} onCheckedChange={() => toggleEditModule(module.id)} />
+                      <Label htmlFor={`edit-module-${module.id}`} className="flex-1 cursor-pointer">
+                        <p className="font-medium text-sm">{module.module_code}</p>
+                        <p className="text-xs text-muted-foreground">{module.module_name}</p>
+                      </Label>
+                    </div>
+                  )
+                })}
+                {filteredEditModules.length === 0 && (
+                  <p className="px-3 py-4 text-sm text-muted-foreground">
+                    {modules.length === 0 ? 'No modules exist yet. Create one under Education → Modules.' : 'No modules match your search.'}
+                  </p>
+                )}
+              </div>
+
+              <div className="flex flex-wrap gap-2">
+                {editModuleIds.length === 0 && <p className="text-xs text-muted-foreground">Not enrolled in any course.</p>}
+                {editModuleIds.map((moduleId) => {
+                  const module = modules.find((item) => item.id === moduleId)
+                  if (!module) return null
+                  return <Badge key={moduleId} variant="secondary">{module.module_code}</Badge>
+                })}
+              </div>
+            </div>
           </div>
           <DialogFooter className="mt-2">
             <Button variant="outline" onClick={() => setEditing(null)} disabled={saving}>Cancel</Button>
             <Button onClick={saveEdit} disabled={saving}>{saving ? 'Saving…' : 'Save changes'}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!deleting} onOpenChange={(open) => { if (!open && !deleteBusy) setDeleting(null) }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="w-5 h-5 text-red-600" />
+              Delete student
+            </DialogTitle>
+            <DialogDescription>
+              This permanently removes <span className="font-medium text-foreground">{deleting?.full_name}</span>, their course enrollments, grades and account link. This cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          {deleteError && (
+            <div className="rounded-xl border border-red-500/20 bg-red-500/5 px-3 py-2 text-sm text-red-600">{deleteError}</div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleting(null)} disabled={deleteBusy}>Cancel</Button>
+            <Button
+              className="bg-red-600 hover:bg-red-700 text-white"
+              onClick={removeStudent}
+              disabled={deleteBusy}
+            >
+              {deleteBusy ? 'Deleting…' : 'Delete student'}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

@@ -1,5 +1,41 @@
 # Jackisa Stream — project memory
 
+## Coupons (Nov 24) — see `.openhands/memory/2026-11-24.md`
+- **The hub prices every coupon.** The office must send the *undiscounted* base
+  (`quote.amount_due` for a plan change, plan price otherwise) plus
+  `coupon_code`/`apply_auto_coupon`. Sending a pre-discounted amount double-
+  discounts; sending `0` is rejected before the coupon is seen.
+- **Legacy `coupons.max_uses_per_tenant = 1` is treated as unlimited** unless
+  `duration = 'once'`; duration governs. New rows default to 0 (migration 009).
+- **Redemptions are recorded at fulfilment**, not initiation:
+  `PaymentService::fulfill()` → `CouponService::recordPayment()` (idempotent on
+  `payment_id`), so partial discounts finally count and a `once` coupon cannot
+  be reused.
+- A package in `applies_plan_codes` (e.g. `pro`) now matches `pro_12m`; the
+  billing interval is parsed from the plan code when not supplied.
+- **Full-waiver coupons need no mobile number**; the hub validates `msisdn`
+  only when the post-coupon amount is above zero.
+- Admin console account targeting uses `/api/admin/companies` (search or ids)
+  and plan chips; operators never paste tenant UUIDs.
+
+## Legal pages + production SSH (Nov 5) — see `.openhands/memory/2026-11-05.md`
+- Legal pages (Terms, Privacy, About, Refund) are the `langs` rows `terms_of_use_page`,
+  `privacy_policy_page`, `about_page`, `refund_terms_page` — **the `*_page` keys, NOT
+  the label rows** (`terms_of_use`, `privacy_policy`, `about_us`, `refund_policy`).
+  Templates render `htmlspecialchars_decode($pt->all_lang-><key>)`; the mobile API
+  `site_pages.php` reads the same rows. Values are `htmlspecialchars(ENT_QUOTES)`
+  encoded. Migration: `sql/jackisa_legal_pages.sql` (also mirrors the legacy `terms`
+  table). Live pages: `/terms/terms`, `/terms/privacy-policy`, `/terms/about-us`,
+  `/terms/refund-policy`.
+- **Production** jackisa.com = Hostinger: `u388105230@82.29.199.107:65002`, web root
+  `~/domains/jackisa.com/public_html` (git clone, HEAD must equal origin/main), private
+  config one level up at `~/domains/jackisa.com/config.php` (DB creds). The server tree
+  carries large PRE-EXISTING uncommitted work (admin Security module, sitemaps, old
+  inline-secret `config.php`) that is NOT in origin/main — never revert it; a
+  `git merge --ff-only origin/main` still applies cleanly. Deploy = scp the file, apply
+  SQL via `mysql -h127.0.0.1 -u<user> -p<pass> <db> < file`, commit+push, then on the
+  server `rm -f` the scp'd copy and `git merge --ff-only origin/main`.
+
 ## Jackisa Office — notification engine (Oct 31) — see `.openhands/memory/2026-10-31.md`
 - **The hub `/api/v1/notify` rail is the one place every office module sends through.**
   The app posts *facts* (tenant, event, dedupe_key, recipients, optional `document`),
@@ -410,28 +446,6 @@ See `.openhands/memory/2026-11-01.md`. Headlines:
   `company_roles` has **no** `is_admin` column (admin = role/position name matches
   admin|owner|director|principal|manager, or the company owner).
 
-### Nov 2026 (exam retakes + document masthead) — Nov 7
-- **Retakes are derived, not stored.** Every exam mark is its own `student_grades_final_exam`
-  row (no unique key). Per student+module, sittings ordered by the mark's `created_at`:
-  first = Exam, any later = Retake; the latest retake replaces the exam in the total
-  (50% coursework + 50% retake). Shared helpers `examAttempts` / `examAndRetake` in
-  `lib/education/standings.ts` drive Grades, Exams and the transcript payload (`retake`).
-  The Exams screen never reuses a paper the student already sat (no overwrite).
-- Hub transcript adds a Retake column only when a module was retaken (exam struck through).
-- **PDF masthead now shows the company logo**: hub fetches `company_logo_url` server-side,
-  normalises to PNG, caches in `storage/logos` (1 day; `.miss` marker 1 h) and inlines a
-  data URI — Dompdf keeps `isRemoteEnabled=false`. Monogram is the fallback.
-- Dompdf: `inline-block` + `line-height` centring drops text low in small badges; use a
-  one-cell table with `vertical-align: middle` (see `.cr-seal`).
-- **lic server is now a git checkout** (`~/domains/lic.jackisa.com/app`, tracking
-  `bjackisa/jackisa-license-hub` `origin/main`, server push creds in `~/.git-credentials`).
-  Deploy = push to the hub repo, then on the server `cd ~/domains/lic.jackisa.com/app &&
-  git pull --ff-only` (+ `php bin/migrate.php` if migrations changed). Check `git status` is
-  clean first — anything edited on the server must be committed, not overwritten. Runtime
-  files are gitignored; old top-level duplicates (`Controller/`, `Service/`…) are in
-  `.git/info/exclude`. The security replication code (SecurityService etc.) lived only on
-  the server until commit `134aa8d`.
-
 ### Nov 2026 (maintenance mode) — see `.openhands/memory/2026-11-03.md`
 - **Next.js 16 renamed `middleware.ts` → `proxy.ts`** (export `proxy`, Node.js
   runtime, no `runtime` export allowed). Use it, not `middleware.ts`.
@@ -445,3 +459,82 @@ See `.openhands/memory/2026-11-01.md`. Headlines:
   `POST /v13/deployments?teamId=…&forceNew=1` `{name,deploymentId,target:'production'}`.
 - The template's CDN Lottie is blocked by the app CSP, so the runtime is inlined
   into `public/maintenance.html`.
+
+### Nov 2026 (hospitality template build) — see `.openhands/memory/2026-11-13.md`
+- **`hospitality/` is a real G7Bill theme, cloned file-for-file from `rotary/`**
+  (only `rt.session.helpers.php` → `hs.session.helpers.php` renamed). Same Smarty
+  engine, same routes; every file must keep rotary's exact filename. Design is
+  inspired by `hospitality/Item-WP-48/` (a WordPress hosting template), NOT a
+  rotary reskin.
+- **Theme switch is by query string:** `?theme=hospitality` on any URL (there is a
+  cookie too; `?theme=sergizsi` resets). The live test site is
+  `https://sergizsightsadventure.com/`.
+- **Deploy = lftp sync** of the whole local `hospitality/` dir to
+  `/web/templates/hospitality` on the FTP host. The working sync script lives at
+  `/tmp/up.py` (mirror, skips unchanged, ~2 min for ~817 files); it holds the
+  FTP host/user/pass inline (temp file, never committed). The
+  sandbox public IP must be whitelisted server-side first.
+- **Engine quirks seen:** `jc=gallery` and `?dad=user&jc=login` both 302 (guest);
+  the public login form is reached via `/dashboard/`. Some account pages rely on
+  the engine's themed Form Factory (`FF::*`) so they inherit the look for free.
+  Cart (`libs/cart.php:258 count()`) and KB (`libs/pic.php:71 array_filter()`)
+  throw TypeErrors on this PHP build — core-engine, not template.
+- **Hospitality design tokens:** forest `--hs-royal:#0E7503`, gold
+  `--hs-gold:#FAA41C`, night `#07290A`, serif heads (`--hs-font-head`),
+  glassmorphism cards, `hs-` class prefix everywhere (never `rt-`).
+
+### Nov 2026 (hospitality theme — link routes + engine gotchas)
+See `.openhands/memory/2026-11-13.md` for detail. Key durable facts:
+- **Working public routes:** login `?dad=index&jc=user` (step-1 lookup, POST
+  `a=s1`; step-2 password = `index.user.password.php`); signup
+  `?dad=user&jc=activate`; cart `?dad=index&jc=cart&a=cart`; packages
+  `?dad=index&jc=packages`; contact `?dad=index&jc=contact`; KB article
+  `?dad=index&jc=kb&a=article&id=N`; testimonials `?dad=index&jc=kb&a=testimonials`.
+- **Engine-broken pretty paths (server PHP 8.3):** `/dashboard/` 302s to the
+  help page, `/cart/` fatals in `libs/cart.php` (count() on false), `/about/`
+  + `?dad=index&jc=about` fatal (ionCube file encoded for PHP 7.2). Not
+  theme bugs — the default `sergizsi` theme links `/dashboard/` too.
+- **`{$companyname}` renders EMPTY inside included widgets** — always use
+  `{$config.companyname}`.
+- **FTP:** `sergizsi@`sergizsightsadventure.com, remote theme root
+  `/web/templates/hospitality`; deploy script `/tmp/up.py local_dir remote_dir`
+  is size-diff resume — it **silently skips same-size rewrites**, so verify
+  content remotely and force `STOR` when a file changed but kept its size.
+- Preloader override = `common/widget.preloader.php` (theme copy of
+  `U::Preloader()`); hospitality mark at `assets/images/loader-mark.svg`.
+- **`usermenu.php` breadcrumb fatal (fixed in hospitality, latent in rotary):**
+  `GeneralMenu::BreadCrumbs()` → `count(NULL)` when `$_REQUEST['dad']` matches
+  no top-level menu key (`home/dashboard/account/…`; there is **no `index` or
+  `user` key**), so login/register/account pages fatal on PHP 8. Fix = guard
+  `if (!is_array($CR)) $CR=array();` + null-safe `$items[1]`/`$dad_ex[1]`.
+  File is plain PHP, patchable per-theme.
+- **Local PHP lint:** no PHP in the sandbox — use `php:8.3-cli` via Docker
+  (`sudo dockerd`; `sudo chmod 666 /var/run/docker.sock`).
+- **Sandbox public IP is not stable** (changed 34.45.0.142 → 34.28.69.126);
+  the host firewall blocks FTP :21 until re-whitelisted. Re-check with
+  `curl -sS https://api.ipify.org` before deploying.
+
+### Nov 2026 (legal template) — see `.openhands/memory/2026-11-13.md`
+- **`legal`** is a law-firm skin: a file-for-file clone of `hospitality`'s engine
+  contract (`common/` has the same 501 files, same widget names, same asset
+  filenames `slogo`/`flogo`/`dlogo`/`ulogo`) with a totally different UI/UX.
+  Navy + brass + ivory, editorial serif; Hostiko-style split hero, floating quick
+  rail, centred section titles, elevated feature cards, numbered steps.
+- **CSS cascade:** `legal.css` → `legal-pages.css` → `legal-suite.css` →
+  `legal-polish.css` → `custom.css`. New home structure lives in
+  `legal-polish.css` §13; the old hero/quick rules in `legal-suite.css` were
+  deleted (they'd override polish.css if re-added).
+- **The engine placeholder is orange:** `templates/default/assets/images/kb.png`
+  (847x150, ~49% `#F74D10`) is shown whenever a KB article has no thumbnail.
+  Any template must treat a `thumbnail` containing `kb.png` as empty or a big
+  orange block appears on the home page.
+- Test skin on **sapavaafrica.com** only (`?theme=legal`); deploy via
+  `/tmp/up_sapava.py` (whole folder, ~75s). `?jc=cart` fatals in core
+  `cart.php:258` on every theme.
+- **Member area + motion gotchas** (found session 2, see 2026-11-13.md): engine
+  `common/usermenu.php` puts a bare `.lg-empty` on leaf menu `<li>`s, so any
+  empty-state CSS must be `.lg-empty:not(li)`; the member menu (`.lg-menu` /
+  `.sub-menu` / collapsed-rail fly-out) and its `@media (min-width:992px)`
+  scoping live in `legal.css`; reveal/back-to-top hooks are `lg-in` and body
+  `lg-scrolled-far`; a parallax layer sits on the hero itself
+  (`widget.slides.php`, scale 1.1) because the CTA-band one is data-gated.
