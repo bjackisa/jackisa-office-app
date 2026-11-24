@@ -44,19 +44,7 @@ export async function mirrorLicenseFromHub(companyId: string, data: any): Promis
     last_validated_at: new Date().toISOString(),
   }
 
-  // A paid licence supersedes any local trial record. Without this the billing
-  // page keeps showing "free trial active" beside the active plan.
-  if (['active', 'grace'].includes(String(row.status)) && !String(row.plan_code || '').startsWith('trial')) {
-    try {
-      await db
-        .from('trial_registrations')
-        .update({ status: 'converted', converted_at: new Date().toISOString() })
-        .eq('company_id', companyId)
-        .in('status', ['active', 'reminded'])
-    } catch (e) {
-      console.error('[lic] trial conversion mirror failed', e)
-    }
-  }
+  const paid = ['active', 'grace'].includes(String(row.status)) && !String(row.plan_code || '').startsWith('trial')
 
   try {
     // Update the current row in place when it is the same licence, so a repeated
@@ -70,12 +58,28 @@ export async function mirrorLicenseFromHub(companyId: string, data: any): Promis
 
     if (existing && (existing as any).license_key && (existing as any).license_key === row.license_key) {
       await db.from('platform_licenses').update(row).eq('id', (existing as any).id)
-      return
+    } else {
+      await db.from('platform_licenses').update({ is_current: false }).eq('company_id', companyId).eq('is_current', true)
+      const { error } = await db.from('platform_licenses').insert(row)
+      if (error) {
+        console.error('[lic] license mirror insert failed', error)
+        return
+      }
     }
 
-    await db.from('platform_licenses').update({ is_current: false }).eq('company_id', companyId).eq('is_current', true)
-    const { error } = await db.from('platform_licenses').insert(row)
-    if (error) console.error('[lic] license mirror insert failed', error)
+    // A paid licence supersedes any local trial record. Without this the billing
+    // page keeps showing "free trial active" beside the active plan.
+    if (paid) {
+      try {
+        await db
+          .from('trial_registrations')
+          .update({ status: 'converted', converted_at: new Date().toISOString() })
+          .eq('company_id', companyId)
+          .in('status', ['active', 'reminded'])
+      } catch (e) {
+        console.error('[lic] trial conversion mirror failed', e)
+      }
+    }
   } catch (e) {
     console.error('[lic] license mirror failed', e)
   }
